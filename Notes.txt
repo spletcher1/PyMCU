@@ -1,0 +1,39 @@
+**** INSTALLING PYPY on the PI ***********
+
+
+Okay, thanks a lot to Peter Wood for linking me to the right version of pypy. Here's what I did to get it up and running on my pi (noob friendly guide :p):
+
+Step 1: Download .tar.bz2 file using:
+
+wget https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux-armhf-raspbian.tar.bz2
+Step 2: Extract the .tar.bz2 file:
+
+tar xf pypy3-v6.0.0-linux-armhf-raspbian.tar.bz2
+Step 3: cd into the newly extracted directory:
+
+cd pypy3-v6.0.0-linux-armhf-raspbian.tar.bz2
+Step 4: cd into the bin directory and check if the pypy3 executable works:
+
+cd bin
+./pypy3  # This should start the pypy interpreter for you
+If the last command does not work, make sure pypy3 has execute permissions! (it should be green when you view it with ls). You can give it execute permissions using:
+
+sudo chmod +x pypy3 # But you have to be in the /bin directory!
+You may also get a libffi.so.5: No such file or directory error, to fix that I used:
+
+sudo ln -s /usr/lib/arm-linux-gnueabihf/libffi.so.6 /usr/lib/arm-linux-gnueabihf/libffi.so.5
+Now we want to set this up so that simply typing pypy3 from anywhere will invoke this interpreter. Here's how we can do that.
+
+Step 5: Move the folder to /opt/
+
+sudo mv /home/pi/pypy3-v6.0.0-linux-armhf-raspbian/ /opt/
+Step 6: Add symbolic link to /usr/bin/ by running:
+
+sudo ln -s /opt/pypy3-v6.0.0-linux-armhf-raspbian/bin/pypy3 /usr/bin/pypy3
+Okay, now cd out of there and run pypy3 from any location, it should invoke the pypy interpreter! Hope this helps :)
+
+******************************************************************
+
+Then to install pypy-pip
+1) sudo apt-get install libssl-dev
+2) pypy3 get-pip.py 
