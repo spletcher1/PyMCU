@@ -2,25 +2,36 @@ import datetime
 import UART
 import StatusPacket
 import Enums
-
-
-
+import time
+import DataBuffer
 
 class DFM:
+    #region Initialization, etc.
     def __init__(self):
         self.ID=1
         self.calculatedCheckSum=0
         self.expectedCheckSum=0
         self.theUART = UART.MyUART()
-        self.currentStatutPacket = StatusPacket.StatusPacket()
-    def ProcessPacket(self,bytesData):
+        self.currentStatutPacket = StatusPacket.StatusPacket(0)
+        self.outputFile = "DFM" + str(self.ID) + "_0.csv"
+        self.outputFileIncrementor=0
+        self.status = Enums.CURRENTSTATUS.UNDEFINED
+        self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
+        self.beforeErrorStatus = Enums.CURRENTSTATUS.UNDEFINED
+        self.callLimit=3
+        self.theData = DataBuffer.DataBuffer()
+        self.isWriting = True
+        self.sampleIndex=1
+    #endregion
+    #region Packet processing, etc.
+    def ProcessPacket(self,bytesData):           
         if(len(bytesData)==0):
             return Enums.PROCESSEDPACKETRESULT.NOANSWER
         if(len(bytesData)!=65):
             return Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
         if(bytesData[3]!=self.ID):
             return Enums.PROCESSEDPACKETRESULT.WRONGID
-        self.currentStatutPacket = StatusPacket.StatusPacket()
+        self.currentStatutPacket = StatusPacket.StatusPacket(self.sampleIndex)
         return self.currentStatutPacket.ProcessStatusPacket(bytesData)
     def AddChecksumTwoBytes(self, bytes):
         checksum=0
@@ -31,6 +42,8 @@ class DFM:
         checksum = checksum & 0x0000FFFF
         bytes[tmp-2] = (checksum>>8) & 0xFF
         bytes[tmp-1] = (checksum) & 0xFF
+    #endregion
+    #region DFM Commands
     def RequestStatus(self):
         ba = bytearray(9)
         ba[0]=0xFF
@@ -98,10 +111,50 @@ class DFM:
         ba[6]=0x01
         self.AddChecksumTwoBytes(ba)
         self.theUART.WriteByteArray(ba)                
+    def RaiseError(self, s):
+        print(s)
+    def SetStatus(self, newStatus):
+        if(newStatus != self.status):
+            if(newStatus == Enums.CURRENTSTATUS.ERROR):
+                self.beforeErrorStatus = self.status
+                self.pastStatus = Enums.PASTSTATUS.PASTERROR
+            self.status = newStatus
     def ReadValues(self):
-        self.RequestStatus()
-        tmp=self.theUART.Read(65)       
-        return self.ProcessPacket(tmp)
+        theResult = Enums.PROCESSEDPACKETRESULT.OKAY                        
+        for i in range(0,self.callLimit) :
+            self.RequestStatus()
+            tmp=self.theUART.Read(65)              
+            theResult = self.ProcessPacket(tmp)
+            if(theResult==Enums.PROCESSEDPACKETRESULT.OKAY):
+                break
+            time.sleep(0.005)       
+        isSuccess=False
+        if(theResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):
+            self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+            s="({:d}) Checksum error.".format(self.ID)
+            self.RaiseError(s)
+        elif(theResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
+            self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+            s="({:d}) No answer.".format(self.ID)
+            self.RaiseError(s)
+        elif(theResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
+            self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+            s="({:d}) Wrong number of bytes.".format(self.ID)
+            self.RaiseError(s)
+        elif(theResult == Enums.PROCESSEDPACKETRESULT.OKAY):
+            isSuccess=True
+        if isSuccess:
+            if(self.theData.NewData(self.currentStatutPacket,self.isWriting)==False):
+                s="({:d}) Data queue error.".format(self.ID)
+                self.RaiseError(s)
+                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                isSuccess = False
+            else:
+                self.sampleIndex = self.sampleIndex+1
+                if(self.status == Enums.CURRENTSTATUS.ERROR):
+                    self.SetStatus(self.beforeErrorStatus)
+                
+        return isSuccess
     def PollSlave(self,id):
         ba = bytearray(9)
         ba[0]=0xFF
@@ -123,9 +176,12 @@ class DFM:
             return True
         else :
             return False
-
+    #endregion
+    #region Testing Code
     def PrintCurrentPacket(self):
-        self.currentStatutPacket.ConsolePrintPacket()
+        print(self.currentStatutPacket.GetDataBufferPrintPacket())
+    def PrintDataBuffer(self):
+        print(self.theData.PullAllRecordsAsString())
     def TestRead(self):
         #nextTime=[0,185000,385000,585000,785000]
         nextTime=[0,385000,785000]
@@ -154,16 +210,17 @@ class DFM:
         while command.lower() != "exit" and command.lower() != "quit":
             commandLine=input('> ')
             command=""
-            argument = ""
             theSplit = commandLine.split()
             if len(theSplit)==1:
                 command = theSplit[0].strip()
                 if command.lower() == "read":
                     tmp=self.ReadValues()                     
-                    if(tmp == Enums.PROCESSEDPACKETRESULT.OKAY):            
+                    if(tmp):            
                         self.PrintCurrentPacket()  
                     else :
-                        print("bad")           
+                        print("bad")       
+                elif command.lower()== 'pull':
+                    self.PrintDataBuffer()    
                 elif command.lower()== 'dark':
                     self.GoDark()
                 elif command.lower()== 'light' or command.lower()== 'remote':
@@ -183,12 +240,14 @@ class DFM:
                 elif command.lower()== 'poll1':
                     print(self.PollSlave(1))                 
                 elif command.lower()== 'poll2':
-                    print(self.PollSlave(2))                 
+                    print(self.PollSlave(2))  
+                elif command.lower()== 'quit' or command.lower=='exit':    
+                    print("Done")           
                 else:
                     print("Command not recognized.")                                        
             else:
                 print("Command not recognized.")    
-            
+    #endregion
 
     
 
