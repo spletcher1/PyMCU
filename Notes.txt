@@ -1,3 +1,7 @@
+Remember to consider disabling bluetooth and enabling the better uart by adding the following to /boot/config.txt
+
+dtoverlay=pi3-miniuart-bt
+
 **** INSTALLING PYPY on the PI ***********
 
 

@@ -20,7 +20,7 @@ def BoardSetup():
 def main():
     BoardSetup()   
     theDFM = DFM.DFM()
-    theDFM.Read()
+    theDFM.TestRead2()
 
 
 if __name__=="__main__" :

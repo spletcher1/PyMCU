@@ -2,31 +2,30 @@ import time
 import _thread 
 import socketserver 
 import serial
+import serial.rs485 
 import serial.tools.list_ports
 import RPi.GPIO as GPIO
 
-
-
 class MyUART:    
     def __init__(self):
-        self.thePort=serial.Serial('/dev/serial0',115200,timeout=1)           
-        self.sendPIN = 19
-        GPIO.setup(self.sendPIN,GPIO.OUT)
+        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=1)           
+        self.sendPIN = 17
+        GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
     def Write(self,s):
-        GPIO.output(self.sendPIN,GPIO.HIGH)
-        self.thePort.write(s.encode())
+        GPIO.output(self.sendPIN,GPIO.HIGH)       
+        self.thePort.write(s.encode())        
         time.sleep(0.005)
         GPIO.output(self.sendPIN,GPIO.LOW)
-    def WriteByteArray(self,ba):
+    def WriteByteArray(self,ba):       
         GPIO.output(self.sendPIN,GPIO.HIGH)
         self.thePort.write(ba)
-        time.sleep(0.005)
+        time.sleep(0.001)
         GPIO.output(self.sendPIN,GPIO.LOW)
     def SetShortTimeout(self):
         self.thePort.timeout=0.1
     def ResetTimeout(self):
-        self.thePort.timeout=3
+        self.thePort.timeout=1
     def Read(self,numBytes):
         result=self.thePort.read(numBytes)
         return result
