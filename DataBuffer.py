@@ -6,14 +6,15 @@ class DataBuffer:
         self.maxSize=500
         self.theData = deque(maxlen=self.maxSize)
         self.lastDataPoint = StatusPacket.StatusPacket(0)
+    def GetLastDataPoint(self):
+        return self.lastDataPoint
     def IsFull(self):
         return (len(self.theData)>=self.maxSize)
     def ActualSize(self):
         return len(self.theData)
     def NewData(self,newStatusPacket,addToQueue=True):
         if(self.IsFull()):
-            return False
-        print("Added")
+            return False       
         self.lastDataPoint = newStatusPacket
         if(addToQueue):
             self.theData.append(newStatusPacket)

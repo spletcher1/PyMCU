@@ -4,14 +4,16 @@ import StatusPacket
 import Enums
 import time
 import DataBuffer
+import array
+import threading
 
 class DFM:
     #region Initialization, etc.
-    def __init__(self):
-        self.ID=1
+    def __init__(self,id,uart):
+        self.ID=id
         self.calculatedCheckSum=0
         self.expectedCheckSum=0
-        self.theUART = UART.MyUART()
+        self.theUART = uart
         self.currentStatutPacket = StatusPacket.StatusPacket(0)
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
@@ -22,7 +24,41 @@ class DFM:
         self.theData = DataBuffer.DataBuffer()
         self.isWriting = True
         self.sampleIndex=1
+        self.signalBaselines=array.array("i",(0 for i in range(0,12)))
+        self.signalThresholds=array.array("i",(-1 for i in range(0,12)))
+        self.baselineSamples=0
+        self.isCalculatingBaseline=False
     #endregion
+    #region Property-like getters and setters
+    def GetLastAnalogData(self,adjustForBaseline):
+        tmp = self.theData.GetLastDataPoint()
+        if(tmp.sample==0):
+            return None
+        if(adjustForBaseline == False):
+            return tmp.analogValues
+        else:
+            resultArray=array.array("i",(0 for i in range(0,12)))
+            for i in range(0,12):
+                resultArray[i]=tmp.analogValues[i]-self.signalBaselines[i]
+                if(resultArray[i]<0):
+                    resultArray[i]=0
+            return resultArray        
+    def ResetBaseline(self):
+        for i in range(0,len(self.signalBaselines)):
+            self.signalBaselines[i]=0
+        self.baselineSamples=0
+    def UpdateBaseline(self):
+        last = self.GetLastAnalogData(False)
+        if last is None: 
+            return
+        for i in range(0,12):
+            tmp = self.signalBaselines[i] * self.baselineSamples
+            self.signalBaselines[i] = (tmp + last[i])/(self.baselineSamples+1)
+        self.baselineSamples = self.baselineSamples+1
+    def BaselineDFM(self):
+        self.ResetBaseline()
+        self.isCalculatingBaseline = True
+
     #region Packet processing, etc.
     def ProcessPacket(self,bytesData):           
         if(len(bytesData)==0):
@@ -155,27 +191,6 @@ class DFM:
                     self.SetStatus(self.beforeErrorStatus)
                 
         return isSuccess
-    def PollSlave(self,id):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=id
-        ba[4]=0x06
-        ba[5]=0x01
-        ba[6]=0x01
-        ba[7]=0x01
-        ba[8]=0x01        
-        self.theUART.WriteByteArray(ba)  
-        self.theUART.SetShortTimeout()    
-        tmp=self.theUART.Read(1)
-        self.theUART.ResetTimeout()
-        if(len(tmp)==0):
-            return False
-        elif(tmp[0]==id) :
-            return True
-        else :
-            return False
     #endregion
     #region Testing Code
     def PrintCurrentPacket(self):
@@ -219,11 +234,13 @@ class DFM:
                         self.PrintCurrentPacket()  
                     else :
                         print("bad")       
+                elif command.lower()== 'last':
+                    print(self.theData.GetLastDataPoint().GetDataBufferPrintPacket())
                 elif command.lower()== 'pull':
                     self.PrintDataBuffer()    
                 elif command.lower()== 'dark':
                     self.GoDark()
-                elif command.lower()== 'light' or command.lower()== 'remote':
+                elif command.lower()== 'light':
                     self.ExitDark()
                 elif command.lower()== 'lowfreq':
                     self.SendFrequency(0x02)                                    
@@ -236,11 +253,7 @@ class DFM:
                 elif command.lower()== 'longpulse':
                     self.SendPulseWidth(50)
                 elif command.lower()== 'shortpulse':
-                    self.SendPulseWidth(2)
-                elif command.lower()== 'poll1':
-                    print(self.PollSlave(1))                 
-                elif command.lower()== 'poll2':
-                    print(self.PollSlave(2))  
+                    self.SendPulseWidth(2)                
                 elif command.lower()== 'quit' or command.lower=='exit':    
                     print("Done")           
                 else:

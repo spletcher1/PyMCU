@@ -1,7 +1,7 @@
 import time
 import _thread   
 import RPi.GPIO as GPIO
-import DFM 
+import DFMGroup 
 import Enums
 import datetime
 
@@ -19,8 +19,9 @@ def BoardSetup():
 
 def main():
     BoardSetup()   
-    theDFM = DFM.DFM()
-    theDFM.TestRead2()
+    theDFMs = DFMGroup.DFMGroup()
+    theDFMs.FindDFMs()
+    theDFMs.StartReading()
 
 
 if __name__=="__main__" :
