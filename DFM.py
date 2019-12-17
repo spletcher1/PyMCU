@@ -1,5 +1,5 @@
 import datetime
-import UART
+import COMM
 import StatusPacket
 import Enums
 import time
@@ -9,11 +9,11 @@ import threading
 
 class DFM:
     #region Initialization, etc.
-    def __init__(self,id,uart):
+    def __init__(self,id,commProtocol):
         self.ID=id
         self.calculatedCheckSum=0
         self.expectedCheckSum=0
-        self.theUART = uart
+        self.theCOMM = commProtocol
         self.currentStatutPacket = StatusPacket.StatusPacket(0)
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
@@ -58,7 +58,6 @@ class DFM:
     def BaselineDFM(self):
         self.ResetBaseline()
         self.isCalculatingBaseline = True
-
     #region Packet processing, etc.
     def ProcessPacket(self,bytesData):           
         if(len(bytesData)==0):
@@ -69,84 +68,9 @@ class DFM:
             return Enums.PROCESSEDPACKETRESULT.WRONGID
         self.currentStatutPacket = StatusPacket.StatusPacket(self.sampleIndex)
         return self.currentStatutPacket.ProcessStatusPacket(bytesData)
-    def AddChecksumTwoBytes(self, bytes):
-        checksum=0
-        tmp = len(bytes)
-        for i in range(0,tmp-2):
-            checksum=checksum+bytes[i]
-        checksum = (checksum ^ 0xFFFFFFFF) + 0x01
-        checksum = checksum & 0x0000FFFF
-        bytes[tmp-2] = (checksum>>8) & 0xFF
-        bytes[tmp-1] = (checksum) & 0xFF
+  
     #endregion
-    #region DFM Commands
-    def RequestStatus(self):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=self.ID
-        ba[4]=0x01
-        ba[5]=0x01
-        ba[6]=0x01
-        ba[7]=0x01
-        ba[8]=0x01
-        self.theUART.WriteByteArray(ba)
-    def SendOptoState(self, os1, os2):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=self.ID
-        ba[4]=0x03
-        ba[5]=os1
-        ba[6]=os2
-        self.AddChecksumTwoBytes(ba)       
-        self.theUART.WriteByteArray(ba)
-    def SendPulseWidth(self, pw):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=self.ID
-        ba[4]=0x05
-        ba[5]=(pw>>8) & 0xFF
-        ba[6]= (pw & 0xFF)
-        self.AddChecksumTwoBytes(ba)
-        self.theUART.WriteByteArray(ba)
-    def SendFrequency(self,freq):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=self.ID
-        ba[4]=0x04
-        ba[5]=(freq>>8) & 0xFF
-        ba[6]= (freq & 0xFF)
-        self.AddChecksumTwoBytes(ba)
-        self.theUART.WriteByteArray(ba)
-    def GoDark(self):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=self.ID
-        ba[4]=0x02
-        ba[5]=0x01
-        ba[6]=0x01
-        self.AddChecksumTwoBytes(ba)
-        self.theUART.WriteByteArray(ba)      
-    def ExitDark(self):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=self.ID
-        ba[4]=0x02
-        ba[5]=0x00
-        ba[6]=0x01
-        self.AddChecksumTwoBytes(ba)
-        self.theUART.WriteByteArray(ba)                
+    #region DFM Commands                 
     def RaiseError(self, s):
         print(s)
     def SetStatus(self, newStatus):
@@ -157,9 +81,8 @@ class DFM:
             self.status = newStatus
     def ReadValues(self):
         theResult = Enums.PROCESSEDPACKETRESULT.OKAY                        
-        for i in range(0,self.callLimit) :
-            self.RequestStatus()
-            tmp=self.theUART.Read(65)              
+        for i in range(0,self.callLimit) :            
+            tmp=self.theCOMM.GetStatusPacket(self.ID)              
             theResult = self.ProcessPacket(tmp)
             if(theResult==Enums.PROCESSEDPACKETRESULT.OKAY):
                 break
@@ -220,6 +143,7 @@ class DFM:
                 i=i+1
                 if i==len(nextTime):
                     i=0
+    
     def TestRead2(self):
         command="none"
         while command.lower() != "exit" and command.lower() != "quit":
@@ -239,21 +163,21 @@ class DFM:
                 elif command.lower()== 'pull':
                     self.PrintDataBuffer()    
                 elif command.lower()== 'dark':
-                    self.GoDark()
+                    self.theCOMM.GoDark()
                 elif command.lower()== 'light':
-                    self.ExitDark()
+                    self.theCOMM.ExitDark()
                 elif command.lower()== 'lowfreq':
-                    self.SendFrequency(0x02)                                    
+                    self.theCOMM.SendFrequency(0x02)                                    
                 elif command.lower()== 'highfreq':
-                    self.SendFrequency(40)    
+                    self.theCOMM.SendFrequency(40)    
                 elif command.lower()== 'lightson':
-                    self.SendOptoState(0x3F,0x3F)
+                    self.theCOMM.SendOptoState(0x3F,0x3F)
                 elif command.lower()== 'lightsoff':
-                    self.SendOptoState(0x00,0x00)
+                    self.theCOMM.SendOptoState(0x00,0x00)
                 elif command.lower()== 'longpulse':
-                    self.SendPulseWidth(50)
+                    self.theCOMM.SendPulseWidth(50)
                 elif command.lower()== 'shortpulse':
-                    self.SendPulseWidth(2)                
+                    self.theCOMM.SendPulseWidth(2)                
                 elif command.lower()== 'quit' or command.lower=='exit':    
                     print("Done")           
                 else:

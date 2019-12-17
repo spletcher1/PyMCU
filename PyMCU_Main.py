@@ -1,9 +1,14 @@
 import time
 import _thread   
-import RPi.GPIO as GPIO
 import DFMGroup 
 import Enums
 import datetime
+import platform
+import COMM
+
+if(platform.system()!="Windows"):
+    import RPi.GPIO as GPIO
+
 
 def BoardSetup():
     GPIO.setmode(GPIO.BCM)
@@ -18,8 +23,9 @@ def BoardSetup():
     
 
 def main():
-    BoardSetup()   
-    theDFMs = DFMGroup.DFMGroup()
+    if(platform.system()!="Windows"):
+        BoardSetup()   
+    theDFMs = DFMGroup.DFMGroup(COMM.TESTCOMM())
     theDFMs.FindDFMs()
     theDFMs.StartReading()
 

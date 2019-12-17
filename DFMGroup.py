@@ -1,12 +1,12 @@
 import DFM
-import UART
+import COMM
 import time
 import Enums
 import datetime
 import threading
 
 class DFMGroup:
-    def __init__(self):
+    def __init__(self,commProtocol):
         self.theDFMs = []
         self.stopReadingSignal = False
         self.stopRecordingSignal = False
@@ -14,7 +14,7 @@ class DFMGroup:
         self.isWriting = False
         self.isReading = False
         self.currentOutputDirector = ""
-        self.theUART = UART.MyUART()
+        self.theCOMM = commProtocol
     def ClearDFMList(self):
         self.theDFMs.clear()
     def StopReading(self):
@@ -27,32 +27,12 @@ class DFMGroup:
         time.sleep(0.01)
         self.isReading = False
         self.ClearDFMList()
-    def PollSlave(self,id):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=id
-        ba[4]=0x06
-        ba[5]=0x01
-        ba[6]=0x01
-        ba[7]=0x01
-        ba[8]=0x01        
-        self.theUART.WriteByteArray(ba)  
-        self.theUART.SetShortTimeout()    
-        tmp=self.theUART.Read(1)
-        self.theUART.ResetTimeout()
-        if(len(tmp)==0):
-            return False
-        elif(tmp[0]==id) :
-            return True
-        else :
-            return False
+  
     def FindDFMs(self):
         self.StopReading()
-        for i in range(1,17):
-            if(self.PollSlave(i)):
-                self.theDFMs.append(DFM.DFM(i,self.theUART))
+        for i in range(1,3):
+            if(self.theCOMM.PollSlave(i)):
+                self.theDFMs.append(DFM.DFM(i,self.theCOMM))
             time.sleep(0.01)
     def StartReading(self):
         if(len(self.theDFMs)==0): 
@@ -72,16 +52,16 @@ class DFMGroup:
             if(indexer==0):
                 if(tt.microsecond<nextTime[indexer+1]):
                     for d in self.theDFMs:
-                        d.ReadValues()   
-                        counter=counter+1
-                        print("read")                                   
+                        d.ReadValues()                           
+                        print("read")    
+                    counter=counter+1
                     indexer=indexer+1                
             elif(tt.microsecond>nextTime[indexer]):  
                 for d in self.theDFMs:
-                        d.ReadValues()   
-                        counter=counter+1                      
-                        print("read")
-                indexer=indexer+1
+                    d.ReadValues()                       
+                    print("read")
+                counter=counter+1
+                indexer=indexer+1                
                 if indexer==len(nextTime):
                     indexer=0
             time.sleep(0.001)
