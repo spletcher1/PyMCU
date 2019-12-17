@@ -30,6 +30,7 @@ class DFMGroup:
   
     def FindDFMs(self):
         self.StopReading()
+        #for i in range(1,17):
         for i in range(1,3):
             if(self.theCOMM.PollSlave(i)):
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
@@ -44,7 +45,7 @@ class DFMGroup:
 
     def ReadWorker(self):
         #nextTime=[0,185000,385000,585000,785000]
-        nextTime=[0,385000,785000]
+        nextTime=[0,400000,800000]
         counter=0
         indexer=0
         while True:   
@@ -73,6 +74,8 @@ class DFMGroup:
                 return
             if (counter >=10):
                 self.stopReadingSignal=True
+            
+            time.sleep( 0.0001 ) # Yeild to other threads for a bit
 
 
 
