@@ -6,14 +6,14 @@ from random import randint
 import array
 import StatusPacket
 import platform
+import serial
+import serial.tools.list_ports
 
-if(platform.node()=="raspberrypi"):
-    import serial
-    import serial.tools.list_ports
+if(platform.node()=="raspberrypi"):        
     import RPi.GPIO as GPIO
 
 class TESTCOMM():
-    def _DoNothing():
+    def _DoNothing(self):
         a=1
     def PollSlave(self,ID):
         return True
@@ -206,7 +206,7 @@ class UARTCOMM():
         self._WriteByteArray(ba)  
     def GetStatusPacket(self,ID):
         self.RequestStatus(ID)
-        return self.Read(65) 
+        return self._Read(65) 
     def PollSlave(self,ID):
         ba = bytearray(9)
         ba[0]=0xFF

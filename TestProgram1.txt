@@ -1,0 +1,33 @@
+[General]
+ExpDurationMin: 900
+OptoFrequency: 40
+OptoPW: 8
+OptoDelay: 500
+OptoDecay: 500
+MaxTimeOn: 2500
+StartTime: 1:00:13
+Baseline: Yes
+
+[DFM]
+ID: 1
+OptoLid: Six
+ProgramType: Linear
+Interval: 1,70,70,70,70,70,70,70,70,70,70,70,70,120
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,120
+Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,120
+
+[DFM]
+ID: 7
+OptoLid: Six
+ProgramType: Linear
+Interval: 1,70,70,70,70,70,70,70,70,70,70,70,70,120
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,120
+Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,120
+
+[DFM]
+ID: 9
+OptoLid: Six
+ProgramType: Linear
+Interval: 1,70,70,70,70,70,70,70,70,70,70,70,70,120
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,120
+Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,120
