@@ -4,6 +4,10 @@ import time
 import Enums
 import datetime
 import threading
+import MessagesList
+import Message
+import datetime
+import platform
 
 class DFMGroup:
     def __init__(self,commProtocol):
@@ -13,10 +17,44 @@ class DFMGroup:
         self.longestQueue = 0
         self.isWriting = False
         self.isReading = False
-        self.currentOutputDirector = ""
+        self.currentOutputDirectory = ""
         self.theCOMM = commProtocol
+        self.theMessageList = MessagesList.MessageList()
+
+    def NewMessage(self,ID, errorTime, sample,  message,mt):
+        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
+        self.theMessageList.AddMessage(tmp)        
     def ClearDFMList(self):
         self.theDFMs.clear()
+
+    def StartRecording(self):
+        if len(self.theDFMs)==0:
+            return False
+        for i in self.theDFMs:
+            i.sampleIndex=1
+            i.ResetOutputFileStuff()
+            i.SetStatus(Enums.CURRENTSTATUS.RECORDING)
+        self.stopRecordingSignal=False
+        self.theMessageList.ClearMessages()
+        self.NewMessage(0, datetime.datetime.today(), 0, "Recording started.", Enums.MESSAGETYPE.NOTICE)
+        writeThread = threading.Thread(target=self.WriteWorker)
+        writeThread.start()
+        return True
+
+    def StopRecording(self):
+        if len(self.theDFMs)==0:
+            return
+        self.stopRecordingSignal=True
+    
+    def WriteProgram(self):
+        ## Stopped here
+
+    def WriteWorker(self):
+        currentDFMId=0
+        dt=datetime.datetime.today()
+        self.currentOutputDirectory=platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
+        self.WriteProgram()
+
     def StopReading(self):
         if len(self.theDFMs)==0:
             return

@@ -115,6 +115,11 @@ class DFM:
                 
         return isSuccess
     #endregion
+
+    def ResetOutputFileStuff(self):
+        self.outputFileIncrementor=0
+        self.outputFile="DFM" + str(self.ID) + "_0.csv"
+
     #region Testing Code
     def PrintCurrentPacket(self):
         print(self.currentStatutPacket.GetDataBufferPrintPacket())
