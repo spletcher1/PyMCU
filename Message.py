@@ -14,12 +14,10 @@ class Message():
         ss+=" -> "+str(self.DFMId)+" <- "+self.message
         return ss
 
-    def GetMessageStringForFile(self):        
-      
+    def GetMessageStringForFile(self):              
         ms=str(self.DFMId)+"," +self.timeOfError.strftime("%m/%d/%Y,%H:%M:%S")+","
         millisec = self.timeOfError.microsecond /1000
         ms+=str(millisec)+","+str(self.sample)+","+self.message+","
-
         if(self.messageType==Enums.MESSAGETYPE.ERROR):
             ms+="Error\n"
         elif(self.messageType==Enums.MESSAGETYPE.NOTICE):
@@ -30,5 +28,3 @@ class Message():
             ms+="Unknown\n"
         return ms
  
-    def GetHeaderString(self):
-        return "DFM,Date,Time,Millisecond,Sample,Message,MsgType\n"

@@ -326,6 +326,4 @@ def ModuleTest():
 if __name__=="__main__" :
     ModuleTest()        
 
-## Made it up to the last property, ProgramDescription
-
 

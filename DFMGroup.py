@@ -8,6 +8,8 @@ import MessagesList
 import Message
 import datetime
 import platform
+import os
+import Program
 
 class DFMGroup:
     def __init__(self,commProtocol):
@@ -20,6 +22,7 @@ class DFMGroup:
         self.currentOutputDirectory = ""
         self.theCOMM = commProtocol
         self.theMessageList = MessagesList.MessageList()
+        self.currentProgram=Program.MCUProgram()        
 
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
@@ -30,6 +33,8 @@ class DFMGroup:
     def StartRecording(self):
         if len(self.theDFMs)==0:
             return False
+        if self.isWriting==False:
+            self.StartReading()
         for i in self.theDFMs:
             i.sampleIndex=1
             i.ResetOutputFileStuff()
@@ -47,13 +52,85 @@ class DFMGroup:
         self.stopRecordingSignal=True
     
     def WriteProgram(self):
-        ## Stopped here
+        path=self.currentOutputDirectory+"/Program.txt"
+        f=open(path,"w+")
+        f.write(str(self.currentProgram))
+        f.close()
 
-    def WriteWorker(self):
-        currentDFMId=0
+    def WriteMessages(self):
+        path=self.currentOutputDirectory+"/Messages.txt"
+        f=open(path,"w+")
+        f.write(self.theMessageList.GetMessageStringForFile())
+        f.close()
+
+    def LoadProgram(self,programPath):
+        f=open(programPath,encoding="utf-8-sig")
+        lines = f.readlines()
+        f.close()
+        self.currentProgram.LoadProgram(lines)
+        for d in self.theDFMs:           
+            # TODO: Implement d.optoLid
+            d.SetTargetOptoFrequency(self.currentProgram.GetOptoFrequency(d.ID))
+            d.SetTargetOptoPW(self.currentProgram.GetOptoPulsewidth(d.ID))
+            d.optoDecay=self.currentProgram.GetOptoDecay(d.ID)
+            d.optoDelay=self.currentProgram.GetOptoDelay(d.ID)
+            d.maxTimeOn=self.currentProgram.GetMexTimeOn(d.ID)
+
+
+    def WriteWorker(self):        
         dt=datetime.datetime.today()
         self.currentOutputDirectory=platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
+        try:
+            os.mkdir(self.currentOutputDirectory)
+        except OSError:
+            self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed.", Enums.MESSAGETYPE.ERROR)                    
         self.WriteProgram()
+
+        header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error\n"
+        theFiles = []
+        writeStartTimes=[]
+        for d in self.theDFMs:
+            writeStartTimes.append(datetime.datetime.today())
+            tmp=self.currentOutputDirectory+"/"+d.outputFile
+            tmp2=open(tmp,"w+")            
+            tmp2.write(header)
+            theFiles.append(tmp2)
+
+        self.isWriting=True
+        currentDFMIndex=0
+        while self.stopRecordingSignal==False:
+            currentDFM = self.theDFMs[currentDFMIndex]
+            currentDuration=datetime.datetime.today()-writeStartTimes[currentDFMIndex]
+            if(currentDuration.total_seconds()>=86400):
+                theFiles[currentDFMIndex].close()
+                currentDFM.IncrementOutputFile()                
+                tmp=self.currentOutputDirectory+"/"+currentDFM.outputFile
+                tmp2=open(tmp,"w+")            
+                tmp2.write(header)
+                theFiles[currentDFMIndex]=tmp2
+                writeStartTimes[currentDFMIndex]=datetime.datetime.today()
+            elif(currentDFM.theData.ActualSize()>(200 +(currentDFMIndex*2))):
+                ss=currentDFM.theData.PullAllRecordsAsString()
+                if(ss!=""):
+                    theFiles[currentDFMIndex].write(ss)
+                self.WriteMessages()
+            self.longestQueue=0
+            for d in self.theDFMs:
+                if(d.theData.ActualSize()>self.longestQueue):
+                    self.longestQueue = d.theData.ActualSize()
+            
+            currentDFMIndex+=1
+            if(currentDFMIndex==len(self.theDFMs)):
+                currentDFMIndex=0
+        
+        # Make sure all data are actually written
+        for i in range(0,len(self.theDFMs)):
+            ss=self.theDFMs[i].theData.PullAllRecordsAsString()
+            if(ss!=""):
+                theFiles[i].write(ss)
+                
+        self.WriteMessages()
+        self.isWriting=False        
 
     def StopReading(self):
         if len(self.theDFMs)==0:
@@ -66,10 +143,9 @@ class DFMGroup:
         self.isReading = False
         self.ClearDFMList()
   
-    def FindDFMs(self):
-        self.StopReading()
-        #for i in range(1,17):
-        for i in range(1,3):
+    def FindDFMs(self,maxNum=16):
+        self.StopReading()        
+        for i in range(1,maxNum+1):
             if(self.theCOMM.PollSlave(i)):
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
             time.sleep(0.01)
@@ -83,23 +159,18 @@ class DFMGroup:
 
     def ReadWorker(self):
         #nextTime=[0,185000,385000,585000,785000]
-        nextTime=[0,400000,800000]
-        counter=0
+        nextTime=[0,500000]     
         indexer=0
         while True:   
             tt = datetime.datetime.today()
             if(indexer==0):
                 if(tt.microsecond<nextTime[indexer+1]):
                     for d in self.theDFMs:
-                        d.ReadValues()                           
-                        print("read")    
-                    counter=counter+1
+                        d.ReadValues()                                                                        
                     indexer=indexer+1                
             elif(tt.microsecond>nextTime[indexer]):  
                 for d in self.theDFMs:
-                    d.ReadValues()                       
-                    print("read")
-                counter=counter+1
+                    d.ReadValues()                                                           
                 indexer=indexer+1                
                 if indexer==len(nextTime):
                     indexer=0
@@ -107,14 +178,26 @@ class DFMGroup:
             if(self.stopReadingSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
-                self.isReading = False
-                self.theDFMs[0].PrintDataBuffer()
-                return
-            if (counter >=10):
-                self.stopReadingSignal=True
-            
+                self.isReading = False                
+                return                      
             time.sleep( 0.0001 ) # Yeild to other threads for a bit
 
 
 
 
+def ModuleTest():
+    tmp = DFMGroup(COMM.TESTCOMM())
+    tmp.FindDFMs(2)
+    tmp.LoadProgram("TestProgram1.txt")    
+    tmp.StartReading()
+    tmp.StartRecording()    
+    endTime=datetime.datetime.today()+datetime.timedelta(seconds=10)
+    while(datetime.datetime.today()<endTime):
+        print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())
+        time.sleep(1)
+    tmp.StopRecording()
+    time.sleep(1)
+    tmp.StopReading()
+
+if __name__=="__main__" :
+    ModuleTest()        

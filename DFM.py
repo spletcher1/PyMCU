@@ -28,6 +28,15 @@ class DFM:
         self.signalThresholds=array.array("i",(-1 for i in range(0,12)))
         self.baselineSamples=0
         self.isCalculatingBaseline=False
+        # TODO: Implement optolid
+        self.optoLid=0       
+        self.optoDecay=0
+        self.optoFrequency=40
+        self.optoPulsewidth=8
+        self.optoDelay=0
+        self.maxTimeOn=-1
+        self.hasFrequencyChanged=False 
+        self.hasPWChanged=False
     #endregion
     #region Property-like getters and setters
     def GetLastAnalogData(self,adjustForBaseline):
@@ -58,6 +67,7 @@ class DFM:
     def BaselineDFM(self):
         self.ResetBaseline()
         self.isCalculatingBaseline = True
+
     #region Packet processing, etc.
     def ProcessPacket(self,bytesData):           
         if(len(bytesData)==0):
@@ -68,11 +78,22 @@ class DFM:
             return Enums.PROCESSEDPACKETRESULT.WRONGID
         self.currentStatutPacket = StatusPacket.StatusPacket(self.sampleIndex)
         return self.currentStatutPacket.ProcessStatusPacket(bytesData)
-  
+    def SetTargetOptoFrequency(self,target):
+        if(target!=self.optoFrequency):
+            self.optoFrequency=target
+            self.hasFrequencyChanged=True
+    def SetTargetOptoPW(self,target):
+        if(target!=self.optoPulsewidth):
+            self.optoPulsewidth=target
+            self.hasPWChanged=True
     #endregion
+    #     
     #region DFM Commands                 
     def RaiseError(self, s):
         print(s)
+    def IncrementOutputFile(self):
+        self.outputFileIncrementor+=1
+        self.outputFile="DFM" + str(self.ID) + "_"+str(self.outputFileIncrementor)+".csv"
     def SetStatus(self, newStatus):
         if(newStatus != self.status):
             if(newStatus == Enums.CURRENTSTATUS.ERROR):
