@@ -136,7 +136,7 @@ class MCUProgram():
             l = l.strip()         
             if len(l)==0 or l[0]=="#":
                 continue
-            if l[0]=="[" and "]" in l:
+            if "[" in l and "]" in l:
                 currentSection = l[l.index("[")+1:l.index("]")]
             else:
                 if(currentSection.lower()=="general"):
@@ -250,7 +250,64 @@ class MCUProgram():
 
         return allIsWell
         
+    def UpdateStartAndEndTime(self,sTime,eTime):
+        if(eTime<sTime): # This is a mistake to just update start time.
+            self.startTime=sTime
+        else:
+            self.startTime=sTime
+            self.experimentDuration = eTime-sTime
+    def GetProgramType(self,dfmid):
+        iset=self.theInstructionSets.get(dfmid,'None')    
+        if(iset!="None"):
+            return iset.instructionSetType
+        else:
+            return self.globalPType    
+    def GetLidType(self,dfmid):
+        iset=self.theInstructionSets.get(dfmid,'None')    
+        if(iset!="None"):
+            return iset.lidType
+        else:
+            return self.globalLidType
+    def GetOptoFrequency(self,dfmid):
+        iset=self.theInstructionSets.get(dfmid,'None')    
+        if(iset!="None"):
+            return iset.optoFrequency
+        else:
+            return self.optoFrequency
+    def GetOptoPulsewidth(self,dfmid):
+        iset=self.theInstructionSets.get(dfmid,'None')    
+        if(iset!="None"):
+            return iset.optoPulseWidth
+        else:
+            return self.optoPulseWidth
+    def GetOptoDelay(self,dfmid):
+        iset=self.theInstructionSets.get(dfmid,'None')    
+        if(iset!="None"):
+            return iset.optoDelay
+        else:
+            return self.optoDelay
+    def GetOptoDecay(self,dfmid):
+        iset=self.theInstructionSets.get(dfmid,'None')    
+        if(iset!="None"):
+            return iset.optoDecay
+        else:
+            return self.optoDecay
+    def GetMexTimeOn(self,dfmid):
+        iset=self.theInstructionSets.get(dfmid,'None')    
+        if(iset!="None"):
+            return iset.maxTimeOn
+        else:
+            return self.maxTimeOn
 
+    def GetCurrentInstruction(self,dfmid):
+        iset=self.theInstructionSets.get(dfmid,'None')    
+        if(iset!="None"):
+            return iset.GetInstruction(datetime.datetime.today(),self.startTime)
+        else:
+            self.AddSimpleProgram(dfmid,self.experimentDuration)
+            return self.theInstructionSets[dfmid].GetInstruction(datetime.datetime.today(),self.startTime)
+
+    
 
 
 
@@ -259,7 +316,7 @@ class MCUProgram():
 def ModuleTest():
     tmp = MCUProgram()
     #tmp.isProgramLoaded=False
-    f=open("TestProgram1.txt")
+    f=open("TestProgram2.txt",encoding="utf-8-sig")
     lines = f.readlines()
     f.close()
     tmp.LoadProgram(lines)

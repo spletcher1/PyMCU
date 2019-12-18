@@ -39,3 +39,9 @@ class OPTOLIDTYPE(Enum):
     ONECHAMBER=2,
     SIXCHAMBER=3,
     TWELVECHAMBER=4
+
+class MESSAGETYPE(Enum):
+        NOTICE=1,
+        WARNING=2,
+        ERROR=3
+    }
