@@ -20,7 +20,7 @@ class DFM:
         self.status = Enums.CURRENTSTATUS.UNDEFINED
         self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
         self.beforeErrorStatus = Enums.CURRENTSTATUS.UNDEFINED
-        self.callLimit=3
+        self.callLimit=2
         self.theData = DataBuffer.DataBuffer()
         self.isWriting = True
         self.sampleIndex=1

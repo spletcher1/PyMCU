@@ -33,7 +33,7 @@ class DFMGroup:
     def StartRecording(self):
         if len(self.theDFMs)==0:
             return False
-        if self.isWriting==False:
+        if self.isReading==False:
             self.StartReading()
         for i in self.theDFMs:
             i.sampleIndex=1
@@ -41,7 +41,7 @@ class DFMGroup:
             i.SetStatus(Enums.CURRENTSTATUS.RECORDING)
         self.stopRecordingSignal=False
         self.theMessageList.ClearMessages()
-        self.NewMessage(0, datetime.datetime.today(), 0, "Recording started.", Enums.MESSAGETYPE.NOTICE)
+        self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
         writeThread = threading.Thread(target=self.WriteWorker)
         writeThread.start()
         return True
@@ -83,7 +83,7 @@ class DFMGroup:
         try:
             os.mkdir(self.currentOutputDirectory)
         except OSError:
-            self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed.", Enums.MESSAGETYPE.ERROR)                    
+            self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed", Enums.MESSAGETYPE.ERROR)                    
         self.WriteProgram()
 
         header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error\n"
@@ -113,12 +113,13 @@ class DFMGroup:
                 ss=currentDFM.theData.PullAllRecordsAsString()
                 if(ss!=""):
                     theFiles[currentDFMIndex].write(ss)
+                    print("write")
                 self.WriteMessages()
-            self.longestQueue=0
+            tmpLQ=0
             for d in self.theDFMs:
-                if(d.theData.ActualSize()>self.longestQueue):
-                    self.longestQueue = d.theData.ActualSize()
-            
+                if(d.theData.ActualSize()>tmpLQ):
+                    tmpLQ = d.theData.ActualSize()
+            self.longestQueue = tmpLQ
             currentDFMIndex+=1
             if(currentDFMIndex==len(self.theDFMs)):
                 currentDFMIndex=0
@@ -128,7 +129,8 @@ class DFMGroup:
             ss=self.theDFMs[i].theData.PullAllRecordsAsString()
             if(ss!=""):
                 theFiles[i].write(ss)
-                
+                print("write")
+        self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.NOTICE)        
         self.WriteMessages()
         self.isWriting=False        
 
@@ -153,18 +155,19 @@ class DFMGroup:
         if(len(self.theDFMs)==0): 
             return
         for d in self.theDFMs:
-            d.SetStatus(Enums.CURRENTSTATUS.READING)
+            d.SetStatus(Enums.CURRENTSTATUS.READING)        
         readThread = threading.Thread(target=self.ReadWorker)
         readThread.start()
 
     def ReadWorker(self):
-        #nextTime=[0,185000,385000,585000,785000]
-        nextTime=[0,500000]     
+        nextTime=[0,185000,385000,585000,785000]
+        #nextTime=[0,500000]     
         indexer=0
+        self.isReading=True
         while True:   
             tt = datetime.datetime.today()
             if(indexer==0):
-                if(tt.microsecond<nextTime[indexer+1]):
+                if(tt.microsecond<nextTime[1]):
                     for d in self.theDFMs:
                         d.ReadValues()                                                                        
                     indexer=indexer+1                
@@ -174,7 +177,7 @@ class DFMGroup:
                 indexer=indexer+1                
                 if indexer==len(nextTime):
                     indexer=0
-            time.sleep(0.001)
+
             if(self.stopReadingSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
@@ -191,9 +194,10 @@ def ModuleTest():
     tmp.LoadProgram("TestProgram1.txt")    
     tmp.StartReading()
     tmp.StartRecording()    
-    endTime=datetime.datetime.today()+datetime.timedelta(seconds=10)
+    endTime=datetime.datetime.today()+datetime.timedelta(seconds=20)
     while(datetime.datetime.today()<endTime):
-        print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())
+        #print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())
+        print(tmp.longestQueue)
         time.sleep(1)
     tmp.StopRecording()
     time.sleep(1)

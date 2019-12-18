@@ -20,8 +20,7 @@ class MessageList():
             s="DFM,Date,Time,Millisecond,Sample,Message,MsgType\n"
             for i in self.theMessages:
                 s+=i.GetMessageStringForFile()
-
-
+        return s        
     def AddMessage(self,newmessage):
         self.theMessages.append(newmessage)
     def ClearMessages(self):

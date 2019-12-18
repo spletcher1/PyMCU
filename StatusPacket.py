@@ -10,7 +10,7 @@ class StatusPacket:
         self.voltsIn = 0.0
         self.temp = 0.0
         self.humidity = 0.0
-        self.lux=0.0
+        self.lux=0
         self.sample=sampleIndex
         self.optoState1=0
         self.optoState2=0
@@ -90,7 +90,7 @@ class StatusPacket:
         tmp = self.packetTime.microsecond/1000
         ss = self.packetTime.strftime("%m/%d/%Y %H:%M:%S")
         ss+=' {:7.2f}'.format(tmp)
-        ss += '  Wells: {:4d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}'.format(self.analogValues[0],self.analogValues[1],self.analogValues[2],self.analogValues[3],self.analogValues[4],self.analogValues[5],self.analogValues[6],self.analogValues[7],self.analogValues[8],self.analogValues[9],self.analogValues[10],self.analogValues[11])
+        ss += '  Wells: {:4d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}'.format(self.analogValues[0],self.analogValues[1],self.analogValues[2],self.analogValues[3],self.analogValues[4],self.analogValues[5],self.analogValues[6],self.analogValues[7],self.analogValues[8],self.analogValues[9],self.analogValues[10],self.analogValues[11])       
         ss += '   E:{:<4d}  T:{:<6.2f}  H:{:<6.2f}  L:{:<4d}  V:{:4.2f}  OS1:{:02X}  OS2:{:02X}'.format(self.errorFlags,self.temp,self.humidity,self.lux,self.voltsIn,self.optoState1,self.optoState2)
         ss += '  D:{:<2d}  F:{:<4d}  PW:{:<4d}'.format(self.darkStatus,self.optoFrequency,self.optoPulseWidth)
         return ss 
