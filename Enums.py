@@ -41,7 +41,6 @@ class OPTOLIDTYPE(Enum):
     TWELVECHAMBER=4
 
 class MESSAGETYPE(Enum):
-        NOTICE=1,
-        WARNING=2,
-        ERROR=3
-    }
+    NOTICE=1,
+    WARNING=2,
+    ERROR=3
