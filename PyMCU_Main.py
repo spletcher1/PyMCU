@@ -6,7 +6,7 @@ import datetime
 import platform
 import COMM
 
-if(platform.system()!="Windows"):
+if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
 
@@ -23,7 +23,7 @@ def BoardSetup():
     
 
 def main():
-    if(platform.system()!="Windows"):
+    if(platform.node()=="raspberrypi"):
         BoardSetup()   
     theDFMs = DFMGroup.DFMGroup(COMM.TESTCOMM())
     theDFMs.FindDFMs()

@@ -7,7 +7,7 @@ import array
 import StatusPacket
 import platform
 
-if(platform.system()!="Windows"):
+if(platform.node()=="raspberrypi"):
     import serial
     import serial.tools.list_ports
     import RPi.GPIO as GPIO
