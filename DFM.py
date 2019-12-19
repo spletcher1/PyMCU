@@ -82,6 +82,8 @@ class DFM:
             tmp = self.signalBaselines[i] * self.baselineSamples
             self.signalBaselines[i] = (tmp + last[i])/(self.baselineSamples+1)
         self.baselineSamples = self.baselineSamples+1
+        if(self.baselineSamples>=30):
+            self.isCalculatingBaseline=False
     def BaselineDFM(self):
         self.ResetBaseline()
         self.isCalculatingBaseline = True
@@ -164,7 +166,9 @@ class DFM:
                 if(self.status == Enums.CURRENTSTATUS.ERROR):
                     self.SetStatus(self.beforeErrorStatus)
                 self.CheckStatus()
-                
+            if(self.isCalculatingBaseline):
+                self.UpdateBaseline()
+
         return isSuccess
     #endregion
 
