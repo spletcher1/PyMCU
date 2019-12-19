@@ -5,6 +5,7 @@ import Enums
 import datetime
 import platform
 import COMM
+import sys
 
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
@@ -38,8 +39,9 @@ def main():
     if(platform.node()=="raspberrypi"):
         BoardSetup()   
     tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
-    tmp.FindDFMs(5)
-    print("DFMs Found:" + str(len(tmp.theDFMs)))   
+    tmp.FindDFMs(16)
+    for d in tmp.theDFMs:
+        print("DFMs Found ID: " + str(d.ID))       
     tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
     print(tmp.currentProgram)
     tmp.ActivateCurrentProgram()
@@ -47,9 +49,10 @@ def main():
         tmp.UpdateDFMStatus()     
         print(tmp.longestQueue)
         time.sleep(1)
-
+    tmp.StopReading()
+    print(tmp.isReading)
 
 if __name__=="__main__" :
     main()
     print("Done!!")  
-    exit()     
+    sys.exit()        

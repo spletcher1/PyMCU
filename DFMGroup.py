@@ -61,6 +61,8 @@ class DFMGroup:
         path=self.currentOutputDirectory+"/Messages.csv"
         f=open(path,"w+")
         f.write(self.theMessageList.GetMessageStringForFile())
+        for d in self.theDFMs:
+            f.write(d.theMessageList.GetMessageStringForFile())
         f.close()
 
     def SetDFMIdleStatus(self):
@@ -145,8 +147,7 @@ class DFMGroup:
             self.isWriting =False
             time.sleep(0.01)
         self.stopReadingSignal = True
-        time.sleep(0.01)
-        self.isReading = False
+        time.sleep(0.01)       
         self.ClearDFMList()     
     def StartReading(self):
         if(len(self.theDFMs)==0): 
