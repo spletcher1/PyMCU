@@ -18,8 +18,8 @@ class StatusPacket:
         self.optoFrequency=0
         self.optoPulseWidth=0
         self.errorFlags=0
-    def ProcessStatusPacket(self,bytesData):
-        self.packetTime = datetime.datetime.today()
+    def ProcessStatusPacket(self,bytesData,timeOfMeasure):
+        self.packetTime = timeOfMeasure
         # Calculate the checksum
         calculatedCheckSum=0
         for cs in range(3,len(bytesData)-4) :

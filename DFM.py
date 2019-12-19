@@ -15,9 +15,7 @@ import Message
 class DFM:
     #region Initialization, etc.
     def __init__(self,id,commProtocol):
-        self.ID=id
-        self.calculatedCheckSum=0
-        self.expectedCheckSum=0
+        self.ID=id     
         self.theCOMM = commProtocol
         self.currentStatusPacket = StatusPacket.StatusPacket(0)
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
@@ -26,8 +24,7 @@ class DFM:
         self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
         self.beforeErrorStatus = Enums.CURRENTSTATUS.UNDEFINED
         self.callLimit=3
-        self.theData = DataBuffer.DataBuffer()
-        self.isWriting = True
+        self.theData = DataBuffer.DataBuffer()             
         self.sampleIndex=1
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))
         self.signalThresholds=array.array("i",(-1 for i in range(0,12)))
@@ -98,8 +95,10 @@ class DFM:
         self.reportedOptoPulsewidth = self.currentStatusPacket.optoPulseWidth
         self.reportedOptoStateCol1  = self.currentStatusPacket.optoState1
         self.reportedOptoStateCol2 = self.currentStatusPacket.optoState2
+        self.currentDFMErrors.UpdateErrors(self.currentStatusPacket.errorFlags)
 
-    def ProcessPacket(self,bytesData):           
+
+    def ProcessPacket(self,bytesData,timeOfMeasure):           
         if(len(bytesData)==0):
             return Enums.PROCESSEDPACKETRESULT.NOANSWER
         if(len(bytesData)!=65):
@@ -107,7 +106,7 @@ class DFM:
         if(bytesData[3]!=self.ID):
             return Enums.PROCESSEDPACKETRESULT.WRONGID
         self.currentStatusPacket = StatusPacket.StatusPacket(self.sampleIndex)
-        tmp = self.currentStatusPacket.ProcessStatusPacket(bytesData)
+        tmp = self.currentStatusPacket.ProcessStatusPacket(bytesData,timeOfMeasure)
         if(tmp == Enums.PROCESSEDPACKETRESULT.OKAY):
             self.UpdateReportedValues()
         return tmp        
@@ -131,11 +130,11 @@ class DFM:
                 self.beforeErrorStatus = self.status
                 self.pastStatus = Enums.PASTSTATUS.PASTERROR
             self.status = newStatus
-    def ReadValues(self):
+    def ReadValues(self,timeOfMeasure,saveDataToQueue):
         theResult = Enums.PROCESSEDPACKETRESULT.OKAY                        
         for _ in range(0,self.callLimit) :            
             tmp=self.theCOMM.GetStatusPacket(self.ID)              
-            theResult = self.ProcessPacket(tmp)
+            theResult = self.ProcessPacket(tmp,timeOfMeasure)
             if(theResult==Enums.PROCESSEDPACKETRESULT.OKAY):
                 break
             time.sleep(0.005)       
@@ -155,7 +154,7 @@ class DFM:
         elif(theResult == Enums.PROCESSEDPACKETRESULT.OKAY):
             isSuccess=True
         if isSuccess:
-            if(self.theData.NewData(self.currentStatusPacket,self.isWriting)==False):
+            if(self.theData.NewData(self.currentStatusPacket,saveDataToQueue)==False):
                 s="({:d}) Data queue error.".format(self.ID)
                 self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
@@ -220,14 +219,14 @@ class DFM:
             tt = datetime.datetime.today()
             if(i==0):
                 if(tt.microsecond<nextTime[i+1]):
-                    tmp=self.ReadValues()                     
+                    tmp=self.ReadValues(tt,True)                     
                     if(tmp == Enums.PROCESSEDPACKETRESULT.OKAY):            
                         self.PrintCurrentPacket()  
                     else :
                         print("bad")
                     i=i+1                
             elif(tt.microsecond>nextTime[i]):  
-                tmp=self.ReadValues()        
+                tmp=self.ReadValues(tt,True)        
                 if(tmp == Enums.PROCESSEDPACKETRESULT.OKAY):            
                     self.PrintCurrentPacket()  
                 else :
@@ -245,7 +244,7 @@ class DFM:
             if len(theSplit)==1:
                 command = theSplit[0].strip()
                 if command.lower() == "read":
-                    tmp=self.ReadValues()                     
+                    tmp=self.ReadValues(datetime.datetime.today(),True)                     
                     if(tmp):            
                         self.PrintCurrentPacket()  
                     else :

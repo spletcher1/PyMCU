@@ -170,11 +170,11 @@ class DFMGroup:
             if(indexer==0):
                 if(tt.microsecond<nextTime[1]):                    
                     for d in self.theDFMs:
-                        d.ReadValues()            
+                        d.ReadValues(tt,self.isWriting)            
                     indexer=indexer+1                
             elif(tt.microsecond>nextTime[indexer]):  
                 for d in self.theDFMs:
-                    d.ReadValues()                                  
+                    d.ReadValues(tt,self.isWriting)                                  
                 indexer=indexer+1                
                 if indexer==len(nextTime):
                     indexer=0
