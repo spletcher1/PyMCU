@@ -18,10 +18,6 @@ class StatusPacket:
         self.optoFrequency=0
         self.optoPulseWidth=0
         self.errorFlags=0
-        self.actualOptoFrequency = 0
-        self.actualOptoPulseWidth = 0
-        self.actualOptoState1 = 0
-        self.actualOptoState2 = 0
     def ProcessStatusPacket(self,bytesData):
         self.packetTime = datetime.datetime.today()
         # Calculate the checksum
@@ -79,11 +75,6 @@ class StatusPacket:
         currentValue = bytesData[59]<<8
         currentValue += bytesData[60]
         self.lux = currentValue
-
-        self.actualOptoFrequency = self.optoFrequency
-        self.actualOptoPulseWidth = self.optoPulseWidth
-        self.actualOptoState1 = self.optoState1
-        self.actualOptoState2 = self.optoState2   
 
         return PROCESSEDPACKETRESULT.OKAY   
     def GetConsolePrintPacket(self):

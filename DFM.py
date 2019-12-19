@@ -6,6 +6,11 @@ import time
 import DataBuffer
 import array
 import threading
+import OptoLid
+import DFMErrors
+import MessagesList
+import Message
+
 
 class DFM:
     #region Initialization, etc.
@@ -14,31 +19,47 @@ class DFM:
         self.calculatedCheckSum=0
         self.expectedCheckSum=0
         self.theCOMM = commProtocol
-        self.currentStatutPacket = StatusPacket.StatusPacket(0)
+        self.currentStatusPacket = StatusPacket.StatusPacket(0)
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
         self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
         self.beforeErrorStatus = Enums.CURRENTSTATUS.UNDEFINED
-        self.callLimit=2
+        self.callLimit=3
         self.theData = DataBuffer.DataBuffer()
         self.isWriting = True
         self.sampleIndex=1
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))
         self.signalThresholds=array.array("i",(-1 for i in range(0,12)))
         self.baselineSamples=0
-        self.isCalculatingBaseline=False
-        # TODO: Implement optolid
-        self.optoLid=0       
+        self.isCalculatingBaseline=False        
+        self.optoLid=OptoLid.OptoLid(Enums.OPTOLIDTYPE.NONE)       
         self.optoDecay=0
         self.optoFrequency=40
         self.optoPulsewidth=8
         self.optoDelay=0
         self.maxTimeOn=-1
+        self.isInDark=False
         self.hasFrequencyChanged=False 
         self.hasPWChanged=False
+        self.currentDFMErrors = DFMErrors.DFMErrors()
+        self.reportedOptoFrequency=0
+        self.reportedOptoPulsewidth=0
+        self.reportedOptoStateCol1=0
+        self.reportedOptoStateCol2=0
+        self.reportedTemperature=1.0
+        self.reportedHumidity=1.0
+        self.reportedLUX=0
+        self.reportedVoltsIn=1.0
+        self.theMessageList = MessagesList.MessageList()
     #endregion
+    def NewMessage(self,ID, errorTime, sample,  message,mt):
+        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
+        self.theMessageList.AddMessage(tmp)     
+
     #region Property-like getters and setters
+    def GetDFMName(self):
+        return "DFM "+str(self.ID)
     def GetLastAnalogData(self,adjustForBaseline):
         tmp = self.theData.GetLastDataPoint()
         if(tmp.sample==0):
@@ -69,6 +90,15 @@ class DFM:
         self.isCalculatingBaseline = True
 
     #region Packet processing, etc.
+    def UpdateReportedValues(self):
+        self.reportedHumidity = self.currentStatusPacket.humidity
+        self.reportedLUX = self.currentStatusPacket.lux
+        self.reportedTemperature = self.currentStatusPacket.temp
+        self.reportedOptoFrequency = self.currentStatusPacket.optoFrequency
+        self.reportedOptoPulsewidth = self.currentStatusPacket.optoPulseWidth
+        self.reportedOptoStateCol1  = self.currentStatusPacket.optoState1
+        self.reportedOptoStateCol2 = self.currentStatusPacket.optoState2
+
     def ProcessPacket(self,bytesData):           
         if(len(bytesData)==0):
             return Enums.PROCESSEDPACKETRESULT.NOANSWER
@@ -76,8 +106,11 @@ class DFM:
             return Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
         if(bytesData[3]!=self.ID):
             return Enums.PROCESSEDPACKETRESULT.WRONGID
-        self.currentStatutPacket = StatusPacket.StatusPacket(self.sampleIndex)
-        return self.currentStatutPacket.ProcessStatusPacket(bytesData)
+        self.currentStatusPacket = StatusPacket.StatusPacket(self.sampleIndex)
+        tmp = self.currentStatusPacket.ProcessStatusPacket(bytesData)
+        if(tmp == Enums.PROCESSEDPACKETRESULT.OKAY):
+            self.UpdateReportedValues()
+        return tmp        
     def SetTargetOptoFrequency(self,target):
         if(target!=self.optoFrequency):
             self.optoFrequency=target
@@ -89,8 +122,6 @@ class DFM:
     #endregion
     #     
     #region DFM Commands                 
-    def RaiseError(self, s):
-        print(s)
     def IncrementOutputFile(self):
         self.outputFileIncrementor+=1
         self.outputFile="DFM" + str(self.ID) + "_"+str(self.outputFileIncrementor)+".csv"
@@ -102,7 +133,7 @@ class DFM:
             self.status = newStatus
     def ReadValues(self):
         theResult = Enums.PROCESSEDPACKETRESULT.OKAY                        
-        for i in range(0,self.callLimit) :            
+        for _ in range(0,self.callLimit) :            
             tmp=self.theCOMM.GetStatusPacket(self.ID)              
             theResult = self.ProcessPacket(tmp)
             if(theResult==Enums.PROCESSEDPACKETRESULT.OKAY):
@@ -112,27 +143,28 @@ class DFM:
         if(theResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):
             self.SetStatus(Enums.CURRENTSTATUS.ERROR)
             s="({:d}) Checksum error.".format(self.ID)
-            self.RaiseError(s)
+            self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
         elif(theResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
             self.SetStatus(Enums.CURRENTSTATUS.ERROR)
             s="({:d}) No answer.".format(self.ID)
-            self.RaiseError(s)
+            self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
         elif(theResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
             self.SetStatus(Enums.CURRENTSTATUS.ERROR)
             s="({:d}) Wrong number of bytes.".format(self.ID)
-            self.RaiseError(s)
+            self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
         elif(theResult == Enums.PROCESSEDPACKETRESULT.OKAY):
             isSuccess=True
         if isSuccess:
-            if(self.theData.NewData(self.currentStatutPacket,self.isWriting)==False):
+            if(self.theData.NewData(self.currentStatusPacket,self.isWriting)==False):
                 s="({:d}) Data queue error.".format(self.ID)
-                self.RaiseError(s)
+                self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 isSuccess = False
             else:
                 self.sampleIndex = self.sampleIndex+1
                 if(self.status == Enums.CURRENTSTATUS.ERROR):
                     self.SetStatus(self.beforeErrorStatus)
+                self.CheckStatus()
                 
         return isSuccess
     #endregion
@@ -141,9 +173,43 @@ class DFM:
         self.outputFileIncrementor=0
         self.outputFile="DFM" + str(self.ID) + "_0.csv"
 
+    def SetAllSignalThresholds(self,thresholds):
+        for i in range(0,12):
+            self.signalThresholds[i]=thresholds[i]
+        self.optoLid.SetAllThresholds(thresholds)
+
+    def SetWellSignalThreshold(self,wellnum,thresh):
+        if(wellnum<0 or wellnum>11): return
+        self.signalThresholds[wellnum]=thresh
+        self.optoLid.SetWellThreshold(wellnum,thresh)
+
+    def SetAllSignalBaselines(self, newbaselines):
+        for i in range(0,12):
+            self.signalBaselines[i]=newbaselines[i]
+
+    def CheckStatus(self):
+        if(self.currentStatusPacket.darkStatus == 1 and self.isInDark == False):
+            self.theCOMM.ExitDark()
+        elif(self.currentStatusPacket.darkStatus==0 and self.isInDark == True):
+            self.theCOMM.GoDark()
+
+        if(self.hasFrequencyChanged or (self.reportedOptoFrequency != self.optoFrequency)):
+            self.theCOMM.SendFrequency(self.optoFrequency,self.ID)
+            self.hasFrequencyChanged = False
+
+        if(self.hasPWChanged or (self.reportedOptoPulsewidth != self.optoPulsewidth)):
+            self.theCOMM.SendPulseWidth(self.optoPulsewidth,self.ID)
+            self.hasPWChanged = False
+
+        self.optoLid.SetOptoState(self.GetLastAnalogData(True)) # For optolid purposes, we always used baselined data, even if it is not actually baselined.
+
+        if((self.reportedOptoStateCol1 != self.optoLid.optoStateCol1)) or (self.reportedOptoStateCol2 != self.optoLid.optoStateCol2):
+            self.theCOMM.SendOptoState(self.optoLid.optoStateCol1,self.optoLid.optoStateCol2,self.ID)
+        
+
     #region Testing Code
     def PrintCurrentPacket(self):
-        print(self.currentStatutPacket.GetDataBufferPrintPacket())
+        print(self.currentStatusPacket.GetDataBufferPrintPacket())
     def PrintDataBuffer(self):
         print(self.theData.PullAllRecordsAsString())
     def TestRead(self):
