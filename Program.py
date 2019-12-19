@@ -96,7 +96,7 @@ class MCUProgram():
                 s="None"
             else:
                 s="***ALL DFM***\n"
-                s="Start Time: " + self.startTime.strftime("%m/%d/%Y %H:%M:%S")+"\n"
+                s+="Start Time: " + self.startTime.strftime("%m/%d/%Y %H:%M:%S")+"\n"
                 s+="End Time: " + self.GetEndTime().strftime("%m/%d/%Y %H:%M:%S")+"\n"
                 s+="Duration: " +  str(self.experimentDuration.total_seconds()/60) + " min\n"
                 s+="OptoLid: None\n"
@@ -130,6 +130,7 @@ class MCUProgram():
         self.theInstructionSets[dfmid]=instruct
 
     def LoadProgram(self,lines):        
+        self.ClearProgram()
         currentSection=""
         currentDFM=-1
         for l in lines:

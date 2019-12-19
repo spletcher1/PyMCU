@@ -80,7 +80,7 @@ class DFM:
             return
         for i in range(0,12):
             tmp = self.signalBaselines[i] * self.baselineSamples
-            self.signalBaselines[i] = (tmp + last[i])/(self.baselineSamples+1)
+            self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
         if(self.baselineSamples>=30):
             self.isCalculatingBaseline=False

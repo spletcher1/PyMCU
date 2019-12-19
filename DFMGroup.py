@@ -63,18 +63,10 @@ class DFMGroup:
         f.write(self.theMessageList.GetMessageStringForFile())
         f.close()
 
-    def LoadProgram(self,programPath):
-        f=open(programPath,encoding="utf-8-sig")
-        lines = f.readlines()
-        f.close()
-        self.currentProgram.LoadProgram(lines)
-        for d in self.theDFMs:           
-            d.optoLid.lidType = self.currentProgram.GetLidType(d.ID)
-            d.SetTargetOptoFrequency(self.currentProgram.GetOptoFrequency(d.ID))
-            d.SetTargetOptoPW(self.currentProgram.GetOptoPulsewidth(d.ID))
-            d.optoDecay=self.currentProgram.GetOptoDecay(d.ID)
-            d.optoDelay=self.currentProgram.GetOptoDelay(d.ID)
-            d.maxTimeOn=self.currentProgram.GetMexTimeOn(d.ID)
+    def SetDFMIdleStatus(self):
+        for d in self.theDFMs:
+            for i in range(0,12):
+                d.SetWellSignalThreshold(i,-1)
 
     def UpdateDFMPrograms(self):
         for d in self.theDFMs:
@@ -150,18 +142,12 @@ class DFMGroup:
             return
         if(self.isWriting):
             self.stopRecordingSignal = True               
+            self.isWriting =False
             time.sleep(0.01)
         self.stopReadingSignal = True
         time.sleep(0.01)
         self.isReading = False
-        self.ClearDFMList()
-  
-    def FindDFMs(self,maxNum=16):
-        self.StopReading()        
-        for i in range(1,maxNum+1):
-            if(self.theCOMM.PollSlave(i)):
-                self.theDFMs.append(DFM.DFM(i,self.theCOMM))
-            time.sleep(0.01)
+        self.ClearDFMList()     
     def StartReading(self):
         if(len(self.theDFMs)==0): 
             return
@@ -169,7 +155,6 @@ class DFMGroup:
             d.SetStatus(Enums.CURRENTSTATUS.READING)        
         readThread = threading.Thread(target=self.ReadWorker)
         readThread.start()
-
     def ReadWorker(self):
         nextTime=[0,195000,395000,595000,795000]
         #nextTime=[0,500000]     
@@ -195,6 +180,58 @@ class DFMGroup:
                 self.isReading = False                
                 return                      
             time.sleep( 0.0001 ) # Yeild to other threads for a bit
+    
+
+    ## Below here are really the only methods that should be called by 
+    ## a GUI or ViewModel
+    def LoadTextProgram(self,programPath):
+        f=open(programPath,encoding="utf-8-sig")
+        lines = f.readlines()
+        f.close()
+        self.currentProgram.LoadProgram(lines)
+        for d in self.theDFMs:           
+            d.optoLid.lidType = self.currentProgram.GetLidType(d.ID)
+            d.SetTargetOptoFrequency(self.currentProgram.GetOptoFrequency(d.ID))
+            d.SetTargetOptoPW(self.currentProgram.GetOptoPulsewidth(d.ID))
+            d.optoDecay=self.currentProgram.GetOptoDecay(d.ID)
+            d.optoDelay=self.currentProgram.GetOptoDelay(d.ID)
+            d.maxTimeOn=self.currentProgram.GetMexTimeOn(d.ID)
+    def FindDFMs(self,maxNum=16):
+        self.StopReading()        
+        for i in range(1,maxNum+1):
+            if(self.theCOMM.PollSlave(i)):
+                self.theDFMs.append(DFM.DFM(i,self.theCOMM))
+            time.sleep(0.01)
+        self.StartReading()
+    ## This function is the one that should be called by an external timer
+    ## to keep things rolling correctly.
+    def UpdateDFMStatus(self):
+        if(self.currentProgram.isActive):
+            if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):
+                if(self.isReading==False): 
+                    self.StartReading()
+                self.StartRecording()
+            elif(self.currentProgram.IsAfterExperiment() and self.currentProgram.isActive):
+                self.StopCurrentProgram()
+
+            if(self.currentProgram.IsDuringExperiment()):
+                self.UpdateDFMPrograms()
+    def LoadSimpleProgram(self,startTime,duration):
+        self.currentProgram.CreateSimpleProgram(startTime,duration)
+    def StopCurrentProgram(self):
+        print("Stopping program.")
+        self.currentProgram.isActive=False
+        self.StopRecording()
+        self.SetDFMIdleStatus()
+    def ActivateCurrentProgram(self):
+        print("Starting program.")
+        self.currentProgram.isActive=True
+        for d in self.theDFMs:
+            if(self.currentProgram.autoBaseline==True):
+                d.BaselineDFM()
+            else:
+                d.ResetBaseline()
+            
 
 
 
@@ -202,17 +239,15 @@ class DFMGroup:
 def ModuleTest():
     tmp = DFMGroup(COMM.TESTCOMM())
     tmp.FindDFMs(4)
-    tmp.LoadProgram("TestProgram1.txt")    
-    tmp.StartReading()
-    tmp.StartRecording()    
-    endTime=datetime.datetime.today()+datetime.timedelta(seconds=60)
-    while(datetime.datetime.today()<endTime):
-        #print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())
+    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
+    print(tmp.currentProgram)
+    tmp.ActivateCurrentProgram()
+    while(tmp.currentProgram.isActive):   
+        tmp.UpdateDFMStatus()     
         print(tmp.longestQueue)
         time.sleep(1)
-    tmp.StopRecording()
-    time.sleep(1)
-    tmp.StopReading()
-
+    
+    
 if __name__=="__main__" :
-    ModuleTest()        
+    ModuleTest()   
+    print("Done!!")     
