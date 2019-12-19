@@ -69,13 +69,21 @@ class DFMGroup:
         f.close()
         self.currentProgram.LoadProgram(lines)
         for d in self.theDFMs:           
-            # TODO: Implement d.optoLid
+            d.optoLid.lidType = self.currentProgram.GetLidType(d.ID)
             d.SetTargetOptoFrequency(self.currentProgram.GetOptoFrequency(d.ID))
             d.SetTargetOptoPW(self.currentProgram.GetOptoPulsewidth(d.ID))
             d.optoDecay=self.currentProgram.GetOptoDecay(d.ID)
             d.optoDelay=self.currentProgram.GetOptoDelay(d.ID)
             d.maxTimeOn=self.currentProgram.GetMexTimeOn(d.ID)
 
+    def UpdateDFMPrograms(self):
+        for d in self.theDFMs:
+            di = self.currentProgram.GetCurrentInstruction(d.ID)
+            if(di.theDarkState == Enums.DARKSTATE.OFF):
+                d.isInDark=False
+            elif(di.theDarkState == Enums.DARKSTATE.ON):
+                d.isInDark=True
+            d.SetAllSignalThresholds(di.optoValues)
 
     def WriteWorker(self):        
         dt=datetime.datetime.today()
