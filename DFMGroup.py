@@ -58,7 +58,7 @@ class DFMGroup:
         f.close()
 
     def WriteMessages(self):
-        path=self.currentOutputDirectory+"/Messages.txt"
+        path=self.currentOutputDirectory+"/Messages.csv"
         f=open(path,"w+")
         f.write(self.theMessageList.GetMessageStringForFile())
         f.close()
@@ -86,7 +86,7 @@ class DFMGroup:
             self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed", Enums.MESSAGETYPE.ERROR)                    
         self.WriteProgram()
 
-        header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error\n"
+        header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error\n"
         theFiles = []
         writeStartTimes=[]
         for d in self.theDFMs:
@@ -114,11 +114,13 @@ class DFMGroup:
                 if(ss!=""):                    
                     theFiles[currentDFMIndex].write(ss)                   
                 self.WriteMessages()
+           
             tmpLQ=0
             for d in self.theDFMs:
                 if(d.theData.ActualSize()>tmpLQ):
                     tmpLQ = d.theData.ActualSize()
             self.longestQueue = tmpLQ
+           
             currentDFMIndex+=1
             if(currentDFMIndex==len(self.theDFMs)):
                 currentDFMIndex=0
@@ -191,7 +193,7 @@ class DFMGroup:
 
 def ModuleTest():
     tmp = DFMGroup(COMM.TESTCOMM())
-    tmp.FindDFMs(12)
+    tmp.FindDFMs(4)
     tmp.LoadProgram("TestProgram1.txt")    
     tmp.StartReading()
     tmp.StartRecording()    

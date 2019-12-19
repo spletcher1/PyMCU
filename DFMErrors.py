@@ -27,13 +27,13 @@ class DFMErrors:
         return self.currentErrorStatuses[7]
 
     def ClearErrors(self):
-        self.currentErrorStatuses=0x00
+        self.currentErrorByte=0x00
         for i in range(0,8):
             self.currentErrorStatuses[i]=Enums.REPORTEDERRORSTATUS.NEVER
 
             
     def UpdateErrors(self,errorByte):
-        self.currentErrorStatuses=errorByte
+        self.currentErrorByte=errorByte
         if((errorByte & 0x80) > 0):
             self.currentErrorStatuses[7]=Enums.REPORTEDERRORSTATUS.CURRENT
         elif self.currentErrorStatuses[7]==Enums.REPORTEDERRORSTATUS.CURRENT:
