@@ -44,3 +44,7 @@ class MESSAGETYPE(Enum):
     NOTICE=1,
     WARNING=2,
     ERROR=3
+
+class OPTOTYPE(Enum):
+    ALLON=1,
+    ADAPTIVE=2
