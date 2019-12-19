@@ -112,8 +112,10 @@ class DFMGroup:
             elif(currentDFM.theData.ActualSize()>(200 +(currentDFMIndex*2))):
                 ss=currentDFM.theData.PullAllRecordsAsString()
                 if(ss!=""):
+                    tmpw1=datetime.datetime.today()
                     theFiles[currentDFMIndex].write(ss)
-                    print("write")
+                    tmpw2=datetime.datetime.today()
+                    print((tmpw2-tmpw1).total_seconds())
                 self.WriteMessages()
             tmpLQ=0
             for d in self.theDFMs:
@@ -123,13 +125,17 @@ class DFMGroup:
             currentDFMIndex+=1
             if(currentDFMIndex==len(self.theDFMs)):
                 currentDFMIndex=0
+            
+            time.sleep(0.1) # sleep awhile to let others take over
         
         # Make sure all data are actually written
         for i in range(0,len(self.theDFMs)):
             ss=self.theDFMs[i].theData.PullAllRecordsAsString()
             if(ss!=""):
+                tmpw1=datetime.datetime.today()
                 theFiles[i].write(ss)
-                print("write")
+                tmpw2=datetime.datetime.today()
+                print((tmpw2-tmpw1).total_seconds())
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.NOTICE)        
         self.WriteMessages()
         self.isWriting=False        
@@ -160,20 +166,20 @@ class DFMGroup:
         readThread.start()
 
     def ReadWorker(self):
-        nextTime=[0,185000,385000,585000,785000]
+        nextTime=[0,195000,395000,595000,795000]
         #nextTime=[0,500000]     
         indexer=0
         self.isReading=True
         while True:   
             tt = datetime.datetime.today()
             if(indexer==0):
-                if(tt.microsecond<nextTime[1]):
+                if(tt.microsecond<nextTime[1]):                    
                     for d in self.theDFMs:
-                        d.ReadValues()                                                                        
+                        d.ReadValues()            
                     indexer=indexer+1                
             elif(tt.microsecond>nextTime[indexer]):  
                 for d in self.theDFMs:
-                    d.ReadValues()                                                           
+                    d.ReadValues()                                  
                 indexer=indexer+1                
                 if indexer==len(nextTime):
                     indexer=0
@@ -190,11 +196,11 @@ class DFMGroup:
 
 def ModuleTest():
     tmp = DFMGroup(COMM.TESTCOMM())
-    tmp.FindDFMs(2)
+    tmp.FindDFMs(12)
     tmp.LoadProgram("TestProgram1.txt")    
     tmp.StartReading()
     tmp.StartRecording()    
-    endTime=datetime.datetime.today()+datetime.timedelta(seconds=20)
+    endTime=datetime.datetime.today()+datetime.timedelta(seconds=60)
     while(datetime.datetime.today()<endTime):
         #print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())
         print(tmp.longestQueue)

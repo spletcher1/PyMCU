@@ -1,3 +1,0 @@
-DFM,Date,Time,Millisecond,Sample,Message,MsgType
-0,12/18/2019,18:27:55,255.444,0,Recording started,Notice
-0,12/18/2019,18:28:15,419.113,0,Recording ended,Notice
