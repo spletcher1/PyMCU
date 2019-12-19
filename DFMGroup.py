@@ -111,11 +111,8 @@ class DFMGroup:
                 writeStartTimes[currentDFMIndex]=datetime.datetime.today()
             elif(currentDFM.theData.ActualSize()>(200 +(currentDFMIndex*2))):
                 ss=currentDFM.theData.PullAllRecordsAsString()
-                if(ss!=""):
-                    tmpw1=datetime.datetime.today()
-                    theFiles[currentDFMIndex].write(ss)
-                    tmpw2=datetime.datetime.today()
-                    print((tmpw2-tmpw1).total_seconds())
+                if(ss!=""):                    
+                    theFiles[currentDFMIndex].write(ss)                   
                 self.WriteMessages()
             tmpLQ=0
             for d in self.theDFMs:
@@ -131,11 +128,9 @@ class DFMGroup:
         # Make sure all data are actually written
         for i in range(0,len(self.theDFMs)):
             ss=self.theDFMs[i].theData.PullAllRecordsAsString()
-            if(ss!=""):
-                tmpw1=datetime.datetime.today()
+            if(ss!=""):               
                 theFiles[i].write(ss)
-                tmpw2=datetime.datetime.today()
-                print((tmpw2-tmpw1).total_seconds())
+                theFiles[i].close()                
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.NOTICE)        
         self.WriteMessages()
         self.isWriting=False        
