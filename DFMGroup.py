@@ -10,10 +10,13 @@ import datetime
 import platform
 import os
 import Program
+import Event
 
 class DFMGroup:
+    DFMGroup_message = Event.Event()
     def __init__(self,commProtocol):
         self.theDFMs = []
+        DFM.DFM.DFM_message+=self.NewMessageDirect
         self.stopReadingSignal = False
         self.stopRecordingSignal = False
         self.longestQueue = 0
@@ -21,12 +24,18 @@ class DFMGroup:
         self.isReading = False
         self.currentOutputDirectory = ""
         self.theCOMM = commProtocol
+        COMM.UARTCOMM.UART_message+=self.NewMessageDirect
+        Program.MCUProgram.Program_message+=self.NewMessageDirect
         self.theMessageList = MessagesList.MessageList()
         self.currentProgram=Program.MCUProgram()        
 
+    def NewMessageDirect(self,newMessage):        
+        self.theMessageList.AddMessage(newMessage)     
+        DFMGroup.DFMGroup_message.notify(newMessage)
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        self.theMessageList.AddMessage(tmp)        
+        self.theMessageList.AddMessage(tmp)  
+        DFMGroup.DFMGroup_message.notify(tmp)      
     def ClearDFMList(self):
         self.theDFMs.clear()
 

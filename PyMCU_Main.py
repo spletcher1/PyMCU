@@ -38,8 +38,9 @@ def ModuleTest():
 def main():
     if(platform.node()=="raspberrypi"):
         BoardSetup()   
-    tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
-    tmp.FindDFMs(16)
+    ##tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
+    tmp = DFMGroup.DFMGroup(COMM.TESTCOMM())
+    tmp.FindDFMs(2)
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
     tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))

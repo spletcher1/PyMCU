@@ -7,6 +7,8 @@ import array
 import StatusPacket
 import platform
 import serial
+import Event
+import Message
 
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
@@ -96,11 +98,15 @@ class TESTCOMM():
 
 
 class UARTCOMM():    
+    UART_message = Event.Event()
     def __init__(self):
         self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=1)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
+    def NewMessage(self,ID, errorTime, sample,  message,mt):
+        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
+        UARTCOMM.UART_message.notify(tmp)   
     def _Write(self,s):
         GPIO.output(self.sendPIN,GPIO.HIGH)       
         self.thePort.write(s.encode())        

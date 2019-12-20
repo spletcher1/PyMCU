@@ -1,10 +1,12 @@
 import Message
 import Enums
+import Event
 
 
 class MessageList():
     def __init__(self):
         self.theMessages = []
+        self.OnMessageRaised=Event.Event()
     def __len__(self):
         return len(self.theMessages)
     def GetErrorCount(self):
@@ -25,3 +27,14 @@ class MessageList():
         self.theMessages.append(newmessage)
     def ClearMessages(self):
         self.theMessages.clear()
+
+    def MessageRaised(self): 
+        # This function will be executed once a lock is broken and will  
+        # raise an event 
+        self.OnMessageRaised() 
+          
+    def AddMessageSubscriber(self,objMethod): 
+        self.OnMessageRaised += objMethod 
+          
+    def RemoveMessageSubscriber(self,objMethod): 
+        self.OnMessageRaised -= objMethod 

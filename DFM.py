@@ -10,9 +10,11 @@ import OptoLid
 import DFMErrors
 import MessagesList
 import Message
+import Event
 
 
 class DFM:
+    DFM_message = Event.Event()
     #region Initialization, etc.
     def __init__(self,id,commProtocol):
         self.ID=id     
@@ -47,12 +49,11 @@ class DFM:
         self.reportedTemperature=1.0
         self.reportedHumidity=1.0
         self.reportedLUX=0
-        self.reportedVoltsIn=1.0
-        self.theMessageList = MessagesList.MessageList()
+        self.reportedVoltsIn=1.0        
     #endregion
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        self.theMessageList.AddMessage(tmp)     
+        DFM.DFM_message.notify(tmp)        
 
     #region Property-like getters and setters
     def GetDFMName(self):

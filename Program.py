@@ -2,8 +2,12 @@ import datetime
 import Enums
 import InstructionSet
 import Instruction
+import Event
+import Message
 
 class MCUProgram():
+    Program_message = Event.Event()
+
     def __init__(self):
         self.theInstructionSets = {}
         self.ClearProgram()
@@ -26,6 +30,10 @@ class MCUProgram():
         self.autoBaseline = True
         self.isActive = False
         self.isProgramLoaded = False
+
+    def NewMessage(self,ID, errorTime, sample,  message,mt):
+        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
+        MCUProgram.Program_message.notify(tmp)   
     def RaiseError(self, s):
         print(s)
     def GetEndTime(self):
