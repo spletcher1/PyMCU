@@ -33,9 +33,7 @@ class MCUProgram():
 
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        MCUProgram.Program_message.notify(tmp)   
-    def RaiseError(self, s):
-        print(s)
+        MCUProgram.Program_message.notify(tmp)    
     def GetEndTime(self):
         return self.startTime + self.experimentDuration
 
@@ -141,124 +139,131 @@ class MCUProgram():
         self.ClearProgram()
         currentSection=""
         currentDFM=-1
-        for l in lines:
-            l = l.strip()         
-            if len(l)==0 or l[0]=="#":
-                continue
-            if "[" in l and "]" in l:
-                currentSection = l[l.index("[")+1:l.index("]")]
+        try:
+            for l in lines:
+                l = l.strip()         
+                if len(l)==0 or l[0]=="#":
+                    continue
+                if "[" in l and "]" in l:
+                    currentSection = l[l.index("[")+1:l.index("]")]
+                else:
+                    if(currentSection.lower()=="general"):
+                        thesplit = l.split(":")                    
+                        if(len(thesplit)>2):
+                            thesplit[1]+=":" + thesplit[2] + ":" + thesplit[3]
+                        if(len(thesplit)>=2):
+                            if(thesplit[0].lower().strip()=="expdurationmin"):
+                                self.experimentDuration = datetime.timedelta(minutes=int(thesplit[1].strip()))
+                            elif(thesplit[0].lower().strip()=="optofrequency"):
+                                self.optoFrequency = int(thesplit[1].strip())
+                            elif(thesplit[0].lower().strip()=="optopw"):
+                                self.optoPulseWidth = int(thesplit[1].strip())
+                            elif(thesplit[0].lower().strip()=="optodecay"):
+                                self.optoDecay = int(thesplit[1].strip())
+                            elif(thesplit[0].lower().strip()=="optodelay"):
+                                self.optoDelay = int(thesplit[1].strip())
+                            elif(thesplit[0].lower().strip()=="maxtimeon"):
+                                self.maxTimeOn = int(thesplit[1].strip())
+                            elif(thesplit[0].lower().strip()=="programtype"):
+                                pt=thesplit[1].strip().lower()
+                                if(pt.lower()=="linear"):
+                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.LINEAR
+                                elif(pt.lower()=="repeating"):
+                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.REPEATING
+                                elif(pt.lower()=="circadian"):
+                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.CIRCADIAN
+                                elif(pt.lower()=="constant"):
+                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.CONSTANT
+                                else:
+                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.CONSTANT
+                            elif(thesplit[0].lower().strip()=="optolid"):
+                                lt=thesplit[1].strip().lower()
+                                if(lt.lower()=="none" or lt=="0"):
+                                    self.globalLidType = Enums.OPTOLIDTYPE.NONE
+                                elif(lt.lower()=="one" or lt=="1"):
+                                    self.globalLidType = Enums.OPTOLIDTYPE.ONECHAMBER
+                                elif(lt.lower()=="six" or lt=="6"):
+                                    self.globalLidType = Enums.OPTOLIDTYPE.SIXCHAMBER
+                                elif(lt.lower()=="twelve" or lt=="12"):
+                                    self.globalLidType = Enums.OPTOLIDTYPE.TWELVECHAMBER
+                                else:
+                                    self.globalLidType = Enums.OPTOLIDTYPE.NONE        
+                            elif(thesplit[0].lower().strip()=="baseline"):
+                                if(thesplit[1].strip().lower()=="yes"):
+                                        self.autoBaseline=True
+                                else:
+                                    self.autoBaseline=False
+                            elif(thesplit[0].lower().strip()=="starttime"):
+                                st=thesplit[1].lower().strip()
+                                if "/" in st: # Assume the date is as MM/DD/YYYY HH:MM:SS
+                                    self.startTime = datetime.datetime.strptime(st,"%m/%d/%Y %H:%M:%S")
+                                else:
+                                    tmp = datetime.datetime.today().strftime("%m/%d/%Y") + " " + st
+                                    self.startTime = datetime.datetime.strptime(tmp,"%m/%d/%Y %H:%M:%S")
+                    elif(currentSection.lower()=="dfm"):
+                        thesplit = l.split(":")
+                        if(len(thesplit)==2):
+                            if (thesplit[0].lower().strip() == "id"):
+                                currentDFM = int(thesplit[1].strip())
+                                ti = InstructionSet.InstructionSet()
+                                ti.optoDecay = self.optoDecay
+                                ti.optoDelay = self.optoDelay
+                                ti.optoFrequency = self.optoFrequency
+                                ti.optoPulseWidth = self.optoPulseWidth
+                                ti.maxTimeOn = self.maxTimeOn
+                                ti.lidType = self.globalLidType
+                                ti.instructionSetType = self.globalPType
+                                self.theInstructionSets[currentDFM] = ti
+                            elif(thesplit[0].lower().strip() == "optolid"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].SetLidTypeFromString(thesplit[1].lower().strip())
+                            elif(thesplit[0].lower().strip() == "optodelay"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].optoDelay=thesplit[1].lower().strip()
+                            elif(thesplit[0].lower().strip() == "optodecay"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].optoDecay=thesplit[1].lower().strip()
+                            elif(thesplit[0].lower().strip() == "optofrequency"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].optoFrequency=thesplit[1].lower().strip()
+                            elif(thesplit[0].lower().strip() == "optopw"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].optoPulseWidth=thesplit[1].lower().strip()
+                            elif(thesplit[0].lower().strip() == "maxtimeon"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].maxTimeOn=thesplit[1].lower().strip()
+                            elif(thesplit[0].lower().strip() == "programtype"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].SetProgramTypeFromString(thesplit[1].lower().strip())
+                            elif(thesplit[0].lower().strip() == "interval"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].AddInstructionFromString(thesplit[1].lower().strip())
+            if(self.experimentDuration.total_seconds()==0):
+                for key in self.theInstructionSets:
+                    if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
+                        self.experimentDuration = self.theInstructionSets[key].GetDuration()
+            
+            allIsWell=True
+            for values in self.theInstructionSets.values():
+                if(values.Validate())==False:
+                    ss="Invalid instruction"
+                    self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)
+                    allIsWell=False
+
+            if(allIsWell==False):
+                ss="Program load error"
+                self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)            
+                self.isProgramLoaded = False
+                self.ClearProgram()
             else:
-                if(currentSection.lower()=="general"):
-                    thesplit = l.split(":")                    
-                    if(len(thesplit)>2):
-                        thesplit[1]+=":" + thesplit[2] + ":" + thesplit[3]
-                    if(len(thesplit)>=2):
-                        if(thesplit[0].lower().strip()=="expdurationmin"):
-                            self.experimentDuration = datetime.timedelta(minutes=int(thesplit[1].strip()))
-                        elif(thesplit[0].lower().strip()=="optofrequency"):
-                            self.optoFrequency = int(thesplit[1].strip())
-                        elif(thesplit[0].lower().strip()=="optopw"):
-                            self.optoPulseWidth = int(thesplit[1].strip())
-                        elif(thesplit[0].lower().strip()=="optodecay"):
-                            self.optoDecay = int(thesplit[1].strip())
-                        elif(thesplit[0].lower().strip()=="optodelay"):
-                            self.optoDelay = int(thesplit[1].strip())
-                        elif(thesplit[0].lower().strip()=="maxtimeon"):
-                            self.maxTimeOn = int(thesplit[1].strip())
-                        elif(thesplit[0].lower().strip()=="programtype"):
-                            pt=thesplit[1].strip().lower()
-                            if(pt.lower()=="linear"):
-                                self.globalPType = Enums.INSTRUCTIONSETTYPE.LINEAR
-                            elif(pt.lower()=="repeating"):
-                                self.globalPType = Enums.INSTRUCTIONSETTYPE.REPEATING
-                            elif(pt.lower()=="circadian"):
-                                self.globalPType = Enums.INSTRUCTIONSETTYPE.CIRCADIAN
-                            elif(pt.lower()=="constant"):
-                                self.globalPType = Enums.INSTRUCTIONSETTYPE.CONSTANT
-                            else:
-                                self.globalPType = Enums.INSTRUCTIONSETTYPE.CONSTANT
-                        elif(thesplit[0].lower().strip()=="optolid"):
-                            lt=thesplit[1].strip().lower()
-                            if(lt.lower()=="none" or lt=="0"):
-                                self.globalLidType = Enums.OPTOLIDTYPE.NONE
-                            elif(lt.lower()=="one" or lt=="1"):
-                                self.globalLidType = Enums.OPTOLIDTYPE.ONECHAMBER
-                            elif(lt.lower()=="six" or lt=="6"):
-                                self.globalLidType = Enums.OPTOLIDTYPE.SIXCHAMBER
-                            elif(lt.lower()=="twelve" or lt=="12"):
-                                self.globalLidType = Enums.OPTOLIDTYPE.TWELVECHAMBER
-                            else:
-                                self.globalLidType = Enums.OPTOLIDTYPE.NONE        
-                        elif(thesplit[0].lower().strip()=="baseline"):
-                            if(thesplit[1].strip().lower()=="yes"):
-                                 self.autoBaseline=True
-                            else:
-                                self.autoBaseline=False
-                        elif(thesplit[0].lower().strip()=="starttime"):
-                            st=thesplit[1].lower().strip()
-                            if "/" in st: # Assume the date is as MM/DD/YYYY HH:MM:SS
-                                self.startTime = datetime.datetime.strptime(st,"%m/%d/%Y %H:%M:%S")
-                            else:
-                                tmp = datetime.datetime.today().strftime("%m/%d/%Y") + " " + st
-                                self.startTime = datetime.datetime.strptime(tmp,"%m/%d/%Y %H:%M:%S")
-                elif(currentSection.lower()=="dfm"):
-                    thesplit = l.split(":")
-                    if(len(thesplit)==2):
-                        if (thesplit[0].lower().strip() == "id"):
-                            currentDFM = int(thesplit[1].strip())
-                            ti = InstructionSet.InstructionSet()
-                            ti.optoDecay = self.optoDecay
-                            ti.optoDelay = self.optoDelay
-                            ti.optoFrequency = self.optoFrequency
-                            ti.optoPulseWidth = self.optoPulseWidth
-                            ti.maxTimeOn = self.maxTimeOn
-                            ti.lidType = self.globalLidType
-                            ti.instructionSetType = self.globalPType
-                            self.theInstructionSets[currentDFM] = ti
-                        elif(thesplit[0].lower().strip() == "optolid"):
-                            if(currentDFM != -1):
-                                self.theInstructionSets[currentDFM].SetLidTypeFromString(thesplit[1].lower().strip())
-                        elif(thesplit[0].lower().strip() == "optodelay"):
-                            if(currentDFM != -1):
-                                self.theInstructionSets[currentDFM].optoDelay=thesplit[1].lower().strip()
-                        elif(thesplit[0].lower().strip() == "optodecay"):
-                            if(currentDFM != -1):
-                                self.theInstructionSets[currentDFM].optoDecay=thesplit[1].lower().strip()
-                        elif(thesplit[0].lower().strip() == "optofrequency"):
-                            if(currentDFM != -1):
-                                self.theInstructionSets[currentDFM].optoFrequency=thesplit[1].lower().strip()
-                        elif(thesplit[0].lower().strip() == "optopw"):
-                            if(currentDFM != -1):
-                                self.theInstructionSets[currentDFM].optoPulseWidth=thesplit[1].lower().strip()
-                        elif(thesplit[0].lower().strip() == "maxtimeon"):
-                            if(currentDFM != -1):
-                                self.theInstructionSets[currentDFM].maxTimeOn=thesplit[1].lower().strip()
-                        elif(thesplit[0].lower().strip() == "programtype"):
-                            if(currentDFM != -1):
-                                self.theInstructionSets[currentDFM].SetProgramTypeFromString(thesplit[1].lower().strip())
-                        elif(thesplit[0].lower().strip() == "interval"):
-                            if(currentDFM != -1):
-                                self.theInstructionSets[currentDFM].AddInstructionFromString(thesplit[1].lower().strip())
-        if(self.experimentDuration.total_seconds()==0):
-            for key in self.theInstructionSets:
-                if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
-                    self.experimentDuration = self.theInstructionSets[key].GetDuration()
-        
-        allIsWell=True
-        for values in self.theInstructionSets.values():
-            if(values.Validate())==False:
-                self.RaiseError("Intructionset not valid.")
-                allIsWell=False
+                self.isProgramLoaded=True
 
-        if(allIsWell==False):
-            self.RaiseError("Program load problem.")
-            self.isProgramLoaded = False
-            self.ClearProgram()
-        else:
-            self.isProgramLoaded=True
+            return allIsWell
+        except:
+            ss="General program load failure"
+            self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)         
 
-        return allIsWell
-        
+
     def UpdateStartAndEndTime(self,sTime,eTime):
         if(eTime<sTime): # This is a mistake to just update start time.
             self.startTime=sTime

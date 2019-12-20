@@ -103,7 +103,7 @@ class OptoWell:
         
 
 def ModuleTest():
-    tmp=OptoWell()
+    print("Module test")
     
 if __name__=="__main__" :
     ModuleTest()        

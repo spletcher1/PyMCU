@@ -99,7 +99,9 @@ class DFM:
         self.reportedOptoStateCol1  = self.currentStatusPacket.optoState1
         self.reportedOptoStateCol2 = self.currentStatusPacket.optoState2
         self.currentDFMErrors.UpdateErrors(self.currentStatusPacket.errorFlags)
-
+        if(self.currentStatusPacket.errorFlags!=0):
+            s="({:d}) Non-zero DFM error code".format(self.ID)
+            self.NewMessage(self.ID,self.currentStatusPacket.packetTime,self.currentStatusPacket.sampleIndex,s,Enums.MESSAGETYPE.WARNING)
 
     def ProcessPacket(self,bytesData,timeOfMeasure):           
         if(len(bytesData)==0):
@@ -144,22 +146,22 @@ class DFM:
         isSuccess=False
         if(theResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):
             self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-            s="({:d}) Checksum error.".format(self.ID)
+            s="({:d}) Checksum error".format(self.ID)
             self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
         elif(theResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
             self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-            s="({:d}) No answer.".format(self.ID)
+            s="({:d}) No answer".format(self.ID)
             self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
         elif(theResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
             self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-            s="({:d}) Wrong number of bytes.".format(self.ID)
+            s="({:d}) Wrong number of bytes".format(self.ID)
             self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
         elif(theResult == Enums.PROCESSEDPACKETRESULT.OKAY):
             isSuccess=True
         if isSuccess:
             if(self.theData.NewData(self.currentStatusPacket,saveDataToQueue)==False):
-                s="({:d}) Data queue error.".format(self.ID)
-                self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)
+                s="({:d}) Data queue error".format(self.ID)
+                self.NewMessage(self.ID,timeOfMeasure,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 isSuccess = False
             else:
