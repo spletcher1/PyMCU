@@ -142,6 +142,9 @@ class DFM:
             theResult = self.ProcessPacket(tmp,timeOfMeasure)
             if(theResult==Enums.PROCESSEDPACKETRESULT.OKAY):
                 break
+            print("Calling again")
+            s="({:d}) Calling again".format(self.ID)
+            self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             time.sleep(0.005)       
         isSuccess=False
         if(theResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):

@@ -69,9 +69,7 @@ class DFMGroup:
     def WriteMessages(self):
         path=self.currentOutputDirectory+"/Messages.csv"
         f=open(path,"w+")
-        f.write(self.theMessageList.GetMessageStringForFile())
-        for d in self.theDFMs:
-            f.write(d.theMessageList.GetMessageStringForFile())
+        f.write(self.theMessageList.GetMessageStringForFile())    
         f.close()
 
     def SetDFMIdleStatus(self):

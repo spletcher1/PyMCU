@@ -38,20 +38,22 @@ def ModuleTest():
 def main():
     if(platform.node()=="raspberrypi"):
         BoardSetup()   
-    ##tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
-    tmp = DFMGroup.DFMGroup(COMM.TESTCOMM())
+    tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
+    ##tmp = DFMGroup.DFMGroup(COMM.TESTCOMM())
     tmp.FindDFMs(2)
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
-    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
+    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=360))
     print(tmp.currentProgram)
     tmp.ActivateCurrentProgram()
+    counter=0
     while(tmp.currentProgram.isActive):   
         tmp.UpdateDFMStatus()     
-        print(tmp.longestQueue)
+        print("("+str(counter)+") " + str(tmp.theDFMs[0].currentStatusPacket.errorFlags))
+        counter+=1
         time.sleep(1)
     tmp.StopReading()
-    print(tmp.isReading)
+    
 
 if __name__=="__main__" :
     main()
