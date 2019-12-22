@@ -80,11 +80,12 @@ class DFMGroup:
     def UpdateDFMPrograms(self):
         for d in self.theDFMs:
             di = self.currentProgram.GetCurrentInstruction(d.ID)
+            print(di)
             if(di.theDarkState == Enums.DARKSTATE.OFF):
                 d.isInDark=False
             elif(di.theDarkState == Enums.DARKSTATE.ON):
                 d.isInDark=True
-            d.SetAllSignalThresholds(di.optoValues)
+            d.SetAllSignalThresholds(di.optoValues)           
 
     def WriteWorker(self):        
         dt=datetime.datetime.today()
@@ -111,7 +112,7 @@ class DFMGroup:
             currentDFM = self.theDFMs[currentDFMIndex]
             currentDuration=datetime.datetime.today()-writeStartTimes[currentDFMIndex]
             if(currentDuration.total_seconds()>=86400):
-                theFiles[currentDFMIndex].close()
+                theFiles[currentDFMIndex].close()   
                 currentDFM.IncrementOutputFile()                
                 tmp=self.currentOutputDirectory+"/"+currentDFM.outputFile
                 tmp2=open(tmp,"w+")            
@@ -187,7 +188,7 @@ class DFMGroup:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
                 self.isReading = False                
                 return                      
-            time.sleep( 0.0001 ) # Yeild to other threads for a bit
+            time.sleep( 0.001 ) # Yeild to other threads for a bit
     
 
     ## Below here are really the only methods that should be called by 

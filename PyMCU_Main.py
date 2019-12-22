@@ -43,13 +43,14 @@ def main():
     tmp.FindDFMs(2)
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
-    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=360))
+    ##tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=360))
+    tmp.LoadTextProgram("TestProgram2.txt")
     print(tmp.currentProgram)
     tmp.ActivateCurrentProgram()
     counter=0
     while(tmp.currentProgram.isActive):   
         tmp.UpdateDFMStatus()     
-        print("("+str(counter)+") " + str(tmp.theDFMs[0].currentStatusPacket.errorFlags))
+        #print("("+str(counter)+") " + str(tmp.theDFMs[0].currentStatusPacket.errorFlags))
         counter+=1
         time.sleep(1)
     tmp.StopReading()

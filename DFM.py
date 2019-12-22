@@ -198,9 +198,9 @@ class DFM:
 
     def CheckStatus(self):
         if(self.currentStatusPacket.darkStatus == 1 and self.isInDark == False):
-            self.theCOMM.ExitDark()
+            self.theCOMM.ExitDark(self.ID)
         elif(self.currentStatusPacket.darkStatus==0 and self.isInDark == True):
-            self.theCOMM.GoDark()
+            self.theCOMM.GoDark(self.ID)
 
         if(self.hasFrequencyChanged or (self.reportedOptoFrequency != self.optoFrequency)):
             self.theCOMM.SendFrequency(self.optoFrequency,self.ID)
@@ -213,6 +213,7 @@ class DFM:
         self.optoLid.SetOptoState(self.GetLastAnalogData(True)) # For optolid purposes, we always used baselined data, even if it is not actually baselined.
 
         if((self.reportedOptoStateCol1 != self.optoLid.optoStateCol1)) or (self.reportedOptoStateCol2 != self.optoLid.optoStateCol2):
+            print("Sending optostate: {:X}  {:X}".format(self.optoLid.optoStateCol1,self.optoLid.optoStateCol2))
             self.theCOMM.SendOptoState(self.optoLid.optoStateCol1,self.optoLid.optoStateCol2,self.ID)
         
 

@@ -55,12 +55,12 @@ class OptoWell:
 
     def ProcessSignal(self,currentSignal):
         if(self.signalThreshold==-1):
-            self.isLEDOn=False
+            self.isLEDOn=False           
             return
-        elif(self.signalThreshold==0):
+        elif(self.signalThreshold==0):            
             self.isLEDOn=True
             return
-
+        
         if(currentSignal>self.signalThreshold):
             if(self.delay>0):
                 self.isLEDOn=False

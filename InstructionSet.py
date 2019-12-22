@@ -94,17 +94,14 @@ class InstructionSet:
             elif(int(ss[0])==1):
                 ds= DARKSTATE.ON
             else:
-                ds=DARKSTATE.UNCONTROLLED
-            if(int(ss[1])==-1):
-                ov = array.array("i",(-1 for j in range(0,12)))
-            else:
-                ov = array.array("i",(-1 for jj in range(0,12)))
-                for x in range(0,12):
-                    ov[x]=int(ss[x+1])
-                for ii in range(0,12):
-                    if(ov[ii]>1023): 
-                        ov[ii]=-1          
-            dur = datetime.timedelta(seconds=(int(ss[13])*60))
+                ds=DARKSTATE.UNCONTROLLED           
+            ov = array.array("i",(-1 for jj in range(0,12)))
+            for x in range(0,12):
+                ov[x]=int(ss[x+1])
+            for ii in range(0,12):
+                if(ov[ii]>1023): 
+                    ov[ii]=-1          
+            dur = datetime.timedelta(seconds=(float(ss[13])*60))
             tmp = Instruction.DFMInstruction(ds,dur,0)
             tmp.SetOptoValues(ov)
             self.AddInstruction(tmp)

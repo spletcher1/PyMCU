@@ -24,7 +24,7 @@ class OptoLid:
         if(self.optoType==Enums.OPTOTYPE.ALLON):
             self.optoStateCol1=0x3F
             self.optoStateCol2=0x3F
-        elif(self.optoType==Enums.OPTOTYPE.ADAPTIVE):
+        elif(self.optoType==Enums.OPTOTYPE.ADAPTIVE):          
             for i in range(0,12):
                 self.theWells[i].ProcessSignal(currentSignals[i])
             if(self.lidType==Enums.OPTOLIDTYPE.ONECHAMBER):
@@ -41,7 +41,7 @@ class OptoLid:
             self.optoStateCol2=0x00
     
     def SetOptoState12Well(self):
-        self.optoStateCol2=0x00
+        self.optoStateCol1=0x00
         self.optoStateCol2=0x00
         if(self.theWells[0].isLEDOn):
             self.optoStateCol1 = self.optoStateCol1 | 0x01
@@ -92,7 +92,7 @@ class OptoLid:
             self.optoStateCol2 = self.optoStateCol2 | 0x20
     
     def SetOptoState1Well(self):
-        self.optoStateCol2=0x00
+        self.optoStateCol1=0x00
         self.optoStateCol2=0x00
         for w in self.theWells:
             if(w.isLEDOn):
