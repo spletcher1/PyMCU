@@ -79,8 +79,7 @@ class DFMGroup:
 
     def UpdateDFMPrograms(self):
         for d in self.theDFMs:
-            di = self.currentProgram.GetCurrentInstruction(d.ID)
-            print(di)
+            di = self.currentProgram.GetCurrentInstruction(d.ID)            
             if(di.theDarkState == Enums.DARKSTATE.OFF):
                 d.isInDark=False
             elif(di.theDarkState == Enums.DARKSTATE.ON):
