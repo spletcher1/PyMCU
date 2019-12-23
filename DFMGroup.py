@@ -165,9 +165,11 @@ class DFMGroup:
         readThread.start()
     def ReadWorker(self):    
         self.isReading=True
+        tt = datetime.datetime.today()
+        lastSecond=tt.second
         while True:   
             tt = datetime.datetime.today()
-            if(tt.microsecond>0):                
+            if(tt.microsecond>0 and tt.second != lastSecond):                
                     for d in self.theDFMs:
                         d.ReadValues(tt,self.isWriting)            
                         time.sleep(0.010)                    
@@ -193,13 +195,14 @@ class DFMGroup:
             d.optoDecay=self.currentProgram.GetOptoDecay(d.ID)
             d.optoDelay=self.currentProgram.GetOptoDelay(d.ID)
             d.maxTimeOn=self.currentProgram.GetMexTimeOn(d.ID)
-    def FindDFMs(self,maxNum=16):
+    def FindDFMs(self,maxNum=16,startReading=True):
         self.StopReading()        
         for i in range(1,maxNum+1):
             if(self.theCOMM.PollSlave(i)):
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
             time.sleep(0.01)
-        self.StartReading()
+        if(startReading):
+            self.StartReading()
     ## This function is the one that should be called by an external timer
     ## to keep things rolling correctly.
     def UpdateDFMStatus(self):
@@ -234,17 +237,22 @@ class DFMGroup:
 
 
 def ModuleTest():
-    #tmp = DFMGroup(COMM.TESTCOMM())
-    tmp = DFMGroup(COMM.UARTCOMM())
-    tmp.FindDFMs(1)
+    tmp = DFMGroup(COMM.TESTCOMM())
+    #tmp = DFMGroup(COMM.UARTCOMM())
+    tmp.FindDFMs(1,False)
     print("DFMs Found:" + str(len(tmp.theDFMs)))
     #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
     #print(tmp.currentProgram)
     #tmp.ActivateCurrentProgram()
-    while(tmp.currentProgram.isActive):
-        tmp.theDFMs[0].ReadValues(datetime.datetime.today(),False)
-        print(tmp.theDFMs[0].currentStatusPacket) 
-        time.sleep(1)
+    tt = datetime.datetime.today()
+    lastSecond=tt.second
+    while(1):
+        tt = datetime.datetime.today()
+        if(tt.microsecond>0 and tt.second != lastSecond): 
+            tmp.theDFMs[0].ReadValues(datetime.datetime.today(),False)
+            lastSecond=tt.second
+            for i in range(0,5):
+                print(tmp.theDFMs[0].currentStatusPackets[i].GetConsolePrintPacket())         
     #    tmp.UpdateDFMStatus()     
     #    print(tmp.longestQueue)
     #    time.sleep(1)

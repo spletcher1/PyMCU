@@ -19,7 +19,7 @@ class DFM:
     def __init__(self,id,commProtocol):
         self.ID=id     
         self.theCOMM = commProtocol
-        self.currentStatusPacket = StatusPacket.StatusPacket(0)
+        self.currentStatusPackets = []
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
@@ -91,30 +91,38 @@ class DFM:
 
     #region Packet processing, etc.
     def UpdateReportedValues(self):
-        self.reportedHumidity = self.currentStatusPacket.humidity
-        self.reportedLUX = self.currentStatusPacket.lux
-        self.reportedTemperature = self.currentStatusPacket.temp
-        self.reportedOptoFrequency = self.currentStatusPacket.optoFrequency
-        self.reportedOptoPulsewidth = self.currentStatusPacket.optoPulseWidth
-        self.reportedOptoStateCol1  = self.currentStatusPacket.optoState1
-        self.reportedOptoStateCol2 = self.currentStatusPacket.optoState2
-        self.currentDFMErrors.UpdateErrors(self.currentStatusPacket.errorFlags)
-        if(self.currentStatusPacket.errorFlags!=0):
-            s="({:d}) Non-zero DFM error code".format(self.ID)
-            self.NewMessage(self.ID,self.currentStatusPacket.packetTime,self.currentStatusPacket.sampleIndex,s,Enums.MESSAGETYPE.WARNING)
+        self.reportedHumidity = self.currentStatusPackets[-1].humidity
+        self.reportedLUX = self.currentStatusPackets[-1].lux
+        self.reportedTemperature = self.currentStatusPackets[-1].temp
+        self.reportedOptoFrequency = self.currentStatusPackets[-1].optoFrequency
+        self.reportedOptoPulsewidth = self.currentStatusPackets[-1].optoPulseWidth
+        self.reportedOptoStateCol1  = self.currentStatusPackets[-1].optoState1
+        self.reportedOptoStateCol2 = self.currentStatusPackets[-1].optoState2
+        self.currentDFMErrors.UpdateErrors(self.currentStatusPackets[-1].errorFlags)
+        for sp in self.currentStatusPackets:
+            if(sp.errorFlags!=0):
+                s="({:d}) Non-zero DFM error code".format(self.ID)
+                self.NewMessage(self.ID,sp.packetTime,sp.sampleIndex,s,Enums.MESSAGETYPE.WARNING)
 
-    def ProcessPackets(self,bytesData,timeOfMeasure):           
+    def ProcessPackets(self,bytesData,timeOfMeasure):                 
         if(len(bytesData)==0):
-            return Enums.PROCESSEDPACKETRESULT.NOANSWER
+            a=Enums.PROCESSEDPACKETRESULT.NOANSWER
+            return [a,a,a,a,a]
         if(len(bytesData)!=309):
-            return Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
+            a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
+            return [a,a,a,a,a]
         if(bytesData[3]!=self.ID):
-            return Enums.PROCESSEDPACKETRESULT.WRONGID
-        self.currentStatusPacket = StatusPacket.StatusPacket(self.sampleIndex)
-        tmp = self.currentStatusPacket.ProcessStatusPacket(bytesData,timeOfMeasure)
-        if(tmp == Enums.PROCESSEDPACKETRESULT.OKAY):
-            self.UpdateReportedValues()
-        return tmp        
+            a=Enums.PROCESSEDPACKETRESULT.WRONGID
+            return [a,a,a,a,a]
+        self.currentStatusPackets.clear()
+        results=[]
+        for i in range(0,5):
+            tmpPacket = StatusPacket.StatusPacket(self.sampleIndex+i)
+            results.append(tmpPacket.ProcessStatusPacket(bytesData,timeOfMeasure,i))
+            self.currentStatusPackets.append(tmpPacket)
+        if(results[1] == Enums.PROCESSEDPACKETRESULT.OKAY):
+             self.UpdateReportedValues()            
+        return results
     def SetTargetOptoFrequency(self,target):
         if(target!=self.optoFrequency):
             self.optoFrequency=target
@@ -139,43 +147,44 @@ class DFM:
         theResult = Enums.PROCESSEDPACKETRESULT.OKAY                        
         for _ in range(0,self.callLimit) :            
             tmp=self.theCOMM.GetStatusPacket(self.ID)              
-            theResult = self.ProcessPacket(tmp,timeOfMeasure)
-            if(theResult==Enums.PROCESSEDPACKETRESULT.OKAY):
+            theResult = self.ProcessPackets(tmp,timeOfMeasure)
+            if(theResult[-1]==Enums.PROCESSEDPACKETRESULT.OKAY):
                 break
             print("Calling again: {:s}" + str(theResult))
             s="Calling again: {:s}".format(str(theResult))
             self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             time.sleep(0.005)       
-        isSuccess=False
-        if(theResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):
-            self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-            s="({:d}) Checksum error".format(self.ID)
-            self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
-        elif(theResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
-            self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-            s="({:d}) No answer".format(self.ID)
-            self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
-        elif(theResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
-            self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-            s="({:d}) Wrong number of bytes".format(self.ID)
-            self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
-        elif(theResult == Enums.PROCESSEDPACKETRESULT.OKAY):
-            isSuccess=True
-        if isSuccess:
-            if(self.theData.NewData(self.currentStatusPacket,saveDataToQueue)==False):
-                s="({:d}) Data queue error".format(self.ID)
-                self.NewMessage(self.ID,timeOfMeasure,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)
-                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                isSuccess = False
-            else:
-                self.sampleIndex = self.sampleIndex+1
-                if(self.status == Enums.CURRENTSTATUS.ERROR):
-                    self.SetStatus(self.beforeErrorStatus)
-                self.CheckStatus()
-            if(self.isCalculatingBaseline):
-                self.UpdateBaseline()
 
-        return isSuccess
+        for j in range(0,5):    
+            isSuccess=False
+            if(theResult[j] == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):
+                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                s="({:d}) Checksum error".format(self.ID)
+                self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(theResult[j] == Enums.PROCESSEDPACKETRESULT.NOANSWER):
+                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                s="({:d}) No answer".format(self.ID)
+                self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(theResult[j] == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
+                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                s="({:d}) Wrong number of bytes".format(self.ID)
+                self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(theResult[j] == Enums.PROCESSEDPACKETRESULT.OKAY):
+                isSuccess=True
+            if isSuccess:
+                if(self.theData.NewData(self.currentStatusPackets[j],saveDataToQueue)==False):
+                    s="({:d}) Data queue error".format(self.ID)
+                    self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
+                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                    isSuccess = False
+                else:
+                    self.sampleIndex = self.sampleIndex+1
+                    if(self.status == Enums.CURRENTSTATUS.ERROR):
+                        self.SetStatus(self.beforeErrorStatus)                  
+                if(self.isCalculatingBaseline):
+                    self.UpdateBaseline()
+        if(isSuccess):
+            self.CheckStatus()        
     #endregion
 
     def ResetOutputFileStuff(self):
@@ -197,9 +206,9 @@ class DFM:
             self.signalBaselines[i]=newbaselines[i]
 
     def CheckStatus(self):
-        if(self.currentStatusPacket.darkStatus == 1 and self.isInDark == False):
+        if(self.currentStatusPackets[-1].darkStatus == 1 and self.isInDark == False):
             self.theCOMM.ExitDark(self.ID)
-        elif(self.currentStatusPacket.darkStatus==0 and self.isInDark == True):
+        elif(self.currentStatusPackets[-1].darkStatus==0 and self.isInDark == True):
             self.theCOMM.GoDark(self.ID)
 
         if(self.hasFrequencyChanged or (self.reportedOptoFrequency != self.optoFrequency)):
@@ -219,7 +228,7 @@ class DFM:
 
     #region Testing Code
     def PrintCurrentPacket(self):
-        print(self.currentStatusPacket.GetDataBufferPrintPacket())
+        print(self.currentStatusPackets[-1].GetDataBufferPrintPacket())
     def PrintDataBuffer(self):
         print(self.theData.PullAllRecordsAsString())
     def TestRead(self):

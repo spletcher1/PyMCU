@@ -18,62 +18,64 @@ class StatusPacket:
         self.optoFrequency=0
         self.optoPulseWidth=0
         self.errorFlags=0
-    def ProcessStatusPacket(self,bytesData,timeOfMeasure):
-        self.packetTime = timeOfMeasure
+    def ProcessStatusPacket(self,bytesData,timeOfMeasure,packetNum):        
+        ## This function should receive packetnumbers 0-4
+        self.packetTime = timeOfMeasure - datetime.timedelta(microseconds=(5-packetNum)*200000)
+        indexer = (packetNum*61)+4
         # Calculate the checksum
         calculatedCheckSum=0
-        for cs in range(3,len(bytesData)-4) :
+        for cs in range(indexer,(indexer+57)) :
             calculatedCheckSum+=bytesData[cs]
         calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
-        expectedCheckSum = bytesData[61]<<24
-        expectedCheckSum += bytesData[62]<<16
-        expectedCheckSum += bytesData[63]<<8
-        expectedCheckSum += bytesData[64]
+        expectedCheckSum = bytesData[(indexer+57)]<<24
+        expectedCheckSum += bytesData[(indexer+58)]<<16
+        expectedCheckSum += bytesData[(indexer+59)]<<8
+        expectedCheckSum += bytesData[(indexer+60)]
        
         if(calculatedCheckSum != expectedCheckSum):
             return PROCESSEDPACKETRESULT.CHECKSUMERROR
 
-        self.errorFlags = bytesData[4]
+        self.errorFlags = bytesData[indexer]
 
         for i in range(0,12):
-            baseindex=(i*3)+5
+            baseindex=(i*3)+(indexer+1)
             currentValue = bytesData[baseindex]<<16
             currentValue += bytesData[baseindex+1]<<8
             currentValue += bytesData[baseindex+2]
             self.analogValues[i] = currentValue >>7
 
-        currentValue = bytesData[41]<<16
-        currentValue += bytesData[42]<<8
-        currentValue += bytesData[43]
+        currentValue = bytesData[(indexer+37)]<<16
+        currentValue += bytesData[(indexer+38)]<<8
+        currentValue += bytesData[(indexer+39)]
         self.voltsIn = ((currentValue>>7)/(1024))*3.3*2
 
-        self.optoState1 = bytesData[44]
-        self.optoState2 = bytesData[45]
+        self.optoState1 = bytesData[(indexer+40)]
+        self.optoState2 = bytesData[(indexer+41)]
 
-        currentValue = bytesData[46]<<8
-        currentValue += bytesData[47]
+        currentValue = bytesData[(indexer+42)]<<8
+        currentValue += bytesData[(indexer+43)]
         self.optoFrequency = currentValue
 
-        currentValue = bytesData[48]<<8
-        currentValue += bytesData[49]
+        currentValue = bytesData[(indexer+44)]<<8
+        currentValue += bytesData[(indexer+45)]
         self.optoPulseWidth = currentValue
 
-        self.darkStatus = bytesData[50]
+        self.darkStatus = bytesData[(indexer+46)]
         
-        currentValue = bytesData[51]<<24
-        currentValue += bytesData[52]<<16
-        currentValue += bytesData[53]<<8
-        currentValue += bytesData[54]
+        currentValue = bytesData[(indexer+47)]<<24
+        currentValue += bytesData[(indexer+48)]<<16
+        currentValue += bytesData[(indexer+49)]<<8
+        currentValue += bytesData[(indexer+50)]
         self.temp = currentValue/1000.0
 
-        currentValue = bytesData[55]<<24
-        currentValue += bytesData[56]<<16
-        currentValue += bytesData[57]<<8
-        currentValue += bytesData[58]
+        currentValue = bytesData[(indexer+51)]<<24
+        currentValue += bytesData[(indexer+52)]<<16
+        currentValue += bytesData[(indexer+53)]<<8
+        currentValue += bytesData[(indexer+54)]
         self.humidity = currentValue/1000.0
 
-        currentValue = bytesData[59]<<8
-        currentValue += bytesData[60]
+        currentValue = bytesData[(indexer+55)]<<8
+        currentValue += bytesData[(indexer+56)]
         self.lux = currentValue
 
         return PROCESSEDPACKETRESULT.OKAY   

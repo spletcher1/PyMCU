@@ -35,61 +35,63 @@ class TESTCOMM():
         self._DoNothing()
     def _CreateFakeStatusPacket(self,ID):
         tmp = StatusPacket.StatusPacket(0)
-        ba = bytearray(65)
+        ba = bytearray(309)
         ba[0]=0xFF
         ba[1]=0xFF
         ba[2]=0xFD
         ba[3]=ID
-        ba[4]=0x00 #Error flag     
-        for i in range(0,12):
-            analog=50+randint(0,20)
-            analog *=128
-            ba[(3*i)+5]=analog >> 16
-            ba[(3*i)+6]=(analog >> 8) & 0xFF
-            ba[(3*i)+7]=analog & 0xFF
-        
-        voltsin = int((2.5/3.3)*1024*128)
-        ba[41] = voltsin>>16
-        ba[42] = (voltsin>>8) & 0xFF
-        ba[43] = voltsin & 0xFF
-         
-        ba[44]=0x00 #OS1
-        ba[45]=0x00 #OS2
+        for j in range(0,5):
+            indexer = (j*61)+4
+            ba[indexer]=0x00 #Error flag     
+            for i in range(0,12):
+                analog=50+randint(0,20)
+                analog *=128
+                ba[(3*i)+(indexer+1)]=analog >> 16
+                ba[(3*i)+(indexer+2)]=(analog >> 8) & 0xFF
+                ba[(3*i)+(indexer+3)]=analog & 0xFF
+            
+            voltsin = int((2.5/3.3)*1024*128)
+            ba[(indexer+37)] = voltsin>>16
+            ba[(indexer+38)] = (voltsin>>8) & 0xFF
+            ba[(indexer+39)] = voltsin & 0xFF
+                
+            ba[(indexer+40)]=0x00 #OS1
+            ba[(indexer+41)]=0x00 #OS2
 
-        ba[46]=0x00 #Freq
-        ba[47]=0x28
+            ba[(indexer+42)]=0x00 #Freq
+            ba[(indexer+43)]=0x28
 
-        ba[48]=0x00 #PW
-        ba[49]=0x08
+            ba[(indexer+44)]=0x00 #PW
+            ba[(indexer+45)]=0x08
 
-        ba[50]=0x00 # Dark mode
+            ba[(indexer+46)]=0x00 # Dark mode
 
-        tmp = 18 + randint(0,10) 
-        tmp*=1000
-        ba[51] = tmp>>24
-        ba[52] = (tmp>>16) & 0xFF
-        ba[53] = (tmp>>8) & 0xFF
-        ba[54] = tmp & 0xFF
+            tmp = 18 + randint(0,10) 
+            tmp*=1000
+            ba[(indexer+47)] = tmp>>24
+            ba[(indexer+48)] = (tmp>>16) & 0xFF
+            ba[(indexer+49)] = (tmp>>8) & 0xFF
+            ba[(indexer+50)] = tmp & 0xFF
 
-        tmp = 45 + randint(0,20) 
-        tmp*=1000
-        ba[55] = tmp>>24
-        ba[56] = (tmp>>16) & 0xFF
-        ba[57] = (tmp>>8) & 0xFF
-        ba[58] = tmp & 0xFF
+            tmp = 45 + randint(0,20) 
+            tmp*=1000
+            ba[(indexer+51)] = tmp>>24
+            ba[(indexer+52)] = (tmp>>16) & 0xFF
+            ba[(indexer+53)] = (tmp>>8) & 0xFF
+            ba[(indexer+54)] = tmp & 0xFF
 
-        tmp = 500 + randint(0,80) 
-        ba[59] = (tmp>>8) & 0xFF
-        ba[60] = tmp & 0xFF
+            tmp = 500 + randint(0,80) 
+            ba[(indexer+55)] = (tmp>>8) & 0xFF
+            ba[(indexer+56)] = tmp & 0xFF
 
-        calculatedCheckSum=0
-        for cs in range(3,len(ba)-4) :
-            calculatedCheckSum+=ba[cs]
-        calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
-        ba[61] = calculatedCheckSum>>24
-        ba[62] = (calculatedCheckSum>>16) & 0xFF
-        ba[63] = (calculatedCheckSum>>8) & 0xFF
-        ba[64] = calculatedCheckSum & 0xFF
+            calculatedCheckSum=0
+            for cs in range(indexer,indexer+57) :
+                calculatedCheckSum+=ba[cs]
+            calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
+            ba[(indexer+57)] = calculatedCheckSum>>24
+            ba[(indexer+58)] = (calculatedCheckSum>>16) & 0xFF
+            ba[(indexer+59)] = (calculatedCheckSum>>8) & 0xFF
+            ba[(indexer+60)] = calculatedCheckSum & 0xFF
 
         return ba
     def GetStatusPacket(self,ID):        
