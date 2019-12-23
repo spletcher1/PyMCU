@@ -100,7 +100,7 @@ class TESTCOMM():
 class UARTCOMM():    
     UART_message = Event.Event()
     def __init__(self):
-        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=0.1)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=0.3)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -213,8 +213,10 @@ class UARTCOMM():
         self._AddChecksumTwoBytes(ba)
         self._WriteByteArray(ba)  
     def GetStatusPacket(self,ID):
+        #tmp=self._Read(65)
         self.RequestStatus(ID)
         return self._Read(65) 
+        #return tmp 
     def PollSlave(self,ID):
         ba = bytearray(9)
         ba[0]=0xFF

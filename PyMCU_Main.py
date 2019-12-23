@@ -44,6 +44,9 @@ def main():
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
     ##tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=360))
+    while(1):     
+        print(tmp.theDFMs[0].currentStatusPacket.GetConsolePrintPacket()) 
+        time.sleep(1)
     tmp.LoadTextProgram("TestProgram2.txt")
     print(tmp.currentProgram)
     tmp.ActivateCurrentProgram()

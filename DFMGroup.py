@@ -252,12 +252,15 @@ def ModuleTest():
     #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
     #print(tmp.currentProgram)
     #tmp.ActivateCurrentProgram()
-    #while(tmp.currentProgram.isActive):   
+    while(tmp.currentProgram.isActive):
+        tmp.theDFMs[0].ReadValues(datetime.datetime.today(),False)
+        print(tmp.theDFMs[0].currentStatusPacket) 
+        time.sleep(1)
     #    tmp.UpdateDFMStatus()     
     #    print(tmp.longestQueue)
     #    time.sleep(1)
     
-    
+
 if __name__=="__main__" :
     ModuleTest()   
     print("Done!!")     
