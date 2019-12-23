@@ -215,7 +215,9 @@ class UARTCOMM():
     def GetStatusPacket(self,ID):
         #tmp=self._Read(65)
         self.RequestStatus(ID)
-        return self._Read(65) 
+        #Read 5 packets at once!
+        # 4 without header = 309 total
+        return self._Read(309) 
         #return tmp 
     def PollSlave(self,ID):
         ba = bytearray(9)

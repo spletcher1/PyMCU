@@ -103,10 +103,10 @@ class DFM:
             s="({:d}) Non-zero DFM error code".format(self.ID)
             self.NewMessage(self.ID,self.currentStatusPacket.packetTime,self.currentStatusPacket.sampleIndex,s,Enums.MESSAGETYPE.WARNING)
 
-    def ProcessPacket(self,bytesData,timeOfMeasure):           
+    def ProcessPackets(self,bytesData,timeOfMeasure):           
         if(len(bytesData)==0):
             return Enums.PROCESSEDPACKETRESULT.NOANSWER
-        if(len(bytesData)!=65):
+        if(len(bytesData)!=309):
             return Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
         if(bytesData[3]!=self.ID):
             return Enums.PROCESSEDPACKETRESULT.WRONGID

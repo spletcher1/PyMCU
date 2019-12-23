@@ -163,25 +163,14 @@ class DFMGroup:
             d.SetStatus(Enums.CURRENTSTATUS.READING)        
         readThread = threading.Thread(target=self.ReadWorker)
         readThread.start()
-    def ReadWorker(self):
-        nextTime=[0,195000,395000,595000,795000]
-        #nextTime=[0,500000]     
-        indexer=0
+    def ReadWorker(self):    
         self.isReading=True
         while True:   
             tt = datetime.datetime.today()
-            if(indexer==0):
-                if(tt.microsecond<nextTime[1]):                    
+            if(tt.microsecond>0):                
                     for d in self.theDFMs:
                         d.ReadValues(tt,self.isWriting)            
-                    indexer=indexer+1                
-            elif(tt.microsecond>nextTime[indexer]):  
-                for d in self.theDFMs:
-                    d.ReadValues(tt,self.isWriting)                                  
-                indexer=indexer+1                
-                if indexer==len(nextTime):
-                    indexer=0
-
+                        time.sleep(0.010)                    
             if(self.stopReadingSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
