@@ -10,6 +10,9 @@ import serial
 import Event
 import Message
 import datetime
+import Instruction
+import Enums
+import Board
 
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
@@ -110,20 +113,16 @@ class UARTCOMM():
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         UARTCOMM.UART_message.notify(tmp)   
-    def _Write(self,s):
+    def _Write(self,s,delay=0.005):
         GPIO.output(self.sendPIN,GPIO.HIGH)       
         self.thePort.write(s.encode())               
-        time.sleep(0.001)     
+        time.sleep(delay)     
         GPIO.output(self.sendPIN,GPIO.LOW)
-    def _WriteByteArray(self,ba):       
+    def _WriteByteArray(self,ba,delay=0.005):       
         GPIO.output(self.sendPIN,GPIO.HIGH)
         self.thePort.write(ba)   
-        time.sleep(0.001)             
+        time.sleep(0.005)             
         GPIO.output(self.sendPIN,GPIO.LOW)
-    def _SetShortTimeout(self):
-        self.thePort.timeout=.1
-    def _ResetTimeout(self):
-        self.thePort.timeout=.1
     def _Read(self,numBytes):
         result=self.thePort.read(numBytes)
         return result
@@ -139,82 +138,77 @@ class UARTCOMM():
         for p in ports:
             available_ports.append(p.device)
         return available_ports    
-    def _AddChecksumTwoBytes(self, bytes):
+    def _AddChecksumTwoBytes(self, startByte, bytes):
         checksum=0
         tmp = len(bytes)
-        for i in range(0,tmp-2):
+        for i in range(startByte,tmp-2):
             checksum=checksum+bytes[i]
         checksum = (checksum ^ 0xFFFFFFFF) + 0x01
         checksum = checksum & 0x0000FFFF
         bytes[tmp-2] = (checksum>>8) & 0xFF
         bytes[tmp-1] = (checksum) & 0xFF
+    def _AddChecksumFourBytes(self, startByte, ba):
+        checksum=0
+        tmp = len(ba)
+        for i in range(startByte,tmp-4):
+            checksum=checksum+ba[i]
+        checksum = (checksum ^ 0xFFFFFFFF) + 0x01                      
+        ba[tmp-4] = (checksum>>24) & 0xFF
+        ba[tmp-3] = (checksum>>16) & 0xFF
+        ba[tmp-2] = (checksum>>8) & 0xFF
+        ba[tmp-1] = (checksum) & 0xFF        
     def RequestStatus(self,ID):
-        ba = bytearray(9)
+        ba = bytearray(5)
+        ba[0]=0xFF
+        ba[1]=0xFF
+        ba[2]=0xFC # Indicates status request
+        ba[3]=ID
+        ba[4]=ID
+        self._WriteByteArray(ba,0.001)
+    def SendInstruction(self,anInstruction,ID):
+        ba = bytearray(43)   
         ba[0]=0xFF
         ba[1]=0xFF
         ba[2]=0xFD
         ba[3]=ID
-        ba[4]=0x01
-        ba[5]=0x01
-        ba[6]=0x01
-        ba[7]=0x01
-        ba[8]=0x01
-        self._WriteByteArray(ba)
-    def SendOptoState(self, os1, os2,ID):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        ba[4]=0x03
-        ba[5]=os1
-        ba[6]=os2
-        self._AddChecksumTwoBytes(ba)       
-        self._WriteByteArray(ba)
-    def SendPulseWidth(self, pw,ID):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        ba[4]=0x05
-        ba[5]=(pw>>8) & 0xFF
-        ba[6]= (pw & 0xFF)
-        self._AddChecksumTwoBytes(ba)
-        self._WriteByteArray(ba)
-    def SendFrequency(self,freq,ID):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        ba[4]=0x04
-        ba[5]=(freq>>8) & 0xFF
-        ba[6]= (freq & 0xFF)
-        self._AddChecksumTwoBytes(ba)
-        self._WriteByteArray(ba)
-    def GoDark(self,ID):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        ba[4]=0x02
-        ba[5]=0x01
-        ba[6]=0x01
-        self._AddChecksumTwoBytes(ba)
-        self._WriteByteArray(ba)      
-    def ExitDark(self,ID):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        ba[4]=0x02
-        ba[5]=0x00
-        ba[6]=0x01
-        self._AddChecksumTwoBytes(ba)
-        self._WriteByteArray(ba)  
+        if(anInstruction.theDarkState==Enums.DARKSTATE.ON):
+            ba[4]=1
+        else:
+            ba[4]=0
+        ba[5]=(anInstruction.frequency>>8) & 0xFF
+        ba[6]=(anInstruction.frequency) & 0xFF
+
+        ba[7]=(anInstruction.pulseWidth>>8) & 0xFF
+        ba[8]=(anInstruction.pulseWidth) & 0xFF
+
+        ba[9]=(anInstruction.decay>>8) & 0xFF
+        ba[10]=(anInstruction.decay) & 0xFF
+    
+        ba[11]=(anInstruction.delay>>8) & 0xFF
+        ba[12]=(anInstruction.delay) & 0xFF
+
+        ba[13]=(anInstruction.maxTimeOn>>8) & 0xFF
+        ba[14]=(anInstruction.maxTimeOn) & 0xFF
+
+        for i in range(0,12):
+            index=i*2+15
+            ba[index] = (anInstruction.optoValues[i]>>8) & 0xFF            
+            ba[index+1] = (anInstruction.optoValues[i]) & 0xFF             
+        
+        self._AddChecksumFourBytes(3,ba)       
+        # Using the RT patched linus, it appears that 
+        # a delay of 0.005 is just enough to transmit 43 bytes.
+        self._WriteByteArray(ba,0.005)
+
+        tmp=self._Read(1)
+        if(len(tmp)==0):
+            return False
+        if(tmp[0]==ID):
+            return True
+        else:
+            return False    
+
+
     def GetStatusPacket(self,ID):                  
         start = time.time()
         self.RequestStatus(ID)
@@ -228,24 +222,44 @@ class UARTCOMM():
         return self._Read(309) 
         #return tmp 
     def PollSlave(self,ID):
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        ba[4]=0x06
-        ba[5]=0x01
-        ba[6]=0x01
-        ba[7]=0x01
-        ba[8]=0x01             
-        self._SetShortTimeout()    
-        self._WriteByteArray(ba)          
-        tmp=self._Read(1)
-        self._ResetTimeout()
-        
-        if(len(tmp)==0):         
-            return False
-        elif(tmp[0]==ID) :
+        tmp=self.GetStatusPacket(ID)        
+        if(len(tmp)==309 and tmp[3]==ID):         
             return True
         else :            
             return False
+
+
+
+
+def ModuleTest():
+    bs = Board.BoardSetup()
+    p=UARTCOMM()
+    inst = Instruction.DFMInstruction()
+    #print(p.PollSlave(1))
+    #time.sleep(1)
+    #tmp = p.GetStatusPacket(1)
+    #print(str(tmp))
+    #time.sleep(1)
+    print(p.SendInstruction(inst,1))    
+    time.sleep(2)
+    for i in range(0,12):
+        inst.optoValues[i]=-1
+    print(p.SendInstruction(inst,1))    
+    time.sleep(2)
+    for i in range(0,12):
+        inst.optoValues[i]=100
+    inst.frequency=2
+    inst.pulseWidth=500
+    inst.maxTimeOn=1000
+    print(p.SendInstruction(inst,1)        )
+
+    
+    
+
+
+    
+
+
+if __name__=="__main__" :
+    ModuleTest()   
+    print("Done!!")     
