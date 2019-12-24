@@ -112,14 +112,16 @@ class UARTCOMM():
         UARTCOMM.UART_message.notify(tmp)   
     def _Write(self,s):
         GPIO.output(self.sendPIN,GPIO.HIGH)       
-        self.thePort.write(s.encode())                
+        self.thePort.write(s.encode())               
+        time.sleep(0.001)     
         GPIO.output(self.sendPIN,GPIO.LOW)
     def _WriteByteArray(self,ba):       
         GPIO.output(self.sendPIN,GPIO.HIGH)
-        self.thePort.write(ba)        
+        self.thePort.write(ba)   
+        time.sleep(0.001)     
         GPIO.output(self.sendPIN,GPIO.LOW)
     def _SetShortTimeout(self):
-        self.thePort.timeout=0.1
+        self.thePort.timeout=1
     def _ResetTimeout(self):
         self.thePort.timeout=2
     def _Read(self,numBytes):
@@ -213,25 +215,12 @@ class UARTCOMM():
         ba[6]=0x01
         self._AddChecksumTwoBytes(ba)
         self._WriteByteArray(ba)  
-    def GetStatusPacket(self,ID):             
-        ba = bytearray(9)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        ba[4]=0x01
-        ba[5]=0x01
-        ba[6]=0x01
-        ba[7]=0x01
-        ba[8]=0x01        
+    def GetStatusPacket(self,ID):                  
         start = time.time()
-        GPIO.output(self.sendPIN,GPIO.HIGH)
-        self.thePort.write(ba)        
-        GPIO.output(self.sendPIN,GPIO.LOW)
-        #self.RequestStatus(ID)
+        self.RequestStatus(ID)
         end=time.time()
 
-        if ((end-start)>0.00000001) :
+        if ((end-start)>0.001) :
             print(str(datetime.datetime.today())+" "+str(end-start))
         
         #Read 5 packets at once!

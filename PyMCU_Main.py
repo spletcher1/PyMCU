@@ -40,7 +40,8 @@ def main():
         BoardSetup()   
     tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
     ##tmp = DFMGroup.DFMGroup(COMM.TESTCOMM())
-    tmp.FindDFMs(2)
+    print("Looking for DFM:")
+    tmp.FindDFMs(2)    
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
     tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=360))    

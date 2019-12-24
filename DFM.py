@@ -147,7 +147,7 @@ class DFM:
     def ReadValues(self,timeOfMeasure,saveDataToQueue):
         theResult = Enums.PROCESSEDPACKETRESULT.OKAY                                
         for _ in range(0,self.callLimit) :                        
-            tmp=self.theCOMM.GetStatusPacket(self.ID)           
+            tmp=self.theCOMM.GetStatusPacket(self.ID)               
             theResult = self.ProcessPackets(tmp,timeOfMeasure)
             if(theResult[-1]==Enums.PROCESSEDPACKETRESULT.OKAY):
                 break         

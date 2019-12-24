@@ -33,6 +33,7 @@ class StatusPacket:
         expectedCheckSum += bytesData[(indexer+60)]
        
         if(calculatedCheckSum != expectedCheckSum):
+            print(str(calculatedCheckSum)+" "+str(expectedCheckSum))
             return PROCESSEDPACKETRESULT.CHECKSUMERROR
 
         self.errorFlags = bytesData[indexer]
