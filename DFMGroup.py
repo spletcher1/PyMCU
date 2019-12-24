@@ -182,13 +182,13 @@ class DFMGroup:
                         d.ReadValues(tt,self.isWriting)        
                         lastSecond=tt.second    
                         lastTime=time.time()
-                        time.sleep(0.050)                    
+                        time.sleep(0.010)                    
             if(self.stopReadingSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
                 self.isReading = False                
                 return                      
-            time.sleep( 0.001 ) # Yeild to other threads for a bit
+            time.sleep( 0.005 ) # Yeild to other threads for a bit
     
 
     ## Below here are really the only methods that should be called by 

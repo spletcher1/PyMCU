@@ -237,11 +237,12 @@ class UARTCOMM():
         ba[5]=0x01
         ba[6]=0x01
         ba[7]=0x01
-        ba[8]=0x01        
+        ba[8]=0x01             
         self._SetShortTimeout()    
         self._WriteByteArray(ba)          
         tmp=self._Read(1)
         self._ResetTimeout()
+        
         if(len(tmp)==0):         
             return False
         elif(tmp[0]==ID) :
