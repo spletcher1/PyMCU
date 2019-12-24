@@ -167,15 +167,21 @@ class DFMGroup:
         self.isReading=True
         tt = datetime.datetime.today()
         lastSecond=tt.second
+        lastTime = time.time()
         while True:   
             tt = datetime.datetime.today()
-            if(tt.microsecond>0 and tt.second != lastSecond):                
+            if(tt.microsecond>0 and tt.second != lastSecond):   
+                    if(time.time()-lastTime)>1:
+                        s="Missed one second"
+                        print(s)
+                        self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)                       
                     for d in self.theDFMs:
                         ## It takes a little over 30ms to call and
                         ## receive the data from one DFM, given a baud
                         ## rate of 115200
                         d.ReadValues(tt,self.isWriting)        
                         lastSecond=tt.second    
+                        lastTime=time.time()
                         time.sleep(0.050)                    
             if(self.stopReadingSignal):
                 for d in self.theDFMs:

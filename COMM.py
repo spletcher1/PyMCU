@@ -103,7 +103,7 @@ class TESTCOMM():
 class UARTCOMM():    
     UART_message = Event.Event()
     def __init__(self):
-        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=2)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=.1)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -118,12 +118,12 @@ class UARTCOMM():
     def _WriteByteArray(self,ba):       
         GPIO.output(self.sendPIN,GPIO.HIGH)
         self.thePort.write(ba)   
-        time.sleep(0.001)     
+        time.sleep(0.001)             
         GPIO.output(self.sendPIN,GPIO.LOW)
     def _SetShortTimeout(self):
-        self.thePort.timeout=1
+        self.thePort.timeout=.1
     def _ResetTimeout(self):
-        self.thePort.timeout=2
+        self.thePort.timeout=.1
     def _Read(self,numBytes):
         result=self.thePort.read(numBytes)
         return result
@@ -220,7 +220,7 @@ class UARTCOMM():
         self.RequestStatus(ID)
         end=time.time()
 
-        if ((end-start)>0.001) :
+        if ((end-start)>0.005) :
             print(str(datetime.datetime.today())+" "+str(end-start))
         
         #Read 5 packets at once!
