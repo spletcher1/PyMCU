@@ -171,8 +171,12 @@ class DFMGroup:
             tt = datetime.datetime.today()
             if(tt.microsecond>0 and tt.second != lastSecond):                
                     for d in self.theDFMs:
-                        d.ReadValues(tt,self.isWriting)            
-                        time.sleep(0.010)                    
+                        ## It takes a little over 30ms to call and
+                        ## receive the data from one DFM, given a baud
+                        ## rate of 115200
+                        d.ReadValues(tt,self.isWriting)        
+                        lastSecond=tt.second    
+                        time.sleep(0.050)                    
             if(self.stopReadingSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
@@ -237,8 +241,8 @@ class DFMGroup:
 
 
 def ModuleTest():
-    tmp = DFMGroup(COMM.TESTCOMM())
-    #tmp = DFMGroup(COMM.UARTCOMM())
+    #tmp = DFMGroup(COMM.TESTCOMM())
+    tmp = DFMGroup(COMM.UARTCOMM())
     tmp.FindDFMs(1,False)
     print("DFMs Found:" + str(len(tmp.theDFMs)))
     #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
@@ -246,6 +250,9 @@ def ModuleTest():
     #tmp.ActivateCurrentProgram()
     tt = datetime.datetime.today()
     lastSecond=tt.second
+    while(1):
+        print(tt)
+        time.sleep(1)
     while(1):
         tt = datetime.datetime.today()
         if(tt.microsecond>0 and tt.second != lastSecond): 

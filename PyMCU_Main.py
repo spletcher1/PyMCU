@@ -43,21 +43,35 @@ def main():
     tmp.FindDFMs(2)
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
-    ##tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=360))
-    while(1):     
-        print(tmp.theDFMs[0].currentStatusPacket.GetConsolePrintPacket()) 
-        time.sleep(1)
-    tmp.LoadTextProgram("TestProgram2.txt")
+    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=360))    
+    #tmp.LoadTextProgram("TestProgram2.txt")
     print(tmp.currentProgram)
     tmp.ActivateCurrentProgram()
     counter=0
-    while(tmp.currentProgram.isActive):   
+    while(tmp.currentProgram.isActive):           
         tmp.UpdateDFMStatus()     
         #print("("+str(counter)+") " + str(tmp.theDFMs[0].currentStatusPacket.errorFlags))
         counter+=1
         time.sleep(1)
     tmp.StopReading()
     
+def MiniMain():
+    if(platform.node()=="raspberrypi"):
+        BoardSetup()   
+    tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
+    tmp.FindDFMs(2,False)
+    for d in tmp.theDFMs:
+        print("DFMs Found ID: " + str(d.ID))
+    tt = datetime.datetime.today()
+    lastSecond=tt.second   
+    while(1):
+        tt = datetime.datetime.today()
+        if(tt.microsecond>0 and tt.second != lastSecond): 
+            tmp.theDFMs[0].ReadValues(datetime.datetime.today(),False)
+            lastSecond=tt.second
+            #for i in range(0,5):
+            print(tmp.theDFMs[0].currentStatusPackets[0].GetConsolePrintPacket())        
+        
 
 if __name__=="__main__" :
     main()

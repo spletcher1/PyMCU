@@ -102,7 +102,7 @@ class DFM:
         for sp in self.currentStatusPackets:
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero DFM error code".format(self.ID)
-                self.NewMessage(self.ID,sp.packetTime,sp.sampleIndex,s,Enums.MESSAGETYPE.WARNING)
+                self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)
 
     def ProcessPackets(self,bytesData,timeOfMeasure):                 
         if(len(bytesData)==0):
@@ -110,6 +110,7 @@ class DFM:
             return [a,a,a,a,a]
         if(len(bytesData)!=309):
             a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
+            print(len(bytesData))
             return [a,a,a,a,a]
         if(bytesData[3]!=self.ID):
             a=Enums.PROCESSEDPACKETRESULT.WRONGID
@@ -144,14 +145,14 @@ class DFM:
                 self.pastStatus = Enums.PASTSTATUS.PASTERROR
             self.status = newStatus
     def ReadValues(self,timeOfMeasure,saveDataToQueue):
-        theResult = Enums.PROCESSEDPACKETRESULT.OKAY                        
-        for _ in range(0,self.callLimit) :            
-            tmp=self.theCOMM.GetStatusPacket(self.ID)              
+        theResult = Enums.PROCESSEDPACKETRESULT.OKAY                                
+        for _ in range(0,self.callLimit) :                        
+            tmp=self.theCOMM.GetStatusPacket(self.ID)           
             theResult = self.ProcessPackets(tmp,timeOfMeasure)
             if(theResult[-1]==Enums.PROCESSEDPACKETRESULT.OKAY):
-                break
-            print("Calling again: {:s}" + str(theResult))
-            s="Calling again: {:s}".format(str(theResult))
+                break         
+            print("Calling again: {:s}" + str(theResult[-1]))
+            s="Calling again: {:s}".format(str(theResult[-1]))
             self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             time.sleep(0.005)       
 

@@ -9,6 +9,7 @@ import platform
 import serial
 import Event
 import Message
+import datetime
 
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
@@ -102,7 +103,7 @@ class TESTCOMM():
 class UARTCOMM():    
     UART_message = Event.Event()
     def __init__(self):
-        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=0.3)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=2)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -111,18 +112,16 @@ class UARTCOMM():
         UARTCOMM.UART_message.notify(tmp)   
     def _Write(self,s):
         GPIO.output(self.sendPIN,GPIO.HIGH)       
-        self.thePort.write(s.encode())        
-        time.sleep(0.005)
+        self.thePort.write(s.encode())                
         GPIO.output(self.sendPIN,GPIO.LOW)
     def _WriteByteArray(self,ba):       
         GPIO.output(self.sendPIN,GPIO.HIGH)
-        self.thePort.write(ba)
-        time.sleep(0.001)
+        self.thePort.write(ba)        
         GPIO.output(self.sendPIN,GPIO.LOW)
     def _SetShortTimeout(self):
         self.thePort.timeout=0.1
     def _ResetTimeout(self):
-        self.thePort.timeout=0.1
+        self.thePort.timeout=2
     def _Read(self,numBytes):
         result=self.thePort.read(numBytes)
         return result
@@ -214,9 +213,27 @@ class UARTCOMM():
         ba[6]=0x01
         self._AddChecksumTwoBytes(ba)
         self._WriteByteArray(ba)  
-    def GetStatusPacket(self,ID):
-        #tmp=self._Read(65)
-        self.RequestStatus(ID)
+    def GetStatusPacket(self,ID):             
+        ba = bytearray(9)
+        ba[0]=0xFF
+        ba[1]=0xFF
+        ba[2]=0xFD
+        ba[3]=ID
+        ba[4]=0x01
+        ba[5]=0x01
+        ba[6]=0x01
+        ba[7]=0x01
+        ba[8]=0x01        
+        start = time.time()
+        GPIO.output(self.sendPIN,GPIO.HIGH)
+        self.thePort.write(ba)        
+        GPIO.output(self.sendPIN,GPIO.LOW)
+        #self.RequestStatus(ID)
+        end=time.time()
+
+        if ((end-start)>0.00000001) :
+            print(str(datetime.datetime.today())+" "+str(end-start))
+        
         #Read 5 packets at once!
         # 4 without header = 309 total
         return self._Read(309) 
