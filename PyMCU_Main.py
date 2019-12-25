@@ -35,7 +35,7 @@ def main():
     tmp.LoadSimpleProgram(datetime.datetime.today()+datetime.timedelta(minutes=1),datetime.timedelta(minutes=1*60))    
     #tmp.LoadTextProgram("TestProgram1.txt")
     print(tmp.currentProgram)
-    tmp.ActivateCurrentProgram()
+    tmp.StageCurrentProgram()
     counter=0
     while(tmp.currentProgram.isActive):           
         tmp.UpdateProgramStatus()             

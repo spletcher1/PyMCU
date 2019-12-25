@@ -75,7 +75,10 @@ class DFMGroup:
 
     def SetDFMIdleStatus(self):
         for d in self.theDFMs:
-            d.SetDFMIdleStatus()
+            d.SetIdleStatus()
+            # A delay is needed here because the MCU Sends an instruction
+            # to each DFM.
+            time.sleep(0.005)                
     
     def WriteWorker(self):        
         dt=datetime.datetime.today()
@@ -163,8 +166,7 @@ class DFMGroup:
             tt = datetime.datetime.today()
             if(tt.microsecond>0 and tt.second != lastSecond):   
                     if(time.time()-lastTime)>1:
-                        s="Missed one second"
-                        print(s)
+                        s="Missed one second"                        
                         self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)                       
                     for d in self.theDFMs:
                         ## It takes a little over 30ms to call and
@@ -229,7 +231,7 @@ class DFMGroup:
         self.StopRecording()
         self.SetDFMIdleStatus()
     
-    def ActivateCurrentProgram(self):
+    def StageCurrentProgram(self):
         print("Baselining")
         for d in self.theDFMs:
             if(self.currentProgram.autoBaseline==True):
@@ -247,7 +249,7 @@ class DFMGroup:
         self.currentProgram.isActive=True
 
 def ModuleTest():
-    bs = Board.BoardSetup()
+    Board.BoardSetup()
     #tmp = DFMGroup(COMM.TESTCOMM())
     tmp = DFMGroup(COMM.UARTCOMM())
     tmp.FindDFMs(1,False)

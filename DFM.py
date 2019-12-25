@@ -6,7 +6,6 @@ import time
 import DataBuffer
 import array
 import threading
-import OptoLid
 import DFMErrors
 import MessagesList
 import Message
@@ -32,8 +31,8 @@ class DFM:
         self.sampleIndex=1
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))        
         self.baselineSamples=0
-        self.isCalculatingBaseline=False        
-        self.optoLid=OptoLid.OptoLid(Enums.OPTOLIDTYPE.NONE)           
+        self.isCalculatingBaseline=False    
+        self.lidType=Enums.OPTOLIDTYPE.NONE            
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
         self.currentDFMErrors = DFMErrors.DFMErrors()
@@ -42,6 +41,7 @@ class DFM:
         self.reportedOptoStateCol1=0
         self.reportedOptoStateCol2=0
         self.reportedTemperature=1.0
+        self.reportedDarkState = Enums.DARKSTATE.UNCONTROLLED
         self.reportedHumidity=1.0
         self.reportedLUX=0
         self.reportedVoltsIn=1.0        
@@ -95,11 +95,33 @@ class DFM:
         self.reportedOptoPulsewidth = self.currentStatusPackets[-1].optoPulseWidth
         self.reportedOptoStateCol1  = self.currentStatusPackets[-1].optoState1
         self.reportedOptoStateCol2 = self.currentStatusPackets[-1].optoState2
+        self.reportedVoltsIn = self.currentStatusPackets[-1].voltsIn
         self.currentDFMErrors.UpdateErrors(self.currentStatusPackets[-1].errorFlags)
+        
+        if(self.currentStatusPackets[-1].darkStatus==0):
+            self.reportedDarkState = Enums.DARKSTATE.OFF
+        else:
+            self.reportedDarkState = Enums.DARKSTATE.ON
+
         for sp in self.currentStatusPackets:
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero DFM error code".format(self.ID)
                 self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)
+
+        ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior.
+        ##if self.isInstructionUpdateNeeded:
+        ##    return # This is here to avoid loop 
+        ##tmpisInstructionUpdateNeeded=False
+        ##if(self.currentInstruction.frequency != self.reportedOptoFrequency):
+        ##    tmpisInstructionUpdateNeeded=True
+        ##elif(self.currentInstruction.pulseWidth != self.reportedOptoPulsewidth):
+        ##    tmpisInstructionUpdateNeeded=True
+        ##elif(self.currentInstruction.theDarkState != self.reportedDarkState):
+        ##    tmpisInstructionUpdateNeeded=True
+        
+        ##if(tmpisInstructionUpdateNeeded):
+        ##   self.isInstructionUpdateNeeded=True
+
 
     def ProcessPackets(self,bytesData,timeOfMeasure):                 
         if(len(bytesData)==0):
@@ -134,7 +156,8 @@ class DFM:
         # Try 3 times and give up
         for _ in range(0,3):
             if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):           
-                break                 
+                break 
+            time.sleep(0.005)                
     
     def SetStatus(self, newStatus):
         if(newStatus != self.status):
@@ -209,8 +232,7 @@ class DFM:
             if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
                 print("Instruction success!")
                 self.isInstructionUpdateNeeded=False
-        ## TODO: Maybe in the future incorporate some feedback from the DFM
-        ## to make sure the parameters are in line.
+     
 
 def ModuleTest():
     Board.BoardSetup()
@@ -227,9 +249,3 @@ def ModuleTest():
 if __name__=="__main__" :
     ModuleTest()   
     print("Done!!")     
-        
-
-    
-        
-
-   
