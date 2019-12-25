@@ -6,23 +6,11 @@ import datetime
 import platform
 import COMM
 import sys
+import Board
 
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
-
-def BoardSetup():
-    GPIO.setwarnings(False)
-    GPIO.setmode(GPIO.BCM)
-
-    ledPIN=13
-    relayPIN=6
-
-    GPIO.setup(ledPIN,GPIO.OUT)
-    GPIO.setup(relayPIN,GPIO.OUT)
-    GPIO.output(relayPIN,GPIO.HIGH)
-    GPIO.output(ledPIN,GPIO.HIGH)
-    
 def ModuleTest():
     #tmp = DFMGroup(COMM.TESTCOMM())
     tmp = DFMGroup(COMM.UARTCOMM())
@@ -37,28 +25,27 @@ def ModuleTest():
 
 def main():
     if(platform.node()=="raspberrypi"):
-        BoardSetup()   
+        Board.BoardSetup()   
     tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
     ##tmp = DFMGroup.DFMGroup(COMM.TESTCOMM())
     print("Looking for DFM:")
     tmp.FindDFMs(2)    
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
-    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=360))    
-    #tmp.LoadTextProgram("TestProgram2.txt")
+    #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=10))    
+    tmp.LoadTextProgram("TestProgram1.txt")
     print(tmp.currentProgram)
     tmp.ActivateCurrentProgram()
     counter=0
     while(tmp.currentProgram.isActive):           
-        tmp.UpdateDFMStatus()     
-        #print("("+str(counter)+") " + str(tmp.theDFMs[0].currentStatusPacket.errorFlags))
+        tmp.UpdateDFMStatus()             
         counter+=1
         time.sleep(1)
     tmp.StopReading()
     
 def MiniMain():
     if(platform.node()=="raspberrypi"):
-        BoardSetup()   
+        Board.BoardSetup()   
     tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
     tmp.FindDFMs(2,False)
     for d in tmp.theDFMs:

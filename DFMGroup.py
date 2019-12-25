@@ -11,6 +11,7 @@ import platform
 import os
 import Program
 import Event
+import Board
 
 class DFMGroup:
     DFMGroup_message = Event.Event()
@@ -78,14 +79,9 @@ class DFMGroup:
                 d.SetWellSignalThreshold(i,-1)
 
     def UpdateDFMPrograms(self):
-        for d in self.theDFMs:
-            di = self.currentProgram.GetCurrentInstruction(d.ID)            
-            if(di.theDarkState == Enums.DARKSTATE.OFF):
-                d.isInDark=False
-            elif(di.theDarkState == Enums.DARKSTATE.ON):
-                d.isInDark=True
-            d.SetAllSignalThresholds(di.optoValues)           
-
+        for d in self.theDFMs:            
+            d.UpdateInstruction(self.currentProgram.GetCurrentInstruction(d.ID),self.currentProgram.autoBaseline)    
+            
     def WriteWorker(self):        
         dt=datetime.datetime.today()
         self.currentOutputDirectory=platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
@@ -200,11 +196,8 @@ class DFMGroup:
         self.currentProgram.LoadProgram(lines)
         for d in self.theDFMs:           
             d.optoLid.lidType = self.currentProgram.GetLidType(d.ID)
-            d.SetTargetOptoFrequency(self.currentProgram.GetOptoFrequency(d.ID))
-            d.SetTargetOptoPW(self.currentProgram.GetOptoPulsewidth(d.ID))
-            d.optoDecay=self.currentProgram.GetOptoDecay(d.ID)
-            d.optoDelay=self.currentProgram.GetOptoDelay(d.ID)
-            d.maxTimeOn=self.currentProgram.GetMexTimeOn(d.ID)
+       
+
     def FindDFMs(self,maxNum=16,startReading=True):
         self.StopReading()        
         for i in range(1,maxNum+1):
@@ -213,6 +206,7 @@ class DFMGroup:
             time.sleep(0.01)
         if(startReading):
             self.StartReading()
+
     ## This function is the one that should be called by an external timer
     ## to keep things rolling correctly.
     def UpdateDFMStatus(self):
@@ -226,6 +220,8 @@ class DFMGroup:
 
             if(self.currentProgram.IsDuringExperiment()):
                 self.UpdateDFMPrograms()
+
+
     def LoadSimpleProgram(self,startTime,duration):
         self.currentProgram.CreateSimpleProgram(startTime,duration)
     def StopCurrentProgram(self):
@@ -234,31 +230,35 @@ class DFMGroup:
         self.StopRecording()
         self.SetDFMIdleStatus()
     def ActivateCurrentProgram(self):
-        print("Starting program.")
-        self.currentProgram.isActive=True
+        print("Baselining")
         for d in self.theDFMs:
             if(self.currentProgram.autoBaseline==True):
                 d.BaselineDFM()
             else:
                 d.ResetBaseline()
+        isStillBaselining=True
+        while isStillBaselining:
+            isStillBaselining=False
+            for d in self.theDFMs:
+                if d.isCalculatingBaseline:
+                    isStillBaselining=True
+            time.sleep(1)
+        print("Starting program.")                   
+        self.currentProgram.isActive=True
             
 
 
 
 
 def ModuleTest():
+    bs = Board.BoardSetup()
     #tmp = DFMGroup(COMM.TESTCOMM())
     tmp = DFMGroup(COMM.UARTCOMM())
     tmp.FindDFMs(1,False)
     print("DFMs Found:" + str(len(tmp.theDFMs)))
-    #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
-    #print(tmp.currentProgram)
-    #tmp.ActivateCurrentProgram()
-    tt = datetime.datetime.today()
-    lastSecond=tt.second
-    while(1):
-        print(tt)
-        time.sleep(1)
+    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=3))
+    print(tmp.currentProgram)
+    #tmp.ActivateCurrentProgram()  
     while(1):
         tt = datetime.datetime.today()
         if(tt.microsecond>0 and tt.second != lastSecond): 

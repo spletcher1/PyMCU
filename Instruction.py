@@ -4,7 +4,7 @@ import datetime
 
 class DFMInstruction:
     def __init__(self,darkstate=Enums.DARKSTATE.UNCONTROLLED,freq=40,pw=8,decay=0,delay=0,maxTime=0,dur=datetime.timedelta(minutes=180),startt=datetime.timedelta(seconds=0)):
-        self.optoValues = array.array("i",(0 for i in range(0,12)))
+        self.optoValues = array.array("i",(-1 for i in range(0,12)))
         self.theDarkState=darkstate
         self.duration = dur
         self.elapsedStart = startt
@@ -17,6 +17,11 @@ class DFMInstruction:
     def SetOptoValues(self,vals):
         for i in range(0,12):
             self.optoValues[i]=vals[i]
+
+    def AddBaselineToCurrentOptoValues(self,vals):
+        for i in range(0,12):
+            if(self.optoValues[i]!=0 and self.optoValues[i]!=-1):
+                self.optoValues[i]+=vals[i]
 
     def GetElapsedEnd(self):
         return self.elapsedStart + self.duration
@@ -36,7 +41,7 @@ class DFMInstruction:
         return s
   
 def ModuleTest():
-    tmp = DFMInstruction(Enums.DARKSTATE.ON,datetime.timedelta(minutes=60),datetime.timedelta(seconds=1000))
+    tmp = DFMInstruction(Enums.DARKSTATE.ON,40,8,0,0,0,datetime.timedelta(minutes=60),datetime.timedelta(seconds=1000))
     tmp.SetOptoValues(array.array("i",(10 for i in range(0,12))))
     tmp2=DFMInstruction()
     print(tmp)

@@ -72,6 +72,11 @@ class InstructionSet:
         else:
             return True
 
+    def AddSimpleInstruction(self,darkstate,dur,startt):        
+        tmp= Instruction.DFMInstruction(darkstate,self.optoFrequency,self.optoPulseWidth,self.optoDecay,self.optoDelay,self.maxTimeOn,dur,startt)
+        self.instructions.append(tmp)
+        return True
+
     def AddDefaultInstruction(self):
         self.AddInstruction(Instruction.DFMInstruction())
 
@@ -81,7 +86,7 @@ class InstructionSet:
         else:
             lastoi = self.instructions[-1]
             referencedStart = lastoi.GetElapsedEnd()
-        tmp=Instruction.DFMInstruction(instruct.theDarkState,instruct.duration,referencedStart)
+        tmp=Instruction.DFMInstruction(instruct.theDarkState,instruct.frequency,instruct.pulseWidth,instruct.decay,instruct.delay,instruct.maxTimeOn,instruct.duration,referencedStart)
         tmp.SetOptoValues(instruct.optoValues)
         self.instructions.append(tmp)        
         return True
@@ -102,7 +107,10 @@ class InstructionSet:
                 if(ov[ii]>1023): 
                     ov[ii]=-1          
             dur = datetime.timedelta(seconds=(float(ss[13])*60))
-            tmp = Instruction.DFMInstruction(ds,dur,0)
+            # For now, we assume that freq, pw, decay, delay and maxtime are set only at the level of the whole
+            # instruction set, as it was for the DFM V2 software. 
+            # TODO: loosen this and max each adjustable from the program for each instruction.
+            tmp = Instruction.DFMInstruction(ds,self.optoFrequency,self.optoPulseWidth,self.optoDecay,self.optoDelay,self.maxTimeOn,dur,0)
             tmp.SetOptoValues(ov)
             self.AddInstruction(tmp)
         else:
@@ -140,7 +148,7 @@ class InstructionSet:
         self.optoDecay=0
         self.optoFrequency=40
         self.optoPulseWidth=8
-        self.maxTimeOn = -1
+        self.maxTimeOn = 0
             
    
     def ToString(self,duration,startTime):
@@ -155,11 +163,11 @@ class InstructionSet:
             s+="Six"            
 
         s+="\n"
-        s+="Opto Frequency: " + str(self.optoFrequency) +"Hz\n"
-        s+="Opto Pulsewidth: " + str(self.optoPulseWidth) + "ms\n"
-        s+="Opto Delay: " + str(self.optoDelay) + "ms\n"
-        s+="Opto Decay: " + str(self.optoDecay) + "ms\n"
-        s+="Max Time On: " + str(self.maxTimeOn) + "ms\n"
+        s+="Default Opto Frequency: " + str(self.optoFrequency) +"Hz\n"
+        s+="Default Opto Pulsewidth: " + str(self.optoPulseWidth) + "ms\n"
+        s+="Default Opto Delay: " + str(self.optoDelay) + "ms\n"
+        s+="Default Opto Decay: " + str(self.optoDecay) + "ms\n"
+        s+="Default Max Time On: " + str(self.maxTimeOn) + "ms\n"
 
         s += "Program Type: "
         if(self.instructionSetType == INSTRUCTIONSETTYPE.LINEAR):

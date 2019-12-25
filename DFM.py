@@ -11,6 +11,7 @@ import DFMErrors
 import MessagesList
 import Message
 import Event
+import Instruction
 
 
 class DFM:
@@ -28,19 +29,12 @@ class DFM:
         self.callLimit=3
         self.theData = DataBuffer.DataBuffer()             
         self.sampleIndex=1
-        self.signalBaselines=array.array("i",(0 for i in range(0,12)))
-        self.signalThresholds=array.array("i",(-1 for i in range(0,12)))
+        self.signalBaselines=array.array("i",(0 for i in range(0,12)))        
         self.baselineSamples=0
         self.isCalculatingBaseline=False        
-        self.optoLid=OptoLid.OptoLid(Enums.OPTOLIDTYPE.NONE)       
-        self.optoDecay=0
-        self.optoFrequency=40
-        self.optoPulsewidth=8
-        self.optoDelay=0
-        self.maxTimeOn=-1
-        self.isInDark=False
-        self.hasFrequencyChanged=False 
-        self.hasPWChanged=False
+        self.optoLid=OptoLid.OptoLid(Enums.OPTOLIDTYPE.NONE)           
+        self.currentInstruction = Instruction.DFMInstruction()
+        self.isInstructionUpdateNeeded=False
         self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
         self.reportedOptoPulsewidth=0
@@ -75,6 +69,7 @@ class DFM:
         for i in range(0,len(self.signalBaselines)):
             self.signalBaselines[i]=0
         self.baselineSamples=0
+        self.isCalculatingBaseline = False
     def UpdateBaseline(self):
         last = self.GetLastAnalogData(False)
         if last is None: 
@@ -109,8 +104,7 @@ class DFM:
             a=Enums.PROCESSEDPACKETRESULT.NOANSWER
             return [a,a,a,a,a]
         if(len(bytesData)!=309):
-            a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
-            print(len(bytesData))
+            a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES            
             return [a,a,a,a,a]
         if(bytesData[3]!=self.ID):
             a=Enums.PROCESSEDPACKETRESULT.WRONGID
@@ -124,26 +118,21 @@ class DFM:
         if(results[1] == Enums.PROCESSEDPACKETRESULT.OKAY):
              self.UpdateReportedValues()            
         return results
-    def SetTargetOptoFrequency(self,target):
-        if(target!=self.optoFrequency):
-            self.optoFrequency=target
-            self.hasFrequencyChanged=True
-    def SetTargetOptoPW(self,target):
-        if(target!=self.optoPulsewidth):
-            self.optoPulsewidth=target
-            self.hasPWChanged=True
+  
     #endregion
     #     
     #region DFM Commands                 
     def IncrementOutputFile(self):
         self.outputFileIncrementor+=1
         self.outputFile="DFM" + str(self.ID) + "_"+str(self.outputFileIncrementor)+".csv"
+
     def SetStatus(self, newStatus):
         if(newStatus != self.status):
             if(newStatus == Enums.CURRENTSTATUS.ERROR):
                 self.beforeErrorStatus = self.status
                 self.pastStatus = Enums.PASTSTATUS.PASTERROR
             self.status = newStatus
+
     def ReadValues(self,timeOfMeasure,saveDataToQueue):
         theResult = Enums.PROCESSEDPACKETRESULT.OKAY                                
         for _ in range(0,self.callLimit) :                        
@@ -190,110 +179,23 @@ class DFM:
 
     def ResetOutputFileStuff(self):
         self.outputFileIncrementor=0
-        self.outputFile="DFM" + str(self.ID) + "_0.csv"
+        self.outputFile="DFM" + str(self.ID) + "_0.csv"  
 
-    def SetAllSignalThresholds(self,thresholds):
-        for i in range(0,12):
-            self.signalThresholds[i]=thresholds[i]
-        self.optoLid.SetAllThresholds(thresholds)
-
-    def SetWellSignalThreshold(self,wellnum,thresh):
-        if(wellnum<0 or wellnum>11): return
-        self.signalThresholds[wellnum]=thresh
-        self.optoLid.SetWellThreshold(wellnum,thresh)
-
-    def SetAllSignalBaselines(self, newbaselines):
-        for i in range(0,12):
-            self.signalBaselines[i]=newbaselines[i]
+    def UpdateInstruction(self,instruct,useBaseline):                    
+        if(instruct is self.currentInstruction):            
+            return 
+        else:                      
+            self.currentInstruction = instruct            
+            if(useBaseline):
+                self.currentInstruction.AddBaselineToCurrentOptoValues(self.signalBaselines)                        
+            self.isInstructionUpdateNeeded=True
 
     def CheckStatus(self):
-        if(self.currentStatusPackets[-1].darkStatus == 1 and self.isInDark == False):
-            self.theCOMM.ExitDark(self.ID)
-        elif(self.currentStatusPackets[-1].darkStatus==0 and self.isInDark == True):
-            self.theCOMM.GoDark(self.ID)
+        if(self.isInstructionUpdateNeeded):
+            if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
+                print("Instruction success!")
+                self.isInstructionUpdateNeeded=False
 
-        if(self.hasFrequencyChanged or (self.reportedOptoFrequency != self.optoFrequency)):
-            self.theCOMM.SendFrequency(self.optoFrequency,self.ID)
-            self.hasFrequencyChanged = False
-
-        if(self.hasPWChanged or (self.reportedOptoPulsewidth != self.optoPulsewidth)):
-            self.theCOMM.SendPulseWidth(self.optoPulsewidth,self.ID)
-            self.hasPWChanged = False
-
-        self.optoLid.SetOptoState(self.GetLastAnalogData(True)) # For optolid purposes, we always used baselined data, even if it is not actually baselined.
-
-        if((self.reportedOptoStateCol1 != self.optoLid.optoStateCol1)) or (self.reportedOptoStateCol2 != self.optoLid.optoStateCol2):
-            print("Sending optostate: {:X}  {:X}".format(self.optoLid.optoStateCol1,self.optoLid.optoStateCol2))
-            self.theCOMM.SendOptoState(self.optoLid.optoStateCol1,self.optoLid.optoStateCol2,self.ID)
         
 
-    #region Testing Code
-    def PrintCurrentPacket(self):
-        print(self.currentStatusPackets[-1].GetDataBufferPrintPacket())
-    def PrintDataBuffer(self):
-        print(self.theData.PullAllRecordsAsString())
-    def TestRead(self):
-        #nextTime=[0,185000,385000,585000,785000]
-        nextTime=[0,385000,785000]
-        i=0
-        while True:   
-            tt = datetime.datetime.today()
-            if(i==0):
-                if(tt.microsecond<nextTime[i+1]):
-                    tmp=self.ReadValues(tt,True)                     
-                    if(tmp == Enums.PROCESSEDPACKETRESULT.OKAY):            
-                        self.PrintCurrentPacket()  
-                    else :
-                        print("bad")
-                    i=i+1                
-            elif(tt.microsecond>nextTime[i]):  
-                tmp=self.ReadValues(tt,True)        
-                if(tmp == Enums.PROCESSEDPACKETRESULT.OKAY):            
-                    self.PrintCurrentPacket()  
-                else :
-                    print("bad")
-                i=i+1
-                if i==len(nextTime):
-                    i=0
-    
-    def TestRead2(self):
-        command="none"
-        while command.lower() != "exit" and command.lower() != "quit":
-            commandLine=input('> ')
-            command=""
-            theSplit = commandLine.split()
-            if len(theSplit)==1:
-                command = theSplit[0].strip()
-                if command.lower() == "read":
-                    tmp=self.ReadValues(datetime.datetime.today(),True)                     
-                    if(tmp):            
-                        self.PrintCurrentPacket()  
-                    else :
-                        print("bad")       
-                elif command.lower()== 'last':
-                    print(self.theData.GetLastDataPoint().GetDataBufferPrintPacket())
-                elif command.lower()== 'pull':
-                    self.PrintDataBuffer()    
-                elif command.lower()== 'dark':
-                    self.theCOMM.GoDark()
-                elif command.lower()== 'light':
-                    self.theCOMM.ExitDark()
-                elif command.lower()== 'lowfreq':
-                    self.theCOMM.SendFrequency(0x02)                                    
-                elif command.lower()== 'highfreq':
-                    self.theCOMM.SendFrequency(40)    
-                elif command.lower()== 'lightson':
-                    self.theCOMM.SendOptoState(0x3F,0x3F)
-                elif command.lower()== 'lightsoff':
-                    self.theCOMM.SendOptoState(0x00,0x00)
-                elif command.lower()== 'longpulse':
-                    self.theCOMM.SendPulseWidth(50)
-                elif command.lower()== 'shortpulse':
-                    self.theCOMM.SendPulseWidth(2)                
-                elif command.lower()== 'quit' or command.lower=='exit':    
-                    print("Done")           
-                else:
-                    print("Command not recognized.")                                        
-            else:
-                print("Command not recognized.")    
-    #endregion
+   

@@ -121,7 +121,7 @@ class UARTCOMM():
     def _WriteByteArray(self,ba,delay=0.005):       
         GPIO.output(self.sendPIN,GPIO.HIGH)
         self.thePort.write(ba)   
-        time.sleep(0.005)             
+        time.sleep(delay)             
         GPIO.output(self.sendPIN,GPIO.LOW)
     def _Read(self,numBytes):
         result=self.thePort.read(numBytes)
@@ -165,7 +165,7 @@ class UARTCOMM():
         ba[3]=ID
         ba[4]=ID
         self._WriteByteArray(ba,0.001)
-    def SendInstruction(self,anInstruction,ID):
+    def SendInstruction(self,ID,anInstruction):
         ba = bytearray(43)   
         ba[0]=0xFF
         ba[1]=0xFF
@@ -240,18 +240,18 @@ def ModuleTest():
     #tmp = p.GetStatusPacket(1)
     #print(str(tmp))
     #time.sleep(1)
-    print(p.SendInstruction(inst,1))    
+    print(p.SendInstruction(1,inst))    
     time.sleep(2)
     for i in range(0,12):
         inst.optoValues[i]=-1
-    print(p.SendInstruction(inst,1))    
+    print(p.SendInstruction(1,inst))    
     time.sleep(2)
     for i in range(0,12):
         inst.optoValues[i]=100
     inst.frequency=2
     inst.pulseWidth=500
     inst.maxTimeOn=1000
-    print(p.SendInstruction(inst,1)        )
+    print(p.SendInstruction(1,inst)        )
 
     
     

@@ -110,8 +110,9 @@ class MCUProgram():
                 if(self.autoBaseline):
                     s+="Yes\n"
                 else :
-                    s+="No\n"
-                s+=self.theInstructionSets[0].__str__()
+                    s+="No\n"    
+                tmp=list(self.theInstructionSets.keys())[0]            
+                s+=self.theInstructionSets[1].__str__()
         return s
 
     def CreateSimpleProgram(self,starttime,dur):
@@ -131,8 +132,7 @@ class MCUProgram():
         instruct.maxTimeOn = self.maxTimeOn
         instruct.lidType = self.globalLidType
         instruct.instructionSetType = self.globalPType
-        tmp = Instruction.DFMInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))
-        instruct.AddInstruction(tmp)
+        instruct.AddSimpleInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))        
         self.theInstructionSets[dfmid]=instruct
 
     def LoadProgram(self,lines):        
@@ -329,12 +329,15 @@ class MCUProgram():
 
 def ModuleTest():
     tmp = MCUProgram()
+    tmp.AddSimpleProgram(1,datetime.timedelta(minutes=120))
     #tmp.isProgramLoaded=False
-    f=open("TestProgram2.txt",encoding="utf-8-sig")
-    lines = f.readlines()
-    f.close()
-    tmp.LoadProgram(lines)
+    #f=open("TestProgram2.txt",encoding="utf-8-sig")
+    #lines = f.readlines()
+    #f.close()
+    #tmp.LoadProgram(lines)
     print(tmp)
+    
+
     
 
 if __name__=="__main__" :
