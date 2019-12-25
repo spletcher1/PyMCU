@@ -21,6 +21,12 @@ if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
 class TESTCOMM():
+    UART_message = Event.Event()
+    def __init__(self):
+        self.recordIndex=0
+    def NewMessage(self,ID, errorTime, sample,  message,mt):
+        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
+        TESTCOMM.UART_message.notify(tmp)   
     def _DoNothing(self):
         a=1
     def PollSlave(self,ID):
@@ -37,6 +43,8 @@ class TESTCOMM():
         self._DoNothing()
     def ExitDark(self,ID):
         self._DoNothing()
+    def SendInstruction(self,ID,anInstruction):
+        return True
     def _CreateFakeStatusPacket(self,ID):
         tmp = StatusPacket.StatusPacket(0)
         ba = bytearray(309)
@@ -88,15 +96,22 @@ class TESTCOMM():
             ba[(indexer+55)] = (tmp>>8) & 0xFF
             ba[(indexer+56)] = tmp & 0xFF
 
+            tmp = self.recordIndex
+            ba[(indexer+57)] = tmp>>24
+            ba[(indexer+58)] = (tmp>>16) & 0xFF
+            ba[(indexer+59)] = (tmp>>8) & 0xFF
+            ba[(indexer+60)] = tmp & 0xFF
+            
             calculatedCheckSum=0
             for cs in range(indexer,indexer+57) :
                 calculatedCheckSum+=ba[cs]
             calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
-            ba[(indexer+57)] = calculatedCheckSum>>24
-            ba[(indexer+58)] = (calculatedCheckSum>>16) & 0xFF
-            ba[(indexer+59)] = (calculatedCheckSum>>8) & 0xFF
-            ba[(indexer+60)] = calculatedCheckSum & 0xFF
+            ba[(indexer+61)] = calculatedCheckSum>>24
+            ba[(indexer+62)] = (calculatedCheckSum>>16) & 0xFF
+            ba[(indexer+63)] = (calculatedCheckSum>>8) & 0xFF
+            ba[(indexer+64)] = calculatedCheckSum & 0xFF
 
+            self.recordIndex+=1
         return ba
     def GetStatusPacket(self,ID):        
         tmp = self._CreateFakeStatusPacket(ID) 
