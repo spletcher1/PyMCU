@@ -26,8 +26,8 @@ def ModuleTest():
 def main():
     if(platform.node()=="raspberrypi"):
         Board.BoardSetup()   
-    tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
-    ##tmp = DFMGroup.DFMGroup(COMM.TESTCOMM())
+    ##tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
+    tmp = DFMGroup.DFMGroup(COMM.TESTCOMM())
     print("Looking for DFM:")
     tmp.FindDFMs(2)    
     for d in tmp.theDFMs:

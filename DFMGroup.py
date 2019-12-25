@@ -192,7 +192,7 @@ class DFMGroup:
         f.close()
         self.currentProgram.LoadProgram(lines)
         for d in self.theDFMs:           
-            d.optoLid.lidType = self.currentProgram.GetLidType(d.ID)
+            d.lidType = self.currentProgram.GetLidType(d.ID)
        
 
     def FindDFMs(self,maxNum=16,startReading=True):
@@ -245,7 +245,7 @@ class DFMGroup:
                 if d.isCalculatingBaseline:
                     isStillBaselining=True
             time.sleep(.3)
-        print("Starting program.")                   
+        print("Staging program.")                   
         self.currentProgram.isActive=True
 
 def ModuleTest():

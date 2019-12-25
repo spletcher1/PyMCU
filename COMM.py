@@ -47,13 +47,13 @@ class TESTCOMM():
         return True
     def _CreateFakeStatusPacket(self,ID):
         tmp = StatusPacket.StatusPacket(0)
-        ba = bytearray(309)
+        ba = bytearray(329)
         ba[0]=0xFF
         ba[1]=0xFF
         ba[2]=0xFD
         ba[3]=ID
         for j in range(0,5):
-            indexer = (j*61)+4
+            indexer = (j*65)+4
             ba[indexer]=0x00 #Error flag     
             for i in range(0,12):
                 analog=50+randint(0,20)
@@ -103,7 +103,7 @@ class TESTCOMM():
             ba[(indexer+60)] = tmp & 0xFF
             
             calculatedCheckSum=0
-            for cs in range(indexer,indexer+57) :
+            for cs in range(indexer,indexer+61) :
                 calculatedCheckSum+=ba[cs]
             calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
             ba[(indexer+61)] = calculatedCheckSum>>24
