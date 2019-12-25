@@ -32,13 +32,13 @@ def main():
     tmp.FindDFMs(2)    
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
-    #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=10))    
-    tmp.LoadTextProgram("TestProgram1.txt")
+    tmp.LoadSimpleProgram(datetime.datetime.today()+datetime.timedelta(minutes=1),datetime.timedelta(minutes=120))    
+    #tmp.LoadTextProgram("TestProgram1.txt")
     print(tmp.currentProgram)
     tmp.ActivateCurrentProgram()
     counter=0
     while(tmp.currentProgram.isActive):           
-        tmp.UpdateDFMStatus()             
+        tmp.UpdateProgramStatus()             
         counter+=1
         time.sleep(1)
     tmp.StopReading()

@@ -78,8 +78,9 @@ class DFM:
             tmp = self.signalBaselines[i] * self.baselineSamples
             self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
-        if(self.baselineSamples>=30):
+        if(self.baselineSamples>=20):
             self.isCalculatingBaseline=False
+    
     def BaselineDFM(self):
         self.ResetBaseline()
         self.isCalculatingBaseline = True
@@ -126,6 +127,14 @@ class DFM:
         self.outputFileIncrementor+=1
         self.outputFile="DFM" + str(self.ID) + "_"+str(self.outputFileIncrementor)+".csv"
 
+    def SetIdleStatus(self):
+        ## Idle is opto off, dark running as its has been, and default other parameters.
+        self.currentInstruction = Instruction.DFMInstruction()
+        # Try 3 times and give up
+        for _ in range(0,3):
+            if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):           
+                break                 
+    
     def SetStatus(self, newStatus):
         if(newStatus != self.status):
             if(newStatus == Enums.CURRENTSTATUS.ERROR):
@@ -195,7 +204,12 @@ class DFM:
             if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
                 print("Instruction success!")
                 self.isInstructionUpdateNeeded=False
+        ## TODO: Maybe in the future incorporate some feedback from the DFM
+        ## to make sure the parameters are in line.
 
+        
+
+    
         
 
    

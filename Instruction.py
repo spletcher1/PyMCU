@@ -40,12 +40,9 @@ class DFMInstruction:
         s+=str(self.duration.total_seconds()/60) +"min."
         return s
   
-def ModuleTest():
-    tmp = DFMInstruction(Enums.DARKSTATE.ON,40,8,0,0,0,datetime.timedelta(minutes=60),datetime.timedelta(seconds=1000))
-    tmp.SetOptoValues(array.array("i",(10 for i in range(0,12))))
-    tmp2=DFMInstruction()
-    print(tmp)
-    print(tmp2)
+def ModuleTest():   
+    tmp=DFMInstruction()
+    print(tmp)    
 
 if __name__=="__main__" :
     ModuleTest()    

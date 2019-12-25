@@ -75,13 +75,8 @@ class DFMGroup:
 
     def SetDFMIdleStatus(self):
         for d in self.theDFMs:
-            for i in range(0,12):
-                d.SetWellSignalThreshold(i,-1)
-
-    def UpdateDFMPrograms(self):
-        for d in self.theDFMs:            
-            d.UpdateInstruction(self.currentProgram.GetCurrentInstruction(d.ID),self.currentProgram.autoBaseline)    
-            
+            d.SetDFMIdleStatus()
+    
     def WriteWorker(self):        
         dt=datetime.datetime.today()
         self.currentOutputDirectory=platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
@@ -209,7 +204,7 @@ class DFMGroup:
 
     ## This function is the one that should be called by an external timer
     ## to keep things rolling correctly.
-    def UpdateDFMStatus(self):
+    def UpdateProgramStatus(self):
         if(self.currentProgram.isActive):
             if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):
                 if(self.isReading==False): 
@@ -219,16 +214,21 @@ class DFMGroup:
                 self.StopCurrentProgram()
 
             if(self.currentProgram.IsDuringExperiment()):
-                self.UpdateDFMPrograms()
+                self.UpdateDFMInstructions()
 
-
+    def UpdateDFMInstructions(self):
+        for d in self.theDFMs:            
+            d.UpdateInstruction(self.currentProgram.GetCurrentInstruction(d.ID),self.currentProgram.autoBaseline)    
+            
     def LoadSimpleProgram(self,startTime,duration):
         self.currentProgram.CreateSimpleProgram(startTime,duration)
+    
     def StopCurrentProgram(self):
         print("Stopping program.")
         self.currentProgram.isActive=False
         self.StopRecording()
         self.SetDFMIdleStatus()
+    
     def ActivateCurrentProgram(self):
         print("Baselining")
         for d in self.theDFMs:
@@ -242,9 +242,10 @@ class DFMGroup:
             for d in self.theDFMs:
                 if d.isCalculatingBaseline:
                     isStillBaselining=True
-            time.sleep(1)
+            time.sleep(.3)
         print("Starting program.")                   
         self.currentProgram.isActive=True
+
             
 
 

@@ -213,12 +213,9 @@ class UARTCOMM():
         start = time.time()
         self.RequestStatus(ID)
         end=time.time()
-
         if ((end-start)>0.005) :
-            print(str(datetime.datetime.today())+" "+str(end-start))
-        
-        #Read 5 packets at once!
-        # 4 without header = 309 total
+            print(str(datetime.datetime.today())+" "+str(end-start))        
+        #Now reading five packets.
         return self._Read(309) 
         #return tmp 
     def PollSlave(self,ID):
@@ -232,7 +229,7 @@ class UARTCOMM():
 
 
 def ModuleTest():
-    bs = Board.BoardSetup()
+    Board.BoardSetup()
     p=UARTCOMM()
     inst = Instruction.DFMInstruction()
     #print(p.PollSlave(1))
