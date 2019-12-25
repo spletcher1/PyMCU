@@ -23,7 +23,7 @@ class DFMGroup:
         self.longestQueue = 0
         self.isWriting = False
         self.isReading = False
-        self.currentOutputDirectory = ""
+        self.currentOutputDirectory = "./"
         self.theCOMM = commProtocol
         COMM.UARTCOMM.UART_message+=self.NewMessageDirect
         Program.MCUProgram.Program_message+=self.NewMessageDirect
