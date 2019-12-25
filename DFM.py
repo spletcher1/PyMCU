@@ -12,6 +12,7 @@ import MessagesList
 import Message
 import Event
 import Instruction
+import Board
 
 
 class DFM:
@@ -46,7 +47,7 @@ class DFM:
         self.reportedVoltsIn=1.0        
     #endregion
     def NewMessage(self,ID, errorTime, sample,  message,mt):
-        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
+        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)        
         DFM.DFM_message.notify(tmp)        
 
     #region Property-like getters and setters
@@ -104,7 +105,7 @@ class DFM:
         if(len(bytesData)==0):
             a=Enums.PROCESSEDPACKETRESULT.NOANSWER
             return [a,a,a,a,a]
-        if(len(bytesData)!=309):
+        if(len(bytesData)!=329):
             a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES            
             return [a,a,a,a,a]
         if(bytesData[3]!=self.ID):
@@ -148,7 +149,7 @@ class DFM:
             tmp=self.theCOMM.GetStatusPacket(self.ID)               
             theResult = self.ProcessPackets(tmp,timeOfMeasure)
             if(theResult[-1]==Enums.PROCESSEDPACKETRESULT.OKAY):
-                break         
+                break                
             print("Calling again: {:s}" + str(theResult[-1]))
             s="Calling again: {:s}".format(str(theResult[-1]))
             self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
@@ -156,7 +157,7 @@ class DFM:
 
         for j in range(0,5):    
             isSuccess=False
-            if(theResult[j] == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):
+            if(theResult[j] == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Checksum error".format(self.ID)
                 self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)                       
@@ -171,17 +172,21 @@ class DFM:
             elif(theResult[j] == Enums.PROCESSEDPACKETRESULT.OKAY):
                 isSuccess=True
             if isSuccess:
-                if(self.theData.NewData(self.currentStatusPackets[j],saveDataToQueue)==False):
-                    s="({:d}) Data queue error".format(self.ID)
-                    self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
-                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                    isSuccess = False
-                else:
-                    self.sampleIndex = self.sampleIndex+1
-                    if(self.status == Enums.CURRENTSTATUS.ERROR):
-                        self.SetStatus(self.beforeErrorStatus)                  
-                if(self.isCalculatingBaseline):
-                    self.UpdateBaseline()
+                if (self.currentStatusPackets[j].recordIndex>0):
+                    if(self.theData.NewData(self.currentStatusPackets[j],saveDataToQueue)==False):
+                        s="({:d}) Data queue error".format(self.ID)
+                        self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
+                        self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                        isSuccess = False
+                    else:
+                        self.sampleIndex = self.sampleIndex+1
+                        if(self.status == Enums.CURRENTSTATUS.ERROR):
+                            self.SetStatus(self.beforeErrorStatus)                  
+                    if(self.isCalculatingBaseline):
+                        self.UpdateBaseline()
+                else :
+                    s="({:d}) Empty packet received".format(self.ID)
+                    self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
         if(isSuccess):
             self.CheckStatus()        
     #endregion
@@ -207,6 +212,21 @@ class DFM:
         ## TODO: Maybe in the future incorporate some feedback from the DFM
         ## to make sure the parameters are in line.
 
+def ModuleTest():
+    Board.BoardSetup()
+    #tmp = DFMGroup(COMM.TESTCOMM())
+    port = COMM.UARTCOMM()
+    dfm = DFM(1,port)
+    dfm.ReadValues(datetime.datetime.today(),False)  
+    print(dfm.currentStatusPackets[0].GetDataBufferPrintPacket())          
+    print(dfm.currentStatusPackets[1].GetDataBufferPrintPacket())          
+    print(dfm.currentStatusPackets[2].GetDataBufferPrintPacket())   
+    print(dfm.currentStatusPackets[3].GetDataBufferPrintPacket())   
+    print(dfm.currentStatusPackets[4].GetDataBufferPrintPacket())   
+       
+if __name__=="__main__" :
+    ModuleTest()   
+    print("Done!!")     
         
 
     

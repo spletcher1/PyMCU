@@ -32,7 +32,7 @@ def main():
     tmp.FindDFMs(2)    
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))       
-    tmp.LoadSimpleProgram(datetime.datetime.today()+datetime.timedelta(minutes=1),datetime.timedelta(minutes=120))    
+    tmp.LoadSimpleProgram(datetime.datetime.today()+datetime.timedelta(minutes=1),datetime.timedelta(minutes=1*60))    
     #tmp.LoadTextProgram("TestProgram1.txt")
     print(tmp.currentProgram)
     tmp.ActivateCurrentProgram()
@@ -48,6 +48,9 @@ def MiniMain():
         Board.BoardSetup()   
     tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
     tmp.FindDFMs(2,False)
+    if(len(tmp.theDFMs)<1):
+        print("No DFM found!")
+        return
     for d in tmp.theDFMs:
         print("DFMs Found ID: " + str(d.ID))
     tt = datetime.datetime.today()

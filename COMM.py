@@ -198,7 +198,7 @@ class UARTCOMM():
         self._AddChecksumFourBytes(3,ba)       
         # Using the RT patched linus, it appears that 
         # a delay of 0.005 is just enough to transmit 43 bytes.
-        self._WriteByteArray(ba,0.005)
+        self._WriteByteArray(ba,0.006)
 
         tmp=self._Read(1)
         if(len(tmp)==0):
@@ -216,11 +216,11 @@ class UARTCOMM():
         if ((end-start)>0.005) :
             print(str(datetime.datetime.today())+" "+str(end-start))        
         #Now reading five packets.
-        return self._Read(309) 
+        return self._Read(329) 
         #return tmp 
     def PollSlave(self,ID):
         tmp=self.GetStatusPacket(ID)        
-        if(len(tmp)==309 and tmp[3]==ID):         
+        if(len(tmp)==329 and tmp[3]==ID):         
             return True
         else :            
             return False
@@ -232,6 +232,13 @@ def ModuleTest():
     Board.BoardSetup()
     p=UARTCOMM()
     inst = Instruction.DFMInstruction()
+    inst.frequency=2
+    inst.pulseWidth=500
+    inst.maxTimeOn=1000
+    inst.decay=2500
+    inst.delay=1234
+    for i in range(0,12):
+        inst.SetOptoValueWell(i,i*3)
     #print(p.PollSlave(1))
     #time.sleep(1)
     #tmp = p.GetStatusPacket(1)
@@ -239,6 +246,7 @@ def ModuleTest():
     #time.sleep(1)
     print(p.SendInstruction(1,inst))    
     time.sleep(2)
+    return
     for i in range(0,12):
         inst.optoValues[i]=-1
     print(p.SendInstruction(1,inst))    

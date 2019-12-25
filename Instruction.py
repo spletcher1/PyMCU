@@ -18,6 +18,9 @@ class DFMInstruction:
         for i in range(0,12):
             self.optoValues[i]=vals[i]
 
+    def SetOptoValueWell(self,well,val):
+        self.optoValues[well]=val
+
     def AddBaselineToCurrentOptoValues(self,vals):
         for i in range(0,12):
             if(self.optoValues[i]!=0 and self.optoValues[i]!=-1):

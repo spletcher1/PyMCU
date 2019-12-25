@@ -86,7 +86,7 @@ class DFMGroup:
             self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed", Enums.MESSAGETYPE.ERROR)                    
         self.WriteProgram()
 
-        header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error\n"
+        header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error,Index\n"
         theFiles = []
         writeStartTimes=[]
         for d in self.theDFMs:
@@ -245,11 +245,6 @@ class DFMGroup:
             time.sleep(.3)
         print("Starting program.")                   
         self.currentProgram.isActive=True
-
-            
-
-
-
 
 def ModuleTest():
     bs = Board.BoardSetup()
