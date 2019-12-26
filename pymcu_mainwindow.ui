@@ -730,7 +730,8 @@
   </widget>
   <action name="powerOffAction">
    <property name="icon">
-    <iconset theme="application-exit"/>
+    <iconset>
+     <normaloff>exit.png</normaloff>exit.png</iconset>
    </property>
    <property name="text">
     <string>Power Off</string>
@@ -739,7 +740,7 @@
   <action name="findDFMAction">
    <property name="icon">
     <iconset>
-     <normaloff>media-playback-start.png</normaloff>media-playback-start.png</iconset>
+     <normaloff>gtk-find.png</normaloff>gtk-find.png</iconset>
    </property>
    <property name="text">
     <string>Find DFM</string>
@@ -747,7 +748,8 @@
   </action>
   <action name="clearDFMAction">
    <property name="icon">
-    <iconset theme="media-playback-stop"/>
+    <iconset>
+     <normaloff>gtk-cancel.png</normaloff>gtk-cancel.png</iconset>
    </property>
    <property name="text">
     <string>Clear DFM</string>
@@ -755,7 +757,8 @@
   </action>
   <action name="messagesAction">
    <property name="icon">
-    <iconset theme="face-smile"/>
+    <iconset>
+     <normaloff>gtk-select-all.png</normaloff>gtk-select-all.png</iconset>
    </property>
    <property name="text">
     <string>Messages</string>
@@ -766,7 +769,8 @@
   </action>
   <action name="programAction">
    <property name="icon">
-    <iconset theme="x-office-address-book"/>
+    <iconset>
+     <normaloff>gnome-stock-text-indent.png</normaloff>gnome-stock-text-indent.png</iconset>
    </property>
    <property name="text">
     <string>Program</string>
@@ -777,7 +781,8 @@
   </action>
   <action name="aboutMCUAction">
    <property name="icon">
-    <iconset theme="help-about"/>
+    <iconset>
+     <normaloff>gtk-about.png</normaloff>gtk-about.png</iconset>
    </property>
    <property name="text">
     <string>About</string>
@@ -788,7 +793,8 @@
   </action>
   <action name="saveDataAction">
    <property name="icon">
-    <iconset theme="document-save"/>
+    <iconset>
+     <normaloff>filesave.png</normaloff>filesave.png</iconset>
    </property>
    <property name="text">
     <string>Save Data</string>
@@ -799,7 +805,8 @@
   </action>
   <action name="deleteDataAction">
    <property name="icon">
-    <iconset theme="edit-delete"/>
+    <iconset>
+     <normaloff>editdelete.png</normaloff>editdelete.png</iconset>
    </property>
    <property name="text">
     <string>Delete Data</string>
