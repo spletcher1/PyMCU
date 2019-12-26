@@ -11,18 +11,6 @@ import Board
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
-def ModuleTest():
-    #tmp = DFMGroup(COMM.TESTCOMM())
-    tmp = DFMGroup(COMM.UARTCOMM())
-    tmp.FindDFMs(4)
-    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
-    print(tmp.currentProgram)
-    tmp.ActivateCurrentProgram()
-    while(tmp.currentProgram.isActive):   
-        tmp.UpdateDFMStatus()     
-        print(tmp.longestQueue)
-        time.sleep(1)
-
 def main():
     if(platform.node()=="raspberrypi"):
         Board.BoardSetup()   

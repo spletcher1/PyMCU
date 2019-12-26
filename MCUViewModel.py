@@ -26,8 +26,8 @@ class MCUViewModel:
         self.programEndTime = self.programStartTime + datetime.timedelta(minutes=durationMin)
         self.dfmGroup.currentProgram.CreateSimpleProgram(self.programStartTime,datetime.timedelta(minutes=durationMin))
 
-    def ActivateCurrentProgram(self):
-        self.dfmGroup.ActivateCurrentProgram()
+    def StageCurrentProgram(self):
+        self.dfmGroup.StageCurrentProgram()
 
     def StopCurrentProgram(self):
         self.StopCurrentProgram()
@@ -35,11 +35,15 @@ class MCUViewModel:
     def StartUpdateLoop(self):
         self.killUpdateLoop = False
         self.updateTimer.start()
+   
     def StopUpdateLoop(self):
         self.killUpdateLoop = True
+
     def UpdateLoop(self):
         next_call=time.time()        
         while True:
+            if (self.dfmGroup.currentProgram.isActive):           
+                self.dfmGroup.UpdateProgramStatus()         
             next_call = next_call+1            
             if(self.killUpdateLoop):
                 return
