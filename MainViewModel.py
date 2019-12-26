@@ -6,18 +6,21 @@ from PyQt5.QtGui import *
 import datetime
 import time
 import threading
+import platform
+import DFMGroup 
+import COMM
+if(platform.node()=="raspberrypi"):
+    import RPi.GPIO as GPIO
 
 
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
-    def __init__( self ):
-        '''Initialize the super class
-        '''
-        #QMainWindow.__init__(self)
-        #super().__init__()
-        #self.setupUi(self)
-        super(MyMainWindow,self).__init__()
-        uic.loadUi("pymcu_mainwindow.ui",self)
+    def __init__( self ):       
+        super(MyMainWindow,self).__init__()        
+        uic.loadUi("Mainwindow.ui",self)
+        self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())
+        #self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
+                        
         self.MakeConnections()
         self.StackedPages.setCurrentIndex(1)
         self.statusLabel = QLabel()  
@@ -39,6 +42,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def MakeConnections(self):
         self.DFM1Button.clicked.connect(self.DFM1ClickedSlot)
         self.powerOffAction.triggered.connect(self.DFM1ClickedSlot)
+        self.messagesAction.triggered.connect(self.GoToMessagesPage)
+        self.findDFMAction.triggered.connect(self.FindDFMs)
+
+    def FindDFMs(self):
+        print("Finding DFM")
+        self.theDFMGroup.FindDFMs(4)
+        
+
 
     # slot
     def returnPressedSlot( self ):
@@ -55,7 +66,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StatusBar.showMessage("Hi there dude!!",2000)  
         self.browseSlot()
 
-
+    def GoToMessagesPage(self):
+        print("Messages")
+        self.StackedPages.setCurrentIndex(2)
     def UpdateGUI(self):
         while True:
             self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
@@ -79,7 +92,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
 def main():
-    import sys
+    if(platform.node()=="raspberrypi"):
+        Board.BoardSetup()  
+    
     app = QtWidgets.QApplication(sys.argv)
     myapp = MyMainWindow()
     myapp.show()
