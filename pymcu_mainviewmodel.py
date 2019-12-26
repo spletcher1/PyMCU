@@ -2,9 +2,10 @@ import sys
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from pymcu_mainwindow import Ui_MainWindow
-import ../DFM
+from PyQt5.QtGui import *
+import datetime
+import time
+import threading
 
 
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
@@ -19,7 +20,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         uic.loadUi("pymcu_mainwindow.ui",self)
         self.MakeConnections()
         self.StackedPages.setCurrentIndex(1)
-
+        self.statusLabel = QLabel()  
+        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
+        self.StatusBar.addWidget(self.statusLabel)
+        guiThread = threading.Thread(target=self.UpdateGUI)
+        guiThread.start()
         
     def setupUi( self, MW ):
         ''' Setup the UI of the super class, and add here code
@@ -33,6 +38,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
   
     def MakeConnections(self):
         self.DFM1Button.clicked.connect(self.DFM1ClickedSlot)
+        self.powerOffAction.triggered.connect(self.DFM1ClickedSlot)
 
     # slot
     def returnPressedSlot( self ):
@@ -45,8 +51,15 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def DFM1ClickedSlot( self ):
         ''' Called when the user presses the Write-Doc button.
         '''
-        print(self.sender().objectName())        
+        print(self.sender().objectName())      
+        self.StatusBar.showMessage("Hi there dude!!",2000)  
         self.browseSlot()
+
+
+    def UpdateGUI(self):
+        while True:
+            self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
+            time.sleep(1)
 
     # slot
     def browseSlot( self ):
