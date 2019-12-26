@@ -702,8 +702,8 @@
    </property>
    <property name="iconSize">
     <size>
-     <width>30</width>
-     <height>30</height>
+     <width>32</width>
+     <height>32</height>
     </size>
    </property>
    <property name="toolButtonStyle">
@@ -738,7 +738,8 @@
   </action>
   <action name="findDFMAction">
    <property name="icon">
-    <iconset theme="media-playback-start"/>
+    <iconset>
+     <normaloff>media-playback-start.png</normaloff>media-playback-start.png</iconset>
    </property>
    <property name="text">
     <string>Find DFM</string>
