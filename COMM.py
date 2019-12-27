@@ -23,7 +23,7 @@ if(platform.node()=="raspberrypi"):
 class TESTCOMM():
     UART_message = Event.Event()
     def __init__(self):
-        self.recordIndex=0
+        self.recordIndex=1
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         TESTCOMM.UART_message.notify(tmp)   

@@ -78,10 +78,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         for i in range(0,len(self.DFMButtons)):
             if sender is self.DFMButtons[i]:
                 self.SetActiveDFM(i)   
-                self.UpdateDFMPageGUI()    
-                self.theDFMDataPlot.UpdateFigure(self.activeDFM) 
+                self.UpdateDFMPageGUI()                    
 
-    def FindDFMs(self):        
+    def FindDFMs(self):   
+        self.StatusBar.showMessage("Searching for DFMs...")     
         self.ClearMessages()
         self.theDFMGroup.FindDFMs(2)
         self.DFMButtons=[]
@@ -90,11 +90,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
             tmp = QPushButton(s)
             tmp.setFlat(True)
             tmp.setMinimumHeight(35)
+            #tmp.setMaximumWidth(88)
             self.DFMListLayout2.setAlignment(Qt.AlignTop)
             self.DFMListLayout2.addWidget(tmp)            
             self.DFMButtons.append(tmp)
-            self.SetActiveDFM(0)  
-            self.theDFMDataPlot.UpdateFigure(self.activeDFM) 
+            self.SetActiveDFM(0)   
+        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",3000)                
 
         for b in self.DFMButtons:
             b.clicked.connect(self.DFMButtonClicked)     
@@ -242,12 +243,7 @@ def main():
         myapp.showFullScreen()
     else:
         myapp.show()
-    
-    #MainWindow = QtWidgets.QMainWindow()
-    #ui = MainWindowUIClass()
-    #ui.setupUi(MainWindow)
-    #ui.MakeConnections()
-    #MainWindow.show()
+       
     sys.exit(app.exec_())    
     print("Done")
     
