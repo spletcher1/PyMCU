@@ -9,6 +9,7 @@ import threading
 import platform
 import DFMGroup 
 import COMM
+import Enums
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
@@ -20,14 +21,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
         uic.loadUi("Mainwindow.ui",self)
         self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())
         #self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
-                        
+        self.activeDFMNum=-1
+        self.activeDFM=None                        
         self.MakeConnections()
         self.StackedPages.setCurrentIndex(1)
         self.statusLabel = QLabel()  
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
         self.StatusBar.addWidget(self.statusLabel)
-        guiThread = threading.Thread(target=self.UpdateGUI)
-        guiThread.start()
+        self.stopUpdateLoop=False
+        self.guiThread = threading.Thread(target=self.UpdateGUI)
+        self.guiThread.start()
+        
         
     def setupUi( self, MW ):
         ''' Setup the UI of the super class, and add here code
@@ -39,40 +43,150 @@ class MyMainWindow(QtWidgets.QMainWindow):
         # debug window under normal operations
         #self.splitter.setSizes([300, 0])
   
-    def MakeConnections(self):
-        self.DFM1Button.clicked.connect(self.DFM1ClickedSlot)
-        self.powerOffAction.triggered.connect(self.DFM1ClickedSlot)
+    def MakeConnections(self):                
         self.messagesAction.triggered.connect(self.GoToMessagesPage)
         self.findDFMAction.triggered.connect(self.FindDFMs)
+        self.dataAction.triggered.connect(self.GotoDFMPage)
+        self.programAction.triggered.connect(self.GoToProgramPage)
+        self.clearDFMAction.triggered.connect(self.ClearDFM)
+
+    def SetActiveDFM(self,num):
+        self.activeDFMNum=num
+        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]
+        
+        for i in range(0,len(self.DFMButtons)):
+            if(i==self.activeDFMNum):
+                self.DFMButtons[i].setStyleSheet('QPushButton {color: red}')
+            else:
+                self.DFMButtons[i].setStyleSheet('QPushButton {color: black}')
+
+    def DFMButtonClicked(self):
+        sender = self.sender()
+        for i in range(0,len(self.DFMButtons)):
+            if sender is self.DFMButtons[i]:
+                self.SetActiveDFM(i)   
+                self.UpdateDFMPageGUI()     
 
     def FindDFMs(self):
         print("Finding DFM")
-        self.theDFMGroup.FindDFMs(4)
-        
+        self.theDFMGroup.FindDFMs(2)
+        self.DFMButtons=[]
+        for d in self.theDFMGroup.theDFMs:
+            s = str(d)
+            tmp = QPushButton(s)
+            tmp.setFlat(True)
+            tmp.setMinimumHeight(35)
+            self.DFMListLayout2.setAlignment(Qt.AlignTop)
+            self.DFMListLayout2.addWidget(tmp)            
+            self.DFMButtons.append(tmp)
+            self.SetActiveDFM(0)  
 
+        for b in self.DFMButtons:
+            b.clicked.connect(self.DFMButtonClicked)     
 
-    # slot
-    def returnPressedSlot( self ):
-        ''' Called when the user enters a string in the line edit and
-        presses the ENTER key.
-        '''
-        self.debugPrint( "RETURN key pressed in LineEdit widget" )
+        self.GotoDFMPage()     
 
-    # slot
-    def DFM1ClickedSlot( self ):
-        ''' Called when the user presses the Write-Doc button.
-        '''
-        print(self.sender().objectName())      
-        self.StatusBar.showMessage("Hi there dude!!",2000)  
-        self.browseSlot()
+    def ClearLayout(self,layout):
+        while layout.count():
+            child=layout.takeAt(0)
+            if(child.widget()):
+                child.widget().deleteLater()
+
+    def ClearDFM(self):
+        self.theDFMGroup.StopReading()
+        self.ClearLayout(self.DFMListLayout2)
+        self.activeDFMNum=-1
+        self.activeDFM=None
+
 
     def GoToMessagesPage(self):
-        print("Messages")
         self.StackedPages.setCurrentIndex(2)
+
+    def GoToProgramPage(self):        
+        self.StackedPages.setCurrentIndex(0)
+    
+    def GotoDFMPage(self):
+        self.StackedPages.setCurrentIndex(1)
+
+    def UpdateDFMPageGUI(self):
+        self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
+        self.HumidLabel.setText("{:.1f}%".format(self.activeDFM.reportedHumidity))
+        self.LUXLabel.setText("{:d}".format(self.activeDFM.reportedLUX))
+        self.VoltsInLabel.setText("{:.2f}V".format(self.activeDFM.reportedVoltsIn))
+        if(self.activeDFM.reportedDarkState == Enums.DARKSTATE.ON):
+            self.DarkModeLabel.setText("Yes")
+        else:
+            self.DarkModeLabel.setText("No")
+        self.FrequencyLabel.setText("{:d}Hz".format(self.activeDFM.reportedOptoFrequency))
+        self.PulseWidthLabel.setText("{:d}ms".format(self.activeDFM.reportedOptoPulsewidth))
+
+        self.OptoStateLabel.setText("{:02X},{:02X}".format(self.activeDFM.reportedOptoStateCol1,self.activeDFM.reportedOptoStateCol2))
+
+        if(self.activeDFM.status==Enums.CURRENTSTATUS.ERROR):
+            self.CurrentStatusLabel.setText("Err")
+        elif (self.activeDFM.status==Enums.CURRENTSTATUS.MISSING):
+            self.CurrentStatusLabel.setText("Miss")
+        elif (self.activeDFM.status==Enums.CURRENTSTATUS.READING):
+            self.CurrentStatusLabel.setText("Read")
+        elif (self.activeDFM.status==Enums.CURRENTSTATUS.RECORDING):
+            self.CurrentStatusLabel.setText("Rec")
+        elif (self.activeDFM.status==Enums.CURRENTSTATUS.UNDEFINED):
+            self.CurrentStatusLabel.setText("None")
+
+        if(self.activeDFM.pastStatus==Enums.PASTSTATUS.PASTERROR):
+            self.PastStatusLabel.setText("Err")
+        if(self.activeDFM.pastStatus==Enums.PASTSTATUS.ALLCLEAR):
+            self.PastStatusLabel.setText("Clear")
+
+        if(self.activeDFM.currentDFMErrors.GetI2CErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.I2CErrorBox.setChecked(False)
+        else:
+            self.I2CErrorBox.setChecked(False)
+
+        if(self.activeDFM.currentDFMErrors.GetUARTErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.UARTErrorBox.setChecked(False)
+        else:
+            self.UARTErrorBox.setChecked(False)
+         
+        if(self.activeDFM.currentDFMErrors.GetPacketErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.PacketErrorBox.setChecked(False)
+        else:
+            self.PacketErrorBox.setChecked(False)
+        if(self.activeDFM.currentDFMErrors.Getsi7021ErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.SIErrorBox.setChecked(False)
+        else:
+            self.SIErrorBox.setChecked(False)
+        if(self.activeDFM.currentDFMErrors.GetTSL2591ErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.TSLErrorBox.setChecked(False)
+        else:
+            self.TSLErrorBox.setChecked(False)
+        if(self.activeDFM.currentDFMErrors.GetConfigErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.ConfigErrorBox.setChecked(False)
+        else:
+            self.ConfigErrorBox.setChecked(False)
+        if(self.activeDFM.currentDFMErrors.GetBufferErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.BufferErrorBox.setChecked(False)
+        else:
+            self.BufferErrorBox.setChecked(False)
+        if(self.activeDFM.currentDFMErrors.GetMiscErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.MiscErrorBox.setChecked(False)
+        else:
+            self.MiscErrorBox.setChecked(False)
+
+
+
     def UpdateGUI(self):
         while True:
-            self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
+            if self.stopUpdateLoop:
+                return           
+            self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))          
+            if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:
+                self.UpdateDFMPageGUI()
             time.sleep(1)
+                
+    def closeEvent(self,event):
+        self.stopUpdateLoop=True
+        self.ClearDFM()
 
     # slot
     def browseSlot( self ):
@@ -104,7 +218,9 @@ def main():
     #ui.setupUi(MainWindow)
     #ui.MakeConnections()
     #MainWindow.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec_())    
+    print("Done")
+    
 
     
 

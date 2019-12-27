@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <class>MCUMainWindow</class>
+ <widget class="QMainWindow" name="MCUMainWindow">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -30,7 +30,7 @@
     <item>
      <widget class="QStackedWidget" name="StackedPages">
       <property name="currentIndex">
-       <number>2</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -58,238 +58,56 @@
          <number>2</number>
         </property>
         <item>
-         <widget class="QGroupBox" name="DFMGroupBox">
+         <widget class="QScrollArea" name="DFMScrollArea">
           <property name="maximumSize">
            <size>
             <width>100</width>
             <height>16777215</height>
            </size>
           </property>
-          <property name="title">
-           <string>DFM List:</string>
+          <property name="widgetResizable">
+           <bool>true</bool>
           </property>
-          <layout class="QVBoxLayout" name="verticalLayout">
-           <property name="spacing">
-            <number>0</number>
+          <widget class="QWidget" name="scrollAreaWidgetContents_5">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>98</width>
+             <height>377</height>
+            </rect>
            </property>
-           <property name="leftMargin">
-            <number>2</number>
-           </property>
-           <property name="topMargin">
-            <number>2</number>
-           </property>
-           <property name="rightMargin">
-            <number>2</number>
-           </property>
-           <property name="bottomMargin">
-            <number>2</number>
-           </property>
-           <item>
-            <widget class="QPushButton" name="DFM1Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="autoFillBackground">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 1</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM2Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 2</string>
-             </property>
-             <property name="default">
-              <bool>false</bool>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM3Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 3</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM4Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 4</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM5Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 5</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM6Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 6</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM7Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 7</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM8Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 8</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM9Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 9</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM10Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 10</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM11Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 11</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM12Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 12</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM13Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 13</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM14Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 14</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="DFM15Button">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="text">
-              <string>DFM 15</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-          </layout>
+           <layout class="QVBoxLayout" name="DFMListLayout2">
+            <property name="leftMargin">
+             <number>2</number>
+            </property>
+            <property name="topMargin">
+             <number>2</number>
+            </property>
+            <property name="rightMargin">
+             <number>6</number>
+            </property>
+            <property name="bottomMargin">
+             <number>3</number>
+            </property>
+           </layout>
+          </widget>
          </widget>
         </item>
         <item>
          <widget class="QFrame" name="frame">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
           <property name="frameShape">
            <enum>QFrame::StyledPanel</enum>
           </property>
@@ -312,7 +130,7 @@
           <property name="frameShadow">
            <enum>QFrame::Raised</enum>
           </property>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
+          <layout class="QVBoxLayout" name="DFMListLayout">
            <property name="spacing">
             <number>6</number>
            </property>
@@ -330,12 +148,18 @@
            </property>
            <item>
             <widget class="QGroupBox" name="groupBox_2">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>110</height>
+              </size>
+             </property>
              <property name="title">
               <string>Environment:</string>
              </property>
              <layout class="QHBoxLayout" name="horizontalLayout_2">
               <property name="spacing">
-               <number>2</number>
+               <number>0</number>
               </property>
               <property name="leftMargin">
                <number>2</number>
@@ -351,6 +175,12 @@
               </property>
               <item>
                <widget class="QFrame" name="frame_3">
+                <property name="maximumSize">
+                 <size>
+                  <width>100</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
                 <property name="frameShape">
                  <enum>QFrame::NoFrame</enum>
                 </property>
@@ -446,8 +276,11 @@
                  <enum>QFrame::Raised</enum>
                 </property>
                 <layout class="QVBoxLayout" name="verticalLayout_4">
-                 <property name="leftMargin">
+                 <property name="spacing">
                   <number>2</number>
+                 </property>
+                 <property name="leftMargin">
+                  <number>0</number>
                  </property>
                  <property name="topMargin">
                   <number>2</number>
@@ -515,6 +348,12 @@
               </property>
               <item>
                <widget class="QFrame" name="frame_5">
+                <property name="maximumSize">
+                 <size>
+                  <width>100</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
                 <property name="frameShape">
                  <enum>QFrame::NoFrame</enum>
                 </property>
@@ -585,7 +424,27 @@
                     <enum>Qt::LeftToRight</enum>
                    </property>
                    <property name="text">
-                    <string>Baselined:</string>
+                    <string>Optostate:</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="label_9">
+                   <property name="text">
+                    <string>Status:</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="label_10">
+                   <property name="text">
+                    <string>Past Status:</string>
                    </property>
                    <property name="alignment">
                     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -610,6 +469,9 @@
                  <enum>QFrame::Raised</enum>
                 </property>
                 <layout class="QVBoxLayout" name="verticalLayout_7">
+                 <property name="spacing">
+                  <number>2</number>
+                 </property>
                  <property name="leftMargin">
                   <number>2</number>
                  </property>
@@ -623,30 +485,44 @@
                   <number>2</number>
                  </property>
                  <item>
-                  <widget class="QLabel" name="TempLabel_3">
+                  <widget class="QLabel" name="DarkModeLabel">
                    <property name="text">
                     <string>0</string>
                    </property>
                   </widget>
                  </item>
                  <item>
-                  <widget class="QLabel" name="HumidLabel_3">
+                  <widget class="QLabel" name="FrequencyLabel">
                    <property name="text">
                     <string>0</string>
                    </property>
                   </widget>
                  </item>
                  <item>
-                  <widget class="QLabel" name="LUXLabel_3">
+                  <widget class="QLabel" name="PulseWidthLabel">
                    <property name="text">
                     <string>0</string>
                    </property>
                   </widget>
                  </item>
                  <item>
-                  <widget class="QLabel" name="VoltsInLabel_3">
+                  <widget class="QLabel" name="OptoStateLabel">
                    <property name="text">
                     <string>0</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="CurrentStatusLabel">
+                   <property name="text">
+                    <string>NA</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="PastStatusLabel">
+                   <property name="text">
+                    <string>NA</string>
                    </property>
                   </widget>
                  </item>
@@ -657,10 +533,110 @@
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_4">
-             <property name="title">
-              <string>Options</string>
+            <widget class="QGroupBox" name="DFMErrorGroupBox">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>105</height>
+              </size>
              </property>
+             <property name="title">
+              <string>DFM Warnings:</string>
+             </property>
+             <layout class="QGridLayout" name="gridLayout">
+              <property name="topMargin">
+               <number>2</number>
+              </property>
+              <property name="rightMargin">
+               <number>2</number>
+              </property>
+              <property name="bottomMargin">
+               <number>2</number>
+              </property>
+              <property name="spacing">
+               <number>2</number>
+              </property>
+              <item row="4" column="1">
+               <widget class="QCheckBox" name="BufferErrorBox">
+                <property name="text">
+                 <string>Buffer</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QCheckBox" name="I2CErrorBox">
+                <property name="text">
+                 <string>I2C</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QCheckBox" name="TSLErrorBox">
+                <property name="text">
+                 <string>TSL259</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QCheckBox" name="ConfigErrorBox">
+                <property name="text">
+                 <string>Config</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QCheckBox" name="PacketErrorBox">
+                <property name="text">
+                 <string>Packet</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QCheckBox" name="UARTErrorBox">
+                <property name="text">
+                 <string>UART</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <property name="autoRepeatDelay">
+                 <number>300</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QCheckBox" name="SIErrorBox">
+                <property name="text">
+                 <string>Si7025</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QCheckBox" name="MiscErrorBox">
+                <property name="text">
+                 <string>Misc</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </widget>
            </item>
           </layout>
@@ -783,11 +759,13 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
+   <addaction name="dataAction"/>
+   <addaction name="programAction"/>
+   <addaction name="messagesAction"/>
+   <addaction name="separator"/>
    <addaction name="findDFMAction"/>
    <addaction name="clearDFMAction"/>
    <addaction name="separator"/>
-   <addaction name="programAction"/>
-   <addaction name="messagesAction"/>
    <addaction name="separator"/>
    <addaction name="saveDataAction"/>
    <addaction name="separator"/>
@@ -862,7 +840,7 @@
   <action name="saveDataAction">
    <property name="icon">
     <iconset>
-     <normaloff>filesave.png</normaloff>filesave.png</iconset>
+     <normaloff>gtk-floppy.png</normaloff>gtk-floppy.png</iconset>
    </property>
    <property name="text">
     <string>Save Data</string>
@@ -881,6 +859,18 @@
    </property>
    <property name="toolTip">
     <string>Remove data from MCU</string>
+   </property>
+  </action>
+  <action name="dataAction">
+   <property name="icon">
+    <iconset>
+     <normaloff>gnome-monitor.png</normaloff>gnome-monitor.png</iconset>
+   </property>
+   <property name="text">
+    <string>Live Data</string>
+   </property>
+   <property name="toolTip">
+    <string>Go to data screen</string>
    </property>
   </action>
  </widget>
