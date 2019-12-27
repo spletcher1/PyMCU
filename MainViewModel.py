@@ -11,6 +11,7 @@ import DFMGroup
 import COMM
 import Enums
 import Board
+import DFMPlot
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
@@ -37,6 +38,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.stopUpdateLoop=False
         self.guiThread = threading.Thread(target=self.UpdateGUI)
         self.guiThread.start()
+
+        self.main_widget = QtWidgets.QWidget(self)
+        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=tmp,width=5, height=4, dpi=100)
+        #dc = DFMPlot.MyDynamicMplCanvas(self.main_widget, width=5, height=4, dpi=100)
+        self.DFMPlotLayout.addWidget(self.theDFMDataPlot)
         
         
     def setupUi( self, MW ):
@@ -72,7 +78,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         for i in range(0,len(self.DFMButtons)):
             if sender is self.DFMButtons[i]:
                 self.SetActiveDFM(i)   
-                self.UpdateDFMPageGUI()     
+                self.UpdateDFMPageGUI()    
+                self.theDFMDataPlot.UpdateFigure(self.activeDFM) 
 
     def FindDFMs(self):        
         self.ClearMessages()
@@ -87,6 +94,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.DFMListLayout2.addWidget(tmp)            
             self.DFMButtons.append(tmp)
             self.SetActiveDFM(0)  
+            self.theDFMDataPlot.UpdateFigure(self.activeDFM) 
 
         for b in self.DFMButtons:
             b.clicked.connect(self.DFMButtonClicked)     
@@ -196,6 +204,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))          
             if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:
                 self.UpdateDFMPageGUI()
+                self.theDFMDataPlot.UpdateFigure(self.activeDFM)
+                
             elif self.StackedPages.currentIndex()==2:
                 self.UpdateMessagesGUI
             time.sleep(1)

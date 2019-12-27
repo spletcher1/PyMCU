@@ -38,6 +38,7 @@ class DFMGroup:
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
     def ClearDFMList(self):
+        
         self.theDFMs.clear()
 
     def StartRecording(self):
