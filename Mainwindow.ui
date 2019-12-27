@@ -30,7 +30,7 @@
     <item>
      <widget class="QStackedWidget" name="StackedPages">
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -74,7 +74,7 @@
              <x>0</x>
              <y>0</y>
              <width>98</width>
-             <height>377</height>
+             <height>371</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -659,59 +659,69 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>363</width>
-             <height>518</height>
+             <width>762</width>
+             <height>357</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
             <item>
-             <widget class="QFrame" name="frame_8">
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-             </widget>
-            </item>
-            <item>
              <widget class="QWidget" name="widget" native="true">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
               <property name="minimumSize">
                <size>
                 <width>0</width>
-                <height>500</height>
+                <height>0</height>
                </size>
               </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QFrame" name="frame_7">
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
+              <layout class="QVBoxLayout" name="verticalLayout">
+               <property name="spacing">
+                <number>2</number>
+               </property>
+               <property name="leftMargin">
+                <number>2</number>
+               </property>
+               <property name="topMargin">
+                <number>2</number>
+               </property>
+               <property name="rightMargin">
+                <number>2</number>
+               </property>
+               <property name="bottomMargin">
+                <number>2</number>
+               </property>
+               <item>
+                <widget class="QTextEdit" name="MessagesTextEdit">
+                 <property name="enabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <pointsize>8</pointsize>
+                  </font>
+                 </property>
+                 <property name="autoFillBackground">
+                  <bool>false</bool>
+                 </property>
+                 <property name="frameShape">
+                  <enum>QFrame::NoFrame</enum>
+                 </property>
+                 <property name="frameShadow">
+                  <enum>QFrame::Plain</enum>
+                 </property>
+                 <property name="readOnly">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </widget>
             </item>
            </layout>
-          </widget>
-         </widget>
-        </item>
-        <item>
-         <widget class="QScrollArea" name="scrollArea_2">
-          <property name="widgetResizable">
-           <bool>true</bool>
-          </property>
-          <widget class="QWidget" name="scrollAreaWidgetContents_2">
-           <property name="geometry">
-            <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>377</width>
-             <height>363</height>
-            </rect>
-           </property>
           </widget>
          </widget>
         </item>
@@ -766,8 +776,9 @@
    <addaction name="findDFMAction"/>
    <addaction name="clearDFMAction"/>
    <addaction name="separator"/>
-   <addaction name="separator"/>
    <addaction name="saveDataAction"/>
+   <addaction name="separator"/>
+   <addaction name="clearMessagesAction"/>
    <addaction name="separator"/>
    <addaction name="deleteDataAction"/>
    <addaction name="powerOffAction"/>
@@ -871,6 +882,18 @@
    </property>
    <property name="toolTip">
     <string>Go to data screen</string>
+   </property>
+  </action>
+  <action name="clearMessagesAction">
+   <property name="icon">
+    <iconset>
+     <normaloff>editclear.png</normaloff>editclear.png</iconset>
+   </property>
+   <property name="text">
+    <string>Clear Messages</string>
+   </property>
+   <property name="toolTip">
+    <string>Clear existing messages</string>
    </property>
   </action>
  </widget>

@@ -19,7 +19,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def __init__( self ):       
         super(MyMainWindow,self).__init__()        
         uic.loadUi("Mainwindow.ui",self)
-        self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())
+        tmp = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
+        tmp2 = "QTextEdit {background-color: "+tmp+"}"
+        self.MessagesTextEdit.setStyleSheet(tmp2)        
+        self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
         #self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
         self.activeDFMNum=-1
         self.activeDFM=None                        
@@ -49,6 +52,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.dataAction.triggered.connect(self.GotoDFMPage)
         self.programAction.triggered.connect(self.GoToProgramPage)
         self.clearDFMAction.triggered.connect(self.ClearDFM)
+        self.clearMessagesAction.triggered.connect(self.ClearMessages)
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num
@@ -67,8 +71,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.SetActiveDFM(i)   
                 self.UpdateDFMPageGUI()     
 
-    def FindDFMs(self):
-        print("Finding DFM")
+    def FindDFMs(self):        
+        self.ClearMessages()
         self.theDFMGroup.FindDFMs(2)
         self.DFMButtons=[]
         for d in self.theDFMGroup.theDFMs:
@@ -83,8 +87,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         for b in self.DFMButtons:
             b.clicked.connect(self.DFMButtonClicked)     
-
+        self.UpdateDFMPageGUI()
         self.GotoDFMPage()     
+
+    def ClearMessages(self):
+        self.theDFMGroup.theMessageList.ClearMessages()
+        self.UpdateMessagesGUI()
 
     def ClearLayout(self,layout):
         while layout.count():
@@ -101,12 +109,16 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def GoToMessagesPage(self):
         self.StackedPages.setCurrentIndex(2)
+        self.UpdateMessagesGUI()        
 
     def GoToProgramPage(self):        
         self.StackedPages.setCurrentIndex(0)
     
     def GotoDFMPage(self):
         self.StackedPages.setCurrentIndex(1)
+
+    def UpdateMessagesGUI(self):
+        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
 
     def UpdateDFMPageGUI(self):
         self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
@@ -182,6 +194,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))          
             if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:
                 self.UpdateDFMPageGUI()
+            elif self.StackedPages.currentIndex()==2:
+                self.UpdateMessagesGUI
             time.sleep(1)
                 
     def closeEvent(self,event):
