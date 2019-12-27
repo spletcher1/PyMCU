@@ -10,6 +10,7 @@ import platform
 import DFMGroup 
 import COMM
 import Enums
+import Board
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
@@ -29,8 +30,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MakeConnections()
         self.StackedPages.setCurrentIndex(1)
         self.statusLabel = QLabel()  
+        self.statusLabel.setFrameStyle(QFrame.NoFrame)
+        self.statusLabel.setFrameShadow(QFrame.Plain)
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
-        self.StatusBar.addWidget(self.statusLabel)
+        self.StatusBar.addPermanentWidget(self.statusLabel)        
         self.stopUpdateLoop=False
         self.guiThread = threading.Thread(target=self.UpdateGUI)
         self.guiThread.start()
@@ -105,7 +108,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ClearLayout(self.DFMListLayout2)
         self.activeDFMNum=-1
         self.activeDFM=None
-
 
     def GoToMessagesPage(self):
         self.StackedPages.setCurrentIndex(2)
@@ -224,9 +226,13 @@ def main():
         Board.BoardSetup()  
     
     app = QtWidgets.QApplication(sys.argv)
+    #app.setStyleSheet("QStatusBar.item {border : 0px black}")
     myapp = MyMainWindow()
-    myapp.show()
-    #myapp.showFullScreen()
+    if(platform.node()=="raspberrypi"):
+        myapp.showFullScreen()
+    else:
+        myapp.show()
+    
     #MainWindow = QtWidgets.QMainWindow()
     #ui = MainWindowUIClass()
     #ui.setupUi(MainWindow)

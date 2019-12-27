@@ -30,7 +30,7 @@
     <item>
      <widget class="QStackedWidget" name="StackedPages">
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -132,7 +132,7 @@
           </property>
           <layout class="QVBoxLayout" name="DFMListLayout">
            <property name="spacing">
-            <number>6</number>
+            <number>3</number>
            </property>
            <property name="leftMargin">
             <number>2</number>
@@ -148,10 +148,16 @@
            </property>
            <item>
             <widget class="QGroupBox" name="groupBox_2">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
              <property name="maximumSize">
               <size>
                <width>16777215</width>
-               <height>110</height>
+               <height>105</height>
               </size>
              </property>
              <property name="title">
@@ -180,6 +186,11 @@
                   <width>100</width>
                   <height>16777215</height>
                  </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
                 </property>
                 <property name="frameShape">
                  <enum>QFrame::NoFrame</enum>
@@ -269,6 +280,11 @@
                   <height>16777215</height>
                  </size>
                 </property>
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
                 <property name="frameShape">
                  <enum>QFrame::NoFrame</enum>
                 </property>
@@ -327,6 +343,18 @@
            </item>
            <item>
             <widget class="QGroupBox" name="groupBox_3">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>135</height>
+              </size>
+             </property>
              <property name="title">
               <string>Status:</string>
              </property>
@@ -353,6 +381,11 @@
                   <width>100</width>
                   <height>16777215</height>
                  </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
                 </property>
                 <property name="frameShape">
                  <enum>QFrame::NoFrame</enum>
@@ -381,6 +414,11 @@
                  </property>
                  <item>
                   <widget class="QLabel" name="label_5">
+                   <property name="font">
+                    <font>
+                     <pointsize>10</pointsize>
+                    </font>
+                   </property>
                    <property name="layoutDirection">
                     <enum>Qt::LeftToRight</enum>
                    </property>
@@ -410,6 +448,9 @@
                    <property name="layoutDirection">
                     <enum>Qt::LeftToRight</enum>
                    </property>
+                   <property name="frameShape">
+                    <enum>QFrame::NoFrame</enum>
+                   </property>
                    <property name="text">
                     <string>Pulse Width:</string>
                    </property>
@@ -422,6 +463,9 @@
                   <widget class="QLabel" name="label_8">
                    <property name="layoutDirection">
                     <enum>Qt::LeftToRight</enum>
+                   </property>
+                   <property name="frameShape">
+                    <enum>QFrame::NoFrame</enum>
                    </property>
                    <property name="text">
                     <string>Optostate:</string>
@@ -461,6 +505,11 @@
                   <width>45</width>
                   <height>16777215</height>
                  </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
                 </property>
                 <property name="frameShape">
                  <enum>QFrame::NoFrame</enum>
@@ -537,7 +586,7 @@
              <property name="maximumSize">
               <size>
                <width>16777215</width>
-               <height>105</height>
+               <height>120</height>
               </size>
              </property>
              <property name="title">
@@ -545,7 +594,7 @@
              </property>
              <layout class="QGridLayout" name="gridLayout">
               <property name="topMargin">
-               <number>2</number>
+               <number>6</number>
               </property>
               <property name="rightMargin">
                <number>2</number>
@@ -553,11 +602,19 @@
               <property name="bottomMargin">
                <number>2</number>
               </property>
-              <property name="spacing">
+              <property name="horizontalSpacing">
                <number>2</number>
+              </property>
+              <property name="verticalSpacing">
+               <number>1</number>
               </property>
               <item row="4" column="1">
                <widget class="QCheckBox" name="BufferErrorBox">
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Buffer</string>
                 </property>
@@ -568,6 +625,11 @@
               </item>
               <item row="0" column="0">
                <widget class="QCheckBox" name="I2CErrorBox">
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
                 <property name="text">
                  <string>I2C</string>
                 </property>
@@ -576,18 +638,13 @@
                 </property>
                </widget>
               </item>
-              <item row="0" column="1">
-               <widget class="QCheckBox" name="TSLErrorBox">
-                <property name="text">
-                 <string>TSL259</string>
-                </property>
-                <property name="checkable">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
               <item row="1" column="1">
                <widget class="QCheckBox" name="ConfigErrorBox">
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Config</string>
                 </property>
@@ -598,6 +655,11 @@
               </item>
               <item row="4" column="0">
                <widget class="QCheckBox" name="PacketErrorBox">
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Packet</string>
                 </property>
@@ -608,6 +670,11 @@
               </item>
               <item row="1" column="0">
                <widget class="QCheckBox" name="UARTErrorBox">
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
                 <property name="text">
                  <string>UART</string>
                 </property>
@@ -621,6 +688,11 @@
               </item>
               <item row="5" column="0">
                <widget class="QCheckBox" name="SIErrorBox">
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Si7025</string>
                 </property>
@@ -631,8 +703,28 @@
               </item>
               <item row="5" column="1">
                <widget class="QCheckBox" name="MiscErrorBox">
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Misc</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QCheckBox" name="TSLErrorBox">
+                <property name="font">
+                 <font>
+                  <pointsize>10</pointsize>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>TSL259</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
