@@ -1,8 +1,0 @@
-***ALL DFM***
-Start Time: 12/27/2019 22:22:53
-End Time: 12/28/2019 01:22:53
-Duration: 180.0 min
-OptoLid: None
-Baseline: Yes
-Program Type: Linear
-Dark Uncontrolled,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,180.0min.

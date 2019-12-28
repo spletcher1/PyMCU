@@ -15,6 +15,7 @@ import Board
 
 class DFMGroup:
     DFMGroup_message = Event.Event()
+    DFMGroup_updatecomplete = Event.Event()
     def __init__(self,commProtocol):
         self.theDFMs = []
         DFM.DFM.DFM_message+=self.NewMessageDirect
@@ -54,6 +55,7 @@ class DFMGroup:
         self.theMessageList.ClearMessages()
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
         writeThread = threading.Thread(target=self.WriteWorker)
+        #writeThread = multiprocessing.Process(target=self.WriteWorker)
         writeThread.start()
         return True
 
@@ -139,7 +141,9 @@ class DFMGroup:
                 theFiles[i].close()                
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.NOTICE)        
         self.WriteMessages()
-        self.isWriting=False        
+        self.isWriting=False      
+        for d in self.theDFMs:
+            d.SetStatus(Enums.CURRENTSTATUS.READING)      
 
     def StopReading(self):
         if len(self.theDFMs)==0:
@@ -157,7 +161,8 @@ class DFMGroup:
         for d in self.theDFMs:
             d.SetStatus(Enums.CURRENTSTATUS.READING)        
         readThread = threading.Thread(target=self.ReadWorker)
-        readThread.start()
+        #readThread = multiprocessing.Process(target=self.ReadWorker)
+        readThread.start()        
     def ReadWorker(self):    
         self.isReading=True
         tt = datetime.datetime.today()
@@ -172,11 +177,12 @@ class DFMGroup:
                     for d in self.theDFMs:
                         ## It takes a little over 30ms to call and
                         ## receive the data from one DFM, given a baud
-                        ## rate of 115200
+                        ## rate of 115200                        
                         d.ReadValues(tt,self.isWriting)        
                         lastSecond=tt.second    
                         lastTime=time.time()
-                        time.sleep(0.010)                    
+                        time.sleep(0.010)    
+                    DFMGroup.DFMGroup_updatecomplete.notify()                                      
             if(self.stopReadingSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)

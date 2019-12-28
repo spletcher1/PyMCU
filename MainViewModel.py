@@ -25,8 +25,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         tmp2 = "QTextEdit {background-color: "+tmp+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
         self.ProgramTextEdit.setStyleSheet(tmp2)
-        self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
-        #self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
+        #self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
+        self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
         self.statusmessageduration=5000
         self.activeDFMNum=-1
         self.activeDFM=None                        
@@ -51,7 +51,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.programDuration = datetime.timedelta(minutes=180)
         self.SetProgramStartTime(datetime.datetime.today())
 
-      
+        DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
       
       
 
@@ -329,6 +329,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.MiscErrorBox.setChecked(False)
 
+    def UpdateDFMPlot(self):        
+        if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                     
+            #start = time.time()   
+            self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
+            #end=time.time()        
+            #print("Plotting time: "+str(end-start))    
     def UpdateGUI(self):
         while True:
             if self.stopUpdateLoop:
@@ -338,10 +344,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.DisableButtons()
             else:
                 self.EnableButtons()
-            self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))          
-            if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:
+            self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
+            if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
                 self.UpdateDFMPageGUI()
-                self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
+                #self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
             elif self.StackedPages.currentIndex()==2:
                 self.UpdateMessagesGUI                          
             time.sleep(1)

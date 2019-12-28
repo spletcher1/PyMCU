@@ -229,7 +229,7 @@ class UARTCOMM():
         self.RequestStatus(ID)
         end=time.time()
         if ((end-start)>0.005) :
-            print(str(datetime.datetime.today())+" "+str(end-start))        
+            print("Request time: "+str(end-start))        
         #Now reading five packets.
         return self._Read(329) 
         #return tmp 
