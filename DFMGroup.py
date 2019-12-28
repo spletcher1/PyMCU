@@ -201,7 +201,9 @@ class DFMGroup:
         for i in range(1,maxNum+1):
             if(self.theCOMM.PollSlave(i)):
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
-            time.sleep(0.01)
+                s = "DFM "+str(i)+" found"
+                self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
+            time.sleep(0.01)                
         if(startReading):
             self.StartReading()
 
@@ -227,12 +229,16 @@ class DFMGroup:
         self.currentProgram.CreateSimpleProgram(startTime,duration)
     
     def StopCurrentProgram(self):
+        if(len(self.theDFMs)==0):
+            return
         print("Stopping program.")
         self.currentProgram.isActive=False
         self.StopRecording()
         self.SetDFMIdleStatus()
     
     def StageCurrentProgram(self):
+        if(len(self.theDFMs)==0):
+            return
         print("Baselining")
         for d in self.theDFMs:
             if(self.currentProgram.autoBaseline==True):

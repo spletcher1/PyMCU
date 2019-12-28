@@ -231,6 +231,9 @@
                <property name="text">
                 <string>24 hours</string>
                </property>
+               <property name="flat">
+                <bool>false</bool>
+               </property>
               </widget>
              </item>
              <item row="3" column="0">

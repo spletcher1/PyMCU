@@ -39,15 +39,20 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.stopUpdateLoop=False
         self.guiThread = threading.Thread(target=self.UpdateGUI)
         self.guiThread.start()
+        self.DFMButtons = []
+        self.UpdateProgramGUI()
 
         self.main_widget = QtWidgets.QWidget(self)
         self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=tmp,width=5, height=4, dpi=100)
         #dc = DFMPlot.MyDynamicMplCanvas(self.main_widget, width=5, height=4, dpi=100)
         self.DFMPlotLayout.addWidget(self.theDFMDataPlot)   
 
-        self.programStartTime = datetime.datetime.today()
-        self.LoadSimpleProgram(180)
-                   
+        self.programDuration = datetime.timedelta(minutes=180)
+        self.SetProgramStartTime(datetime.datetime.today())
+
+        self.statusmessageduration=5000
+      
+      
 
     def DisableButtons(self):
         self.findDFMAction.setEnabled(False)
@@ -64,6 +69,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.T24HrButton.setEnabled(False)
         self.T5DButton.setEnabled(False)
         self.CustomButton.setEnabled(False)
+        self.StartTimeNowButton.setEnabled(False)
+        self.StartTimeEdit.setEnabled(False)
 
     def EnableButtons(self):
         self.findDFMAction.setEnabled(True)
@@ -80,29 +87,53 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.T24HrButton.setEnabled(True)
         self.T5DButton.setEnabled(True)
         self.CustomButton.setEnabled(True)
+        self.StartTimeNowButton.setEnabled(True)
+        self.StartTimeEdit.setEnabled(True)
+
+    def SetProgramStartTime(self,theTime):
+        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)    
+        self.programEndTime = self.programStartTime + self.programDuration        
+        qtDate=QtCore.QDateTime.currentDateTime()    
+        ss=self.programStartTime.strftime("%m-%d-%Y %H:%M:%S")        
+        qtDate = QtCore.QDateTime.fromString(ss,"MM-dd-yyyy HH:mm:ss")        
+        self.StartTimeEdit.setDateTime(qtDate)
+        self.theDFMGroup.currentProgram.startTime = self.programStartTime
+        self.StatusBar.showMessage("Set program start time: " + self.programStartTime.strftime("%m/%d/%Y %H:%M:%S") ,self.statusmessageduration)
+
 
     def SetSimpleProgramButtonClicked(self):
+        if(len(self.theDFMGroup.theDFMs)==0): return
         sender = self.sender()
         tmp = sender.text()
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
         if(tmp == "30 minutes"):
-            self.LoadSimpleProgram(30)
+            self.programDuration = datetime.timedelta(minutes=30)          
+            self.LoadSimpleProgram()  
         elif(tmp == "60 minutes"):
-            self.LoadSimpleProgram(60)
+            self.programDuration = datetime.timedelta(minutes=60)            
+            self.LoadSimpleProgram()
         elif(tmp == "3 hours"):
-            self.LoadSimpleProgram(60*3)
+            self.programDuration = datetime.timedelta(minutes=180)
+            self.LoadSimpleProgram()
         elif(tmp == "6 hours"):
-            self.LoadSimpleProgram(60*6)            
+            self.programDuration = datetime.timedelta(minutes=60*6)
+            self.LoadSimpleProgram()
         elif(tmp == "12 hours"):
-            self.LoadSimpleProgram(60*12)
+            self.programDuration = datetime.timedelta(minutes=60*12)
+            self.LoadSimpleProgram()
         elif(tmp == "24 hours"):
-            self.LoadSimpleProgram(60*24)
+            self.programDuration = datetime.timedelta(minutes=60*24)
+            self.LoadSimpleProgram()
         elif(tmp == "5 days"):
-            self.LoadSimpleProgram(60*24*5)            
+            self.programDuration = datetime.timedelta(minutes=60*24*5)
+            self.LoadSimpleProgram()
         elif(tmp == "Custom"):
             self.LoadCustomProgram
+
+        self.StatusBar.showMessage("Loaded simple program: " + tmp,self.statusmessageduration)
                             
     def ToggleProgramRun(self):
+        if(len(self.theDFMGroup.theDFMs)==0): return
         if(self.theDFMGroup.currentProgram.isActive):
             self.RunProgramButton.setText("Run Program")
             self.theDFMGroup.StopCurrentProgram()
@@ -110,12 +141,19 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.RunProgramButton.setText("Stop Program")                         
             self.theDFMGroup.StageCurrentProgram()
 
-    def LoadSimpleProgram(self,durationMin):
+    def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
-        self.programEndTime = self.programStartTime + datetime.timedelta(minutes=durationMin)
-        self.theDFMGroup.currentProgram.CreateSimpleProgram(self.programStartTime,datetime.timedelta(minutes=durationMin))
-        self.ProgramTextEdit.setText(self.theDFMGroup.currentProgram.GetProgramDescription())
+        self.programEndTime = self.programStartTime + self.programDuration
+        self.theDFMGroup.currentProgram.CreateSimpleProgram(self.programStartTime,self.programDuration)
+        self.UpdateProgramGUI()
     
+    def UpdateProgramGUI(self):
+        if(len(self.theDFMGroup.theDFMs)>0):
+            self.ProgramTextEdit.setText(self.theDFMGroup.currentProgram.GetProgramDescription())
+        else:
+            self.ProgramTextEdit.setText("No program loaded.")
+
+
     def setupUi( self, MW ):
         ''' Setup the UI of the super class, and add here code
         that relates to the way we want our UI to operate.
@@ -143,6 +181,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.T5DButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.CustomButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
+        self.StartTimeNowButton.clicked.connect(self.SetStartTimeNow)
+
+    def SetStartTimeNow(self):
+        self.SetProgramStartTime(datetime.datetime.today())
+        
+        #self.programStartTime= tmp.toPyDateTime()
+        
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num
@@ -169,20 +214,23 @@ class MyMainWindow(QtWidgets.QMainWindow):
         for d in self.theDFMGroup.theDFMs:
             s = str(d)
             tmp = QPushButton(s)
-            tmp.setFlat(True)
+            tmp.setFlat(False)            
             tmp.setMinimumHeight(35)
             #tmp.setMaximumWidth(88)
             self.DFMListLayout2.setAlignment(Qt.AlignTop)
             self.DFMListLayout2.addWidget(tmp)            
             self.DFMButtons.append(tmp)
             self.SetActiveDFM(0)   
-        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",3000)                
+        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                
 
         for b in self.DFMButtons:
             b.clicked.connect(self.DFMButtonClicked)     
         self.UpdateDFMPageGUI()
+        self.programStartTime = datetime.datetime.today()
+        self.programDuration = datetime.timedelta(minutes=180)
+        self.LoadSimpleProgram()
         self.GotoDFMPage()     
-
+        
     def ClearMessages(self):
         self.theDFMGroup.theMessageList.ClearMessages()
         self.UpdateMessagesGUI()
@@ -198,6 +246,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ClearLayout(self.DFMListLayout2)
         self.activeDFMNum=-1
         self.activeDFM=None
+        self.DFMButtons.clear()
+        self.UpdateProgramGUI()
+        self.ClearMessages()
 
     def GoToMessagesPage(self):
         self.StackedPages.setCurrentIndex(2)
@@ -311,6 +362,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
                         "",
                         "All Files (*);;Python Files (*.py)",
                         options=options)
+
+        ## Donr forget to set programstarttime and duration here 
+        ## aFTER THE program is loaded.
         print(fileName)
 
 
