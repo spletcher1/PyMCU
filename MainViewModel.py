@@ -27,6 +27,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ProgramTextEdit.setStyleSheet(tmp2)
         self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
         #self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
+        self.statusmessageduration=5000
         self.activeDFMNum=-1
         self.activeDFM=None                        
         self.MakeConnections()
@@ -50,7 +51,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.programDuration = datetime.timedelta(minutes=180)
         self.SetProgramStartTime(datetime.datetime.today())
 
-        self.statusmessageduration=5000
+      
       
       
 
