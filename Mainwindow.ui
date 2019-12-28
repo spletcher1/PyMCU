@@ -35,7 +35,7 @@
       <property name="minimumSize">
        <size>
         <width>380</width>
-        <height>0</height>
+        <height>390</height>
        </size>
       </property>
       <property name="currentIndex">
@@ -46,6 +46,21 @@
         <number>-8</number>
        </property>
        <layout class="QHBoxLayout" name="horizontalLayout_7">
+        <property name="spacing">
+         <number>2</number>
+        </property>
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
         <item>
          <widget class="QScrollArea" name="scrollArea_2">
           <property name="minimumSize">
@@ -63,12 +78,21 @@
              <x>0</x>
              <y>0</y>
              <width>541</width>
-             <height>355</height>
+             <height>384</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
             <item>
-             <widget class="QTextEdit" name="ProgramTextEdit"/>
+             <widget class="QTextEdit" name="ProgramTextEdit">
+              <property name="font">
+               <font>
+                <pointsize>8</pointsize>
+               </font>
+              </property>
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+             </widget>
             </item>
            </layout>
           </widget>
@@ -107,15 +131,37 @@
               <item>
                <widget class="QLabel" name="label_11">
                 <property name="text">
-                 <string>Start/End Times:</string>
+                 <string>Start Time:</string>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QDateTimeEdit" name="StartTimeEdit"/>
-              </item>
-              <item>
-               <widget class="QDateTimeEdit" name="EndTimeEdit"/>
+               <widget class="QDateTimeEdit" name="StartTimeEdit">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>50</height>
+                 </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <pointsize>15</pointsize>
+                 </font>
+                </property>
+                <property name="minimumDate">
+                 <date>
+                  <year>2019</year>
+                  <month>12</month>
+                  <day>14</day>
+                 </date>
+                </property>
+                <property name="displayFormat">
+                 <string>MM/dd/yyyy HH:mm</string>
+                </property>
+                <property name="calendarPopup">
+                 <bool>false</bool>
+                </property>
+               </widget>
               </item>
               <item>
                <widget class="QPushButton" name="StartTimeNowButton">
@@ -136,7 +182,7 @@
               <number>1</number>
              </property>
              <item row="1" column="1">
-              <widget class="QPushButton" name="T3HrButton">
+              <widget class="QPushButton" name="T6HrButton">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
                  <horstretch>0</horstretch>
@@ -144,7 +190,7 @@
                 </sizepolicy>
                </property>
                <property name="text">
-                <string>3 hours</string>
+                <string>6 hours</string>
                </property>
               </widget>
              </item>
@@ -175,19 +221,6 @@
               </widget>
              </item>
              <item row="2" column="1">
-              <widget class="QPushButton" name="T12HrButton">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string>12 hours</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0">
               <widget class="QPushButton" name="T24HrButton">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -200,33 +233,7 @@
                </property>
               </widget>
              </item>
-             <item row="2" column="0">
-              <widget class="QPushButton" name="T6HrButton">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string>6 hours</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QPushButton" name="T1HrButton">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string>1 hour</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
+             <item row="3" column="0">
               <widget class="QPushButton" name="T5DButton">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -236,6 +243,45 @@
                </property>
                <property name="text">
                 <string>5 days</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QPushButton" name="T12HrButton">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>12 hours</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QPushButton" name="T3HrButton">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>3 hours</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QPushButton" name="CustomButton">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>Custom</string>
                </property>
               </widget>
              </item>
@@ -320,7 +366,7 @@
              <x>0</x>
              <y>0</y>
              <width>116</width>
-             <height>367</height>
+             <height>382</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1157,6 +1203,18 @@
         <number>-7</number>
        </property>
        <layout class="QHBoxLayout" name="horizontalLayout_5">
+        <property name="spacing">
+         <number>2</number>
+        </property>
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
         <item>
          <widget class="QScrollArea" name="scrollArea">
           <property name="widgetResizable">
@@ -1167,8 +1225,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>762</width>
-             <height>355</height>
+             <width>769</width>
+             <height>384</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">

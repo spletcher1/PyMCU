@@ -24,6 +24,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         tmp = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
         tmp2 = "QTextEdit {background-color: "+tmp+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
+        self.ProgramTextEdit.setStyleSheet(tmp2)
         self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
         #self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
         self.activeDFMNum=-1
@@ -42,9 +43,79 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.main_widget = QtWidgets.QWidget(self)
         self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=tmp,width=5, height=4, dpi=100)
         #dc = DFMPlot.MyDynamicMplCanvas(self.main_widget, width=5, height=4, dpi=100)
-        self.DFMPlotLayout.addWidget(self.theDFMDataPlot)
-        
-        
+        self.DFMPlotLayout.addWidget(self.theDFMDataPlot)   
+
+        self.programStartTime = datetime.datetime.today()
+        self.LoadSimpleProgram(180)
+                   
+
+    def DisableButtons(self):
+        self.findDFMAction.setEnabled(False)
+        self.clearDFMAction.setEnabled(False)
+        self.saveDataAction.setEnabled(False)
+        self.clearMessagesAction.setEnabled(False)
+        self.deleteDataAction.setEnabled(False)
+        self.powerOffAction.setEnabled(False)
+        self.T30MinButton.setEnabled(False)
+        self.T60MinButton.setEnabled(False)
+        self.T3HrButton.setEnabled(False)
+        self.T6HrButton.setEnabled(False)
+        self.T12HrButton.setEnabled(False)
+        self.T24HrButton.setEnabled(False)
+        self.T5DButton.setEnabled(False)
+        self.CustomButton.setEnabled(False)
+
+    def EnableButtons(self):
+        self.findDFMAction.setEnabled(True)
+        self.clearDFMAction.setEnabled(True)
+        self.saveDataAction.setEnabled(True)
+        self.clearMessagesAction.setEnabled(True)
+        self.deleteDataAction.setEnabled(True)
+        self.powerOffAction.setEnabled(True)
+        self.T30MinButton.setEnabled(True)
+        self.T60MinButton.setEnabled(True)
+        self.T3HrButton.setEnabled(True)
+        self.T6HrButton.setEnabled(True)
+        self.T12HrButton.setEnabled(True)
+        self.T24HrButton.setEnabled(True)
+        self.T5DButton.setEnabled(True)
+        self.CustomButton.setEnabled(True)
+
+    def SetSimpleProgramButtonClicked(self):
+        sender = self.sender()
+        tmp = sender.text()
+        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
+        if(tmp == "30 minutes"):
+            self.LoadSimpleProgram(30)
+        elif(tmp == "60 minutes"):
+            self.LoadSimpleProgram(60)
+        elif(tmp == "3 hours"):
+            self.LoadSimpleProgram(60*3)
+        elif(tmp == "6 hours"):
+            self.LoadSimpleProgram(60*6)            
+        elif(tmp == "12 hours"):
+            self.LoadSimpleProgram(60*12)
+        elif(tmp == "24 hours"):
+            self.LoadSimpleProgram(60*24)
+        elif(tmp == "5 days"):
+            self.LoadSimpleProgram(60*24*5)            
+        elif(tmp == "Custom"):
+            self.LoadCustomProgram
+                            
+    def ToggleProgramRun(self):
+        if(self.theDFMGroup.currentProgram.isActive):
+            self.RunProgramButton.setText("Run Program")
+            self.theDFMGroup.StopCurrentProgram()
+        else:
+            self.RunProgramButton.setText("Stop Program")                         
+            self.theDFMGroup.StageCurrentProgram()
+
+    def LoadSimpleProgram(self,durationMin):
+        self.theDFMGroup.currentProgram.isProgramLoaded=False
+        self.programEndTime = self.programStartTime + datetime.timedelta(minutes=durationMin)
+        self.theDFMGroup.currentProgram.CreateSimpleProgram(self.programStartTime,datetime.timedelta(minutes=durationMin))
+        self.ProgramTextEdit.setText(self.theDFMGroup.currentProgram.GetProgramDescription())
+    
     def setupUi( self, MW ):
         ''' Setup the UI of the super class, and add here code
         that relates to the way we want our UI to operate.
@@ -62,6 +133,16 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.programAction.triggered.connect(self.GoToProgramPage)
         self.clearDFMAction.triggered.connect(self.ClearDFM)
         self.clearMessagesAction.triggered.connect(self.ClearMessages)
+
+        self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
+        self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
+        self.T3HrButton.clicked.connect(self.SetSimpleProgramButtonClicked)
+        self.T6HrButton.clicked.connect(self.SetSimpleProgramButtonClicked)
+        self.T12HrButton.clicked.connect(self.SetSimpleProgramButtonClicked)
+        self.T24HrButton.clicked.connect(self.SetSimpleProgramButtonClicked)
+        self.T5DButton.clicked.connect(self.SetSimpleProgramButtonClicked)
+        self.CustomButton.clicked.connect(self.SetSimpleProgramButtonClicked)
+        self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num
@@ -196,19 +277,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.MiscErrorBox.setChecked(False)
 
-
-
     def UpdateGUI(self):
         while True:
             if self.stopUpdateLoop:
                 return           
+            if (self.theDFMGroup.currentProgram.isActive):           
+                self.theDFMGroup.UpdateProgramStatus()         
+                self.DisableButtons()
+            else:
+                self.EnableButtons()
             self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))          
             if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:
                 self.UpdateDFMPageGUI()
-                self.theDFMDataPlot.UpdateFigure(self.activeDFM)
-                
+                self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
             elif self.StackedPages.currentIndex()==2:
-                self.UpdateMessagesGUI
+                self.UpdateMessagesGUI                          
             time.sleep(1)
                 
     def closeEvent(self,event):
@@ -216,7 +299,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ClearDFM()
 
     # slot
-    def browseSlot( self ):
+    def LoadCustomProgram( self ):
         ''' Called when the user presses the Browse button
         '''
         #self.debugPrint( "Browse button pressed" )

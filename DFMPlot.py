@@ -47,9 +47,12 @@ class MyDFMDataPlot(FigureCanvas):
         self.autolabel(rects2)
         #self.axes.legend()
     
-    def UpdateFigure(self,DFM):
+    def UpdateFigure(self,DFM, isbaselined):
         self.axes.cla()
-        self.axes.set_ylabel('Signal')        
+        if(isbaselined):
+            self.axes.set_ylabel('Baselined Signal')        
+        else:
+            self.axes.set_ylabel('Signal')        
         self.axes.set_xlabel('DFM Row')     
         self.axes.set_ylim(0,1000)   
         self.axes.set_xticks(self.x)
