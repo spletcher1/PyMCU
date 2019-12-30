@@ -13,6 +13,7 @@ import Enums
 import Board
 import DFMPlot
 import socket
+import os
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
@@ -177,6 +178,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.clearDFMAction.triggered.connect(self.ClearDFM)
         self.clearMessagesAction.triggered.connect(self.AssureClearMessages)
         self.aboutMCUAction.triggered.connect(self.AboutPyMCU)
+        self.powerOffAction.triggered.connect(self.PowerOff)
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -248,6 +250,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.LoadSimpleProgram()
         self.GotoDFMPage()     
 
+    def PowerOff(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Question)
+        msg.setText("Are you sure that you would like to power off?")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        retval=msg.exec_()
+        if(retval==QMessageBox.Yes):
+            msg2 = QMessageBox()
+            msg2.setIcon(QMessageBox.Question)
+            msg2.setText("Are you REALLY sure that you would like to power off?")
+            msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            retval=msg2.exec_()
+            if(retval==QMessageBox.Yes):
+                print("Shuttind down")
+                #os.system("shotdown /s /t 1)")
 
     def AssureClearMessages(self):
         msg = QMessageBox()
