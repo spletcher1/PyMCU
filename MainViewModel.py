@@ -12,6 +12,7 @@ import COMM
 import Enums
 import Board
 import DFMPlot
+import socket
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
@@ -26,7 +27,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MessagesTextEdit.setStyleSheet(tmp2)        
         self.ProgramTextEdit.setStyleSheet(tmp2)
         #self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
-        self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
+        if(platform.node()=="raspberrypi"):
+            self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
+        else:
+            self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
         self.statusmessageduration=5000
         self.activeDFMNum=-1
         self.activeDFM=None                        
@@ -171,7 +175,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.dataAction.triggered.connect(self.GotoDFMPage)
         self.programAction.triggered.connect(self.GoToProgramPage)
         self.clearDFMAction.triggered.connect(self.ClearDFM)
-        self.clearMessagesAction.triggered.connect(self.ClearMessages)
+        self.clearMessagesAction.triggered.connect(self.AssureClearMessages)
+        self.aboutMCUAction.triggered.connect(self.AboutPyMCU)
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -188,7 +193,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.SetProgramStartTime(datetime.datetime.today())
         
         #self.programStartTime= tmp.toPyDateTime()
-        
+
+
+    def AboutPyMCU(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText("Flidea Master Control Unit")
+        with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as s:
+            s.connect(("google.com",80))    
+            hostip=s.getsockname()[0]
+        ss="Version 5.0\nIP: " + hostip
+        msg.setInformativeText(ss)    
+        retval=msg.exec_()        
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num
@@ -231,8 +247,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.programDuration = datetime.timedelta(minutes=180)
         self.LoadSimpleProgram()
         self.GotoDFMPage()     
+
+
+    def AssureClearMessages(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Question)
+        msg.setText("Are you sure that you would like to clear messages?")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        retval=msg.exec_()
+        if(retval==QMessageBox.Yes):
+            self.ClearMessages()
         
-    def ClearMessages(self):
+    def ClearMessages(self):       
         self.theDFMGroup.theMessageList.ClearMessages()
         self.UpdateMessagesGUI()
 
