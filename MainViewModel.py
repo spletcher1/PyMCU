@@ -179,6 +179,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.clearMessagesAction.triggered.connect(self.AssureClearMessages)
         self.aboutMCUAction.triggered.connect(self.AboutPyMCU)
         self.powerOffAction.triggered.connect(self.PowerOff)
+        self.saveDataAction.triggered.connect(self.ChooseDataSaveLocation)
+        self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
+        
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -190,6 +193,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
         self.StartTimeNowButton.clicked.connect(self.SetStartTimeNow)
+        self.CustomButton.clicked.connect(self.LoadCustomProgram)
 
     def SetStartTimeNow(self):
         self.SetProgramStartTime(datetime.datetime.today())
@@ -249,6 +253,23 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.programDuration = datetime.timedelta(minutes=180)
         self.LoadSimpleProgram()
         self.GotoDFMPage()     
+
+
+    def DeleteDataFolder(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Question)
+        msg.setText("Are you sure that you would like to delete all data?")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        retval=msg.exec_()
+        if(retval==QMessageBox.Yes):
+            msg2 = QMessageBox()
+            msg2.setIcon(QMessageBox.Question)
+            msg2.setText("Are you REALLY sure ?")
+            msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            retval=msg2.exec_()
+            if(retval==QMessageBox.Yes):
+                os.system("rm -rf FLICData")  
+            self.StatusBar.showMessage("Existing local data folder has been deleted.")                              
 
     def PowerOff(self):
         msg = QMessageBox()
@@ -404,19 +425,51 @@ class MyMainWindow(QtWidgets.QMainWindow):
         ''' Called when the user presses the Browse button
         '''
         #self.debugPrint( "Browse button pressed" )
+        
         options = QtWidgets.QFileDialog.Options()
         options |= QtWidgets.QFileDialog.DontUseNativeDialog
-        fileName, _ = QtWidgets.QFileDialog.getOpenFileName(
-                        None,
-                        "QFileDialog.getOpenFileName()",
-                        "",
-                        "All Files (*);;Python Files (*.py)",
-                        options=options)
+        dialog =QFileDialog(self)
+        dialog.setFileMode(QFileDialog.ExistingFile)
+        dialog.setNameFilter("Text Files (*.txt)")
+        dialog.setDirectory("/media")
+
+        if(dialog.exec_()):
+            try:
+                direct = dialog.selectedFiles()[0]
+                self.theDFMGroup.LoadTextProgram(direct)
+                self.StatusBar.showMessage("Custom program loaded.",5000)   
+                self.UpdateProgramGUI() 
+            except:
+                self.StatusBar.showMessage("Problem loading program.",5000)    
 
         ## Donr forget to set programstarttime and duration here 
         ## aFTER THE program is loaded.
-        print(fileName)
+        print(direct)
 
+
+    def ChooseDataSaveLocation( self ):
+        ''' Called when the user presses the Browse button
+        '''
+        dialog =QFileDialog(self)
+        dialog.setFileMode(QFileDialog.Directory)
+        dialog.setOption(QFileDialog.ShowDirsOnly, True)
+        dialog.setDirectory("/media")
+        if dialog.exec_():
+            direct = dialog.selectedFiles()
+            command = "cp -r FLICData/ " + direct[0]
+            self.StatusBar.showMessage("Copying data files...",30000)                
+            os.system(command)
+            self.StatusBar.showMessage("Data copy complete.",5000)                
+        #options = QtWidgets.QFileDialog.Options()
+        #options |= QtWidgets.QFileDialog.DontUseNativeDialog
+        #fileName, _ = QtWidgets.QFileDialog.getExistingDirectory(
+        #                None,
+        #                "Choose Directory",
+        #                "/media/pi")                      
+
+        ## Donr forget to set programstarttime and duration here 
+        ## aFTER THE program is loaded.
+        
 
 
 def main():

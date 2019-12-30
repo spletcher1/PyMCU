@@ -85,7 +85,11 @@ class DFMGroup:
     
     def WriteWorker(self):        
         dt=datetime.datetime.today()
-        self.currentOutputDirectory=platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
+        self.currentOutputDirectory="./FLICData/"+platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
+        try:
+            os.mkdir("./FLICData")
+        except FileExistsError:
+            pass
         try:
             os.mkdir(self.currentOutputDirectory)
         except OSError:
