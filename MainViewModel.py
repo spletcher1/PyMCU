@@ -146,6 +146,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.RunProgramButton.setText("Run Program")
             self.theDFMGroup.StopCurrentProgram()
         else:
+            self.DisableButtons()
             self.RunProgramButton.setText("Stop Program")                         
             self.theDFMGroup.StageCurrentProgram()
 
