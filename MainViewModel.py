@@ -108,7 +108,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
     def SetSimpleProgramButtonClicked(self):
-        if(len(self.theDFMGroup.theDFMs)==0): return
+        if(len(self.theDFMGroup.theDFMs)==0): 
+            self.StatusBar.showMessage("Load programs only after DFMs have been defined.",self.statusmessageduration)
+            return
         sender = self.sender()
         tmp = sender.text()
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
@@ -425,7 +427,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         ''' Called when the user presses the Browse button
         '''
         #self.debugPrint( "Browse button pressed" )
-        
+        if(len(self.theDFMGroup.theDFMs)==0): 
+            self.StatusBar.showMessage("Load programs only after DFMs have been defined.",self.statusmessageduration)
+            return
         options = QtWidgets.QFileDialog.Options()
         options |= QtWidgets.QFileDialog.DontUseNativeDialog
         dialog =QFileDialog(self)
@@ -437,10 +441,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             try:
                 direct = dialog.selectedFiles()[0]
                 self.theDFMGroup.LoadTextProgram(direct)
-                self.StatusBar.showMessage("Custom program loaded.",5000)   
+                self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration)   
                 self.UpdateProgramGUI() 
             except:
-                self.StatusBar.showMessage("Problem loading program.",5000)    
+                self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
 
         ## Donr forget to set programstarttime and duration here 
         ## aFTER THE program is loaded.
@@ -457,9 +461,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if dialog.exec_():
             direct = dialog.selectedFiles()
             command = "cp -r FLICData/ " + direct[0]
-            self.StatusBar.showMessage("Copying data files...",30000)                
+            self.StatusBar.showMessage("Copying data files...",120000)                
             os.system(command)
-            self.StatusBar.showMessage("Data copy complete.",5000)                
+            self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
         #options = QtWidgets.QFileDialog.Options()
         #options |= QtWidgets.QFileDialog.DontUseNativeDialog
         #fileName, _ = QtWidgets.QFileDialog.getExistingDirectory(
@@ -489,6 +493,7 @@ def main():
     
 
     
+
 
 
 if __name__ == "__main__":

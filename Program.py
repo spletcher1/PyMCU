@@ -95,7 +95,7 @@ class MCUProgram():
                 for (key, value) in sorted(self.theInstructionSets.items()):
                     s+="\n"
                     s += "***DFM " + str(key) + "***\n"
-                    s+=value.ToString(self.experimentDuration, self.startTime)
+                    s+=value.ToString(self.experimentDuration, self.startTime)          
             
         else:
             if(len(self.theInstructionSets)<1):
@@ -135,7 +135,7 @@ class MCUProgram():
         instruct.AddSimpleInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))        
         self.theInstructionSets[dfmid]=instruct
 
-    def LoadProgram(self,lines):        
+    def LoadProgram(self,lines, dfmList):        
         self.ClearProgram()
         currentSection=""
         currentDFM=-1
@@ -219,19 +219,19 @@ class MCUProgram():
                                     self.theInstructionSets[currentDFM].SetLidTypeFromString(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "optodelay"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoDelay=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].optoDelay=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "optodecay"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoDecay=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].optoDecay=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "optofrequency"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoFrequency=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].optoFrequency=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "optopw"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoPulseWidth=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].optoPulseWidth=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "maxtimeon"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].maxTimeOn=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].maxTimeOn=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "programtype"):
                                 if(currentDFM != -1):
                                     self.theInstructionSets[currentDFM].SetProgramTypeFromString(thesplit[1].lower().strip())
@@ -242,7 +242,24 @@ class MCUProgram():
                 for key in self.theInstructionSets:
                     if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
                         self.experimentDuration = self.theInstructionSets[key].GetDuration()
+                        
+            tmp ={}
+            for key in self.theInstructionSets:
+                a = False
+                for d in dfmList:
+                    if d.ID == key:
+                        a = True
+                if a==True:
+                    tmp[key]=self.theInstructionSets[key]
+
+            self.theInstructionSets = tmp
             
+            for d in dfmList:                
+                if(d.ID in self.theInstructionSets.keys()):
+                    pass
+                else :
+                    self.AddSimpleProgram(d.ID,self.experimentDuration)
+
             allIsWell=True
             for values in self.theInstructionSets.values():
                 if(values.Validate())==False:
@@ -258,10 +275,14 @@ class MCUProgram():
             else:
                 self.isProgramLoaded=True
 
+
+            
+
             return allIsWell
         except:
             ss="General program load failure"
-            self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)         
+            self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)   
+            return False      
 
 
     def UpdateStartAndEndTime(self,sTime,eTime):

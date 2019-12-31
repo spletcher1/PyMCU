@@ -201,7 +201,7 @@ class DFMGroup:
         f=open(programPath,encoding="utf-8-sig")
         lines = f.readlines()
         f.close()
-        self.currentProgram.LoadProgram(lines)
+        self.currentProgram.LoadProgram(lines,self.theDFMs)
         for d in self.theDFMs:           
             d.lidType = self.currentProgram.GetLidType(d.ID)
        
