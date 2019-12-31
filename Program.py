@@ -242,7 +242,8 @@ class MCUProgram():
                 for key in self.theInstructionSets:
                     if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
                         self.experimentDuration = self.theInstructionSets[key].GetDuration()
-                        
+
+            # Get rid of DFMs that are not in the experiment to simply the description textbox.           
             tmp ={}
             for key in self.theInstructionSets:
                 a = False
@@ -259,6 +260,8 @@ class MCUProgram():
                     pass
                 else :
                     self.AddSimpleProgram(d.ID,self.experimentDuration)
+                    ss="DFM " + str(d.ID) + " not listed in program file. Adding simple program"
+                    self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)   
 
             allIsWell=True
             for values in self.theInstructionSets.values():
@@ -273,10 +276,7 @@ class MCUProgram():
                 self.isProgramLoaded = False
                 self.ClearProgram()
             else:
-                self.isProgramLoaded=True
-
-
-            
+                self.isProgramLoaded=True            
 
             return allIsWell
         except:

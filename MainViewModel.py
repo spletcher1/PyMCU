@@ -435,7 +435,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         dialog =QFileDialog(self)
         dialog.setFileMode(QFileDialog.ExistingFile)
         dialog.setNameFilter("Text Files (*.txt)")
-        dialog.setDirectory("/media")
+        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+        if len(subfolders)==0:
+            dialog.setDirectory("/media/pi")
+        else:
+            dialog.setDirectory(subfolders[0])    
 
         if(dialog.exec_()):
             try:
@@ -457,7 +461,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         dialog =QFileDialog(self)
         dialog.setFileMode(QFileDialog.Directory)
         dialog.setOption(QFileDialog.ShowDirsOnly, True)
-        dialog.setDirectory("/media")
+        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+        if len(subfolders)==0:
+            dialog.setDirectory("/media/pi")
+        else:
+            dialog.setDirectory(subfolders[0])
         if dialog.exec_():
             direct = dialog.selectedFiles()
             command = "cp -r FLICData/ " + direct[0]
