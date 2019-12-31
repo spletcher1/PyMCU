@@ -9,6 +9,16 @@ class MessageList():
         self.OnMessageRaised=Event.Event()
     def __len__(self):
         return len(self.theMessages)
+    def __str__(self):
+        if(len(self.theMessages)==0):
+            return "No Messages"
+        else:
+            ss=""
+            for m in self.theMessages:
+                ss+=str(m)+"\n"
+            return ss
+
+
     def GetErrorCount(self):
         errors=0
         for m in self.theMessages:
@@ -24,6 +34,7 @@ class MessageList():
                 s+=i.GetMessageStringForFile()
         return s        
     def AddMessage(self,newmessage):
+        newmessage.messageNumber = len(self.theMessages)+1
         self.theMessages.append(newmessage)
     def ClearMessages(self):
         self.theMessages.clear()

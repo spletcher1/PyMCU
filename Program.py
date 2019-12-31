@@ -95,7 +95,7 @@ class MCUProgram():
                 for (key, value) in sorted(self.theInstructionSets.items()):
                     s+="\n"
                     s += "***DFM " + str(key) + "***\n"
-                    s+=value.ToString(self.experimentDuration, self.startTime)
+                    s+=value.ToString(self.experimentDuration, self.startTime)          
             
         else:
             if(len(self.theInstructionSets)<1):
@@ -110,8 +110,9 @@ class MCUProgram():
                 if(self.autoBaseline):
                     s+="Yes\n"
                 else :
-                    s+="No\n"
-                s+=self.theInstructionSets[0].__str__()
+                    s+="No\n"    
+                tmp=list(self.theInstructionSets.keys())[0]            
+                s+=self.theInstructionSets[1].__str__()
         return s
 
     def CreateSimpleProgram(self,starttime,dur):
@@ -131,11 +132,10 @@ class MCUProgram():
         instruct.maxTimeOn = self.maxTimeOn
         instruct.lidType = self.globalLidType
         instruct.instructionSetType = self.globalPType
-        tmp = Instruction.DFMInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))
-        instruct.AddInstruction(tmp)
+        instruct.AddSimpleInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))        
         self.theInstructionSets[dfmid]=instruct
 
-    def LoadProgram(self,lines):        
+    def LoadProgram(self,lines, dfmList):        
         self.ClearProgram()
         currentSection=""
         currentDFM=-1
@@ -219,19 +219,19 @@ class MCUProgram():
                                     self.theInstructionSets[currentDFM].SetLidTypeFromString(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "optodelay"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoDelay=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].optoDelay=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "optodecay"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoDecay=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].optoDecay=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "optofrequency"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoFrequency=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].optoFrequency=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "optopw"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoPulseWidth=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].optoPulseWidth=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "maxtimeon"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].maxTimeOn=thesplit[1].lower().strip()
+                                    self.theInstructionSets[currentDFM].maxTimeOn=int(thesplit[1].lower().strip())
                             elif(thesplit[0].lower().strip() == "programtype"):
                                 if(currentDFM != -1):
                                     self.theInstructionSets[currentDFM].SetProgramTypeFromString(thesplit[1].lower().strip())
@@ -242,7 +242,27 @@ class MCUProgram():
                 for key in self.theInstructionSets:
                     if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
                         self.experimentDuration = self.theInstructionSets[key].GetDuration()
+
+            # Get rid of DFMs that are not in the experiment to simply the description textbox.           
+            tmp ={}
+            for key in self.theInstructionSets:
+                a = False
+                for d in dfmList:
+                    if d.ID == key:
+                        a = True
+                if a==True:
+                    tmp[key]=self.theInstructionSets[key]
+
+            self.theInstructionSets = tmp
             
+            for d in dfmList:                
+                if(d.ID in self.theInstructionSets.keys()):
+                    pass
+                else :
+                    self.AddSimpleProgram(d.ID,self.experimentDuration)
+                    ss="DFM " + str(d.ID) + " not listed in program file. Adding simple program"
+                    self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)   
+
             allIsWell=True
             for values in self.theInstructionSets.values():
                 if(values.Validate())==False:
@@ -256,12 +276,13 @@ class MCUProgram():
                 self.isProgramLoaded = False
                 self.ClearProgram()
             else:
-                self.isProgramLoaded=True
+                self.isProgramLoaded=True            
 
             return allIsWell
         except:
             ss="General program load failure"
-            self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)         
+            self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)   
+            return False      
 
 
     def UpdateStartAndEndTime(self,sTime,eTime):
@@ -329,12 +350,15 @@ class MCUProgram():
 
 def ModuleTest():
     tmp = MCUProgram()
+    tmp.AddSimpleProgram(1,datetime.timedelta(minutes=120))
     #tmp.isProgramLoaded=False
-    f=open("TestProgram2.txt",encoding="utf-8-sig")
-    lines = f.readlines()
-    f.close()
-    tmp.LoadProgram(lines)
+    #f=open("TestProgram2.txt",encoding="utf-8-sig")
+    #lines = f.readlines()
+    #f.close()
+    #tmp.LoadProgram(lines)
     print(tmp)
+    
+
     
 
 if __name__=="__main__" :

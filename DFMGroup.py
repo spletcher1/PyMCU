@@ -11,9 +11,11 @@ import platform
 import os
 import Program
 import Event
+import Board
 
 class DFMGroup:
     DFMGroup_message = Event.Event()
+    DFMGroup_updatecomplete = Event.Event()
     def __init__(self,commProtocol):
         self.theDFMs = []
         DFM.DFM.DFM_message+=self.NewMessageDirect
@@ -22,7 +24,7 @@ class DFMGroup:
         self.longestQueue = 0
         self.isWriting = False
         self.isReading = False
-        self.currentOutputDirectory = ""
+        self.currentOutputDirectory = "./"
         self.theCOMM = commProtocol
         COMM.UARTCOMM.UART_message+=self.NewMessageDirect
         Program.MCUProgram.Program_message+=self.NewMessageDirect
@@ -37,6 +39,7 @@ class DFMGroup:
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
     def ClearDFMList(self):
+        
         self.theDFMs.clear()
 
     def StartRecording(self):
@@ -52,6 +55,7 @@ class DFMGroup:
         self.theMessageList.ClearMessages()
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
         writeThread = threading.Thread(target=self.WriteWorker)
+        #writeThread = multiprocessing.Process(target=self.WriteWorker)
         writeThread.start()
         return True
 
@@ -74,28 +78,25 @@ class DFMGroup:
 
     def SetDFMIdleStatus(self):
         for d in self.theDFMs:
-            for i in range(0,12):
-                d.SetWellSignalThreshold(i,-1)
-
-    def UpdateDFMPrograms(self):
-        for d in self.theDFMs:
-            di = self.currentProgram.GetCurrentInstruction(d.ID)            
-            if(di.theDarkState == Enums.DARKSTATE.OFF):
-                d.isInDark=False
-            elif(di.theDarkState == Enums.DARKSTATE.ON):
-                d.isInDark=True
-            d.SetAllSignalThresholds(di.optoValues)           
-
+            d.SetIdleStatus()
+            # A delay is needed here because the MCU Sends an instruction
+            # to each DFM.
+            time.sleep(0.005)                
+    
     def WriteWorker(self):        
         dt=datetime.datetime.today()
-        self.currentOutputDirectory=platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
+        self.currentOutputDirectory="./FLICData/"+platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
+        try:
+            os.mkdir("./FLICData")
+        except FileExistsError:
+            pass
         try:
             os.mkdir(self.currentOutputDirectory)
         except OSError:
             self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed", Enums.MESSAGETYPE.ERROR)                    
         self.WriteProgram()
 
-        header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error\n"
+        header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error,Index\n"
         theFiles = []
         writeStartTimes=[]
         for d in self.theDFMs:
@@ -144,7 +145,9 @@ class DFMGroup:
                 theFiles[i].close()                
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.NOTICE)        
         self.WriteMessages()
-        self.isWriting=False        
+        self.isWriting=False      
+        for d in self.theDFMs:
+            d.SetStatus(Enums.CURRENTSTATUS.READING)      
 
     def StopReading(self):
         if len(self.theDFMs)==0:
@@ -162,32 +165,34 @@ class DFMGroup:
         for d in self.theDFMs:
             d.SetStatus(Enums.CURRENTSTATUS.READING)        
         readThread = threading.Thread(target=self.ReadWorker)
-        readThread.start()
-    def ReadWorker(self):
-        nextTime=[0,195000,395000,595000,795000]
-        #nextTime=[0,500000]     
-        indexer=0
+        #readThread = multiprocessing.Process(target=self.ReadWorker)
+        readThread.start()        
+    def ReadWorker(self):    
         self.isReading=True
+        tt = datetime.datetime.today()
+        lastSecond=tt.second
+        lastTime = time.time()
         while True:   
             tt = datetime.datetime.today()
-            if(indexer==0):
-                if(tt.microsecond<nextTime[1]):                    
+            if(tt.microsecond>0 and tt.second != lastSecond):   
+                    if(time.time()-lastTime)>1:
+                        s="Missed one second"                        
+                        self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)                       
                     for d in self.theDFMs:
-                        d.ReadValues(tt,self.isWriting)            
-                    indexer=indexer+1                
-            elif(tt.microsecond>nextTime[indexer]):  
-                for d in self.theDFMs:
-                    d.ReadValues(tt,self.isWriting)                                  
-                indexer=indexer+1                
-                if indexer==len(nextTime):
-                    indexer=0
-
+                        ## It takes a little over 30ms to call and
+                        ## receive the data from one DFM, given a baud
+                        ## rate of 115200                        
+                        d.ReadValues(tt,self.isWriting)        
+                        lastSecond=tt.second    
+                        lastTime=time.time()
+                        time.sleep(0.010)    
+                    DFMGroup.DFMGroup_updatecomplete.notify()                                      
             if(self.stopReadingSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
                 self.isReading = False                
                 return                      
-            time.sleep( 0.001 ) # Yeild to other threads for a bit
+            time.sleep( 0.005 ) # Yeild to other threads for a bit
     
 
     ## Below here are really the only methods that should be called by 
@@ -196,24 +201,25 @@ class DFMGroup:
         f=open(programPath,encoding="utf-8-sig")
         lines = f.readlines()
         f.close()
-        self.currentProgram.LoadProgram(lines)
+        self.currentProgram.LoadProgram(lines,self.theDFMs)
         for d in self.theDFMs:           
-            d.optoLid.lidType = self.currentProgram.GetLidType(d.ID)
-            d.SetTargetOptoFrequency(self.currentProgram.GetOptoFrequency(d.ID))
-            d.SetTargetOptoPW(self.currentProgram.GetOptoPulsewidth(d.ID))
-            d.optoDecay=self.currentProgram.GetOptoDecay(d.ID)
-            d.optoDelay=self.currentProgram.GetOptoDelay(d.ID)
-            d.maxTimeOn=self.currentProgram.GetMexTimeOn(d.ID)
-    def FindDFMs(self,maxNum=16):
+            d.lidType = self.currentProgram.GetLidType(d.ID)
+       
+
+    def FindDFMs(self,maxNum=16,startReading=True):
         self.StopReading()        
         for i in range(1,maxNum+1):
             if(self.theCOMM.PollSlave(i)):
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
-            time.sleep(0.01)
-        self.StartReading()
+                s = "DFM "+str(i)+" found"
+                self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
+            time.sleep(0.01)                
+        if(startReading):
+            self.StartReading()
+
     ## This function is the one that should be called by an external timer
     ## to keep things rolling correctly.
-    def UpdateDFMStatus(self):
+    def UpdateProgramStatus(self):
         if(self.currentProgram.isActive):
             if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):
                 if(self.isReading==False): 
@@ -223,39 +229,58 @@ class DFMGroup:
                 self.StopCurrentProgram()
 
             if(self.currentProgram.IsDuringExperiment()):
-                self.UpdateDFMPrograms()
+                self.UpdateDFMInstructions()
+
+    def UpdateDFMInstructions(self):
+        for d in self.theDFMs:            
+            d.UpdateInstruction(self.currentProgram.GetCurrentInstruction(d.ID),self.currentProgram.autoBaseline)    
+            
     def LoadSimpleProgram(self,startTime,duration):
         self.currentProgram.CreateSimpleProgram(startTime,duration)
+    
     def StopCurrentProgram(self):
+        if(len(self.theDFMs)==0):
+            return
         print("Stopping program.")
         self.currentProgram.isActive=False
         self.StopRecording()
         self.SetDFMIdleStatus()
-    def ActivateCurrentProgram(self):
-        print("Starting program.")
-        self.currentProgram.isActive=True
+    
+    def StageCurrentProgram(self):
+        if(len(self.theDFMs)==0):
+            return
+        print("Baselining")
         for d in self.theDFMs:
             if(self.currentProgram.autoBaseline==True):
                 d.BaselineDFM()
             else:
                 d.ResetBaseline()
-            
-
-
-
+        isStillBaselining=True
+        while isStillBaselining:
+            isStillBaselining=False
+            for d in self.theDFMs:
+                if d.isCalculatingBaseline:
+                    isStillBaselining=True
+            time.sleep(.3)
+        print("Staging program.")                   
+        self.currentProgram.isActive=True
 
 def ModuleTest():
+    Board.BoardSetup()
     #tmp = DFMGroup(COMM.TESTCOMM())
     tmp = DFMGroup(COMM.UARTCOMM())
-    tmp.FindDFMs(1)
+    tmp.FindDFMs(1,False)
     print("DFMs Found:" + str(len(tmp.theDFMs)))
-    #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=1))
-    #print(tmp.currentProgram)
-    #tmp.ActivateCurrentProgram()
-    while(tmp.currentProgram.isActive):
-        tmp.theDFMs[0].ReadValues(datetime.datetime.today(),False)
-        print(tmp.theDFMs[0].currentStatusPacket) 
-        time.sleep(1)
+    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=3))
+    print(tmp.currentProgram)
+    #tmp.ActivateCurrentProgram()  
+    while(1):
+        tt = datetime.datetime.today()
+        if(tt.microsecond>0 and tt.second != lastSecond): 
+            tmp.theDFMs[0].ReadValues(datetime.datetime.today(),False)
+            lastSecond=tt.second
+            for i in range(0,5):
+                print(tmp.theDFMs[0].currentStatusPackets[i].GetConsolePrintPacket())         
     #    tmp.UpdateDFMStatus()     
     #    print(tmp.longestQueue)
     #    time.sleep(1)
