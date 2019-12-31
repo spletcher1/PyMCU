@@ -207,6 +207,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
+        msg.setWindowTitle("About MCU")
         with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as s:
             s.connect(("google.com",80))    
             hostip=s.getsockname()[0]
@@ -262,11 +263,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setIcon(QMessageBox.Question)
         msg.setText("Are you sure that you would like to delete all data?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setWindowTitle("Delete Data")
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             msg2 = QMessageBox()
             msg2.setIcon(QMessageBox.Question)
             msg2.setText("Are you REALLY sure ?")
+            msg2.setWindowTitle("Delete Data")
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
@@ -277,11 +280,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Question)
         msg.setText("Are you sure that you would like to power off?")
+        msg.setWindowTitle("Power Off")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             msg2 = QMessageBox()
             msg2.setIcon(QMessageBox.Question)
+            msg2.setWindowTitle("Power Off")
             msg2.setText("Are you REALLY sure that you would like to power off?")
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             retval=msg2.exec_()
@@ -292,6 +297,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def AssureClearMessages(self):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Question)
+        msg.setWindowTitle("Clear Messages")
         msg.setText("Are you sure that you would like to clear messages?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         retval=msg.exec_()
@@ -435,6 +441,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         dialog =QFileDialog(self)
         dialog.setFileMode(QFileDialog.ExistingFile)
         dialog.setNameFilter("Text Files (*.txt)")
+        dialog.setWindowTitle("Load Program")
         subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
         if len(subfolders)==0:
             dialog.setDirectory("/media/pi")
@@ -461,6 +468,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         dialog =QFileDialog(self)
         dialog.setFileMode(QFileDialog.Directory)
         dialog.setOption(QFileDialog.ShowDirsOnly, True)
+        dialog.setWindowTitle("Save Data")
         subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
         if len(subfolders)==0:
             dialog.setDirectory("/media/pi")
