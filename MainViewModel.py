@@ -60,8 +60,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
       
       
 
-    def DisableButtons(self):
-        self.findDFMAction.setEnabled(False)
+    def DisableButtons(self):        
         self.clearDFMAction.setEnabled(False)
         self.saveDataAction.setEnabled(False)
         self.clearMessagesAction.setEnabled(False)
@@ -78,8 +77,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StartTimeNowButton.setEnabled(False)
         self.StartTimeEdit.setEnabled(False)
 
-    def EnableButtons(self):
-        self.findDFMAction.setEnabled(True)
+    def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
         self.saveDataAction.setEnabled(True)
         self.clearMessagesAction.setEnabled(True)
@@ -239,7 +237,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ClearDFM()
         self.StatusBar.showMessage("Searching for DFMs...")     
         self.ClearMessages()
-        self.theDFMGroup.FindDFMs(2)            
+        self.theDFMGroup.FindDFMs(5)            
+        if(len(self.theDFMGroup.theDFMs)==0):
+            self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
+            return
+        self.findDFMAction.setEnabled(False)
         for d in self.theDFMGroup.theDFMs:
             s = str(d)
             tmp = QPushButton(s)
@@ -250,8 +252,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.DFMListLayout2.addWidget(tmp)            
             self.DFMButtons.append(tmp)
             self.SetActiveDFM(0)   
-        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                
-
+        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                        
         for b in self.DFMButtons:
             b.clicked.connect(self.DFMButtonClicked)     
         self.UpdateDFMPageGUI()
@@ -277,7 +278,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 os.system("rm -rf FLICData")  
-            self.StatusBar.showMessage("Existing local data folder has been deleted.")                              
+            self.StatusBar.showMessage("Existing local data folder has been deleted.",self.statusmessageduration)                              
 
     def PowerOff(self):
         msg = QMessageBox()
@@ -294,7 +295,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
-                print("Shuttind down")
+                print("Shutting down")
                 #os.system("shotdown /s /t 1)")
 
     def AssureClearMessages(self):
@@ -325,6 +326,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.DFMButtons.clear()
         self.UpdateProgramGUI()
         self.ClearMessages()
+        self.findDFMAction.setEnabled(True)
 
     def GoToMessagesPage(self):
         self.StackedPages.setCurrentIndex(2)
