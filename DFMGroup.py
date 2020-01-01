@@ -172,19 +172,19 @@ class DFMGroup:
         if(len(self.theDFMs)==0): 
             return
         for d in self.theDFMs:
-            d.SetStatus(Enums.CURRENTSTATUS.READING)        
+            d.SetStatus(Enums.CURRENTSTATUS.READING)      
+        self.stopReadingSignal=False
         readThread = threading.Thread(target=self.ReadWorker)
         #readThread = multiprocessing.Process(target=self.ReadWorker)
         readThread.start()        
     def ReadWorker(self):    
-        self.isReading=True
-        fastReadTimes=[0,190,390,590,790]
+        self.isReading=True        
         tt = datetime.datetime.today()
         lastSecond=tt.second
-        lastTime = time.time()
+        lastTime = time.time()    
         while True:   
             tt = datetime.datetime.today()
-            if(self.isWriting):
+            if(self.currentProgram.isActive):
                 if(tt.microsecond>0 and tt.second != lastSecond):   
                     if(time.time()-lastTime)>1:
                         s="Missed one second"                        
@@ -199,7 +199,7 @@ class DFMGroup:
                         time.sleep(0.010)    
                     DFMGroup.DFMGroup_updatecomplete.notify()                                      
             else:
-                if(time.time()-lastTime>0.2):
+                if(time.time()-lastTime>0.2):                                   
                     if self.activeDFM != None:
                         self.activeDFM.ReadValues(tt,False)
                     lastSecond = tt.second
@@ -236,6 +236,7 @@ class DFMGroup:
         if(len(self.theDFMs)>0):               
             self.activeDFM = self.theDFMs[0]
         if(startReading):
+            time.sleep(0.200) # This is to avoid an empty packet being sent given the buffer reset upon polling.             
             self.StartReading()
 
     ## This function is the one that should be called by an external timer
@@ -271,6 +272,7 @@ class DFMGroup:
         if(len(self.theDFMs)==0):
             return
         print("Baselining")
+        self.currentProgram.isActive=True
         for d in self.theDFMs:
             if(self.currentProgram.autoBaseline==True):
                 d.BaselineDFM()
@@ -283,8 +285,7 @@ class DFMGroup:
                 if d.isCalculatingBaseline:
                     isStillBaselining=True
             time.sleep(.3)
-        print("Staging program.")                   
-        self.currentProgram.isActive=True
+        print("Staging program.")                           
 
 def ModuleTest():
     Board.BoardSetup()

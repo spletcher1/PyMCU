@@ -146,9 +146,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.RunProgramButton.setText("Run Program")
             self.theDFMGroup.StopCurrentProgram()
         else:
-            self.DisableButtons()
+            self.DisableButtons()                        
             self.RunProgramButton.setText("Stop Program")                         
+            self.RunProgramButton.setEnabled(False)
             self.theDFMGroup.StageCurrentProgram()
+            self.RunProgramButton.setEnabled(True)
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
@@ -218,9 +220,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num        
-        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]
-        self.theDFMGroup.activeDFM = self.activeDFM
-        
+        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]        
+        self.theDFMGroup.activeDFM = self.activeDFM       
         for i in range(0,len(self.DFMButtons)):
             if(i==self.activeDFMNum):
                 self.DFMButtons[i].setStyleSheet('QPushButton {color: red}')
@@ -235,10 +236,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.UpdateDFMPageGUI()                    
 
     def FindDFMs(self):   
+        self.ClearDFM()
         self.StatusBar.showMessage("Searching for DFMs...")     
         self.ClearMessages()
-        self.theDFMGroup.FindDFMs(2)
-        self.DFMButtons=[]
+        self.theDFMGroup.FindDFMs(2)            
         for d in self.theDFMGroup.theDFMs:
             s = str(d)
             tmp = QPushButton(s)

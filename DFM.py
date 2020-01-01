@@ -126,7 +126,15 @@ class DFM:
         ##   self.isInstructionUpdateNeeded=True
 
 
-    def ProcessPackets(self,bytesData,startTime):      
+    def ProcessPackets(self,bytesData,startTime):  
+        if(len(bytesData)==0):
+            a=Enums.PROCESSEDPACKETRESULT.NOANSWER
+            return [a]         
+        
+        if(bytesData[3]!=self.ID):
+            a=Enums.PROCESSEDPACKETRESULT.WRONGID
+            return [a]
+        
         numPacketsReceived = ((len(bytesData)-69)/65)+1            
         if (math.floor(numPacketsReceived)!=numPacketsReceived):
             # Need to figure out how to possibly recover some of the packets.
@@ -135,12 +143,7 @@ class DFM:
             return [a]
         else :
             numPacketsReceived = int(numPacketsReceived)        
-        if(len(bytesData)==0):
-            a=Enums.PROCESSEDPACKETRESULT.NOANSWER
-            return [a]      
-        if(bytesData[3]!=self.ID):
-            a=Enums.PROCESSEDPACKETRESULT.WRONGID
-            return [a]
+       
         self.currentStatusPackets.clear()
         results=[]
         for i in range(0,numPacketsReceived):
@@ -218,6 +221,7 @@ class DFM:
                         self.UpdateBaseline()
                 else :
                     s="({:d}) Empty packet received".format(self.ID)
+                    print(self.currentStatusPackets[j].GetDataBufferPrintPacket())
                     self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
         if(isSuccess):
             self.CheckStatus()        
