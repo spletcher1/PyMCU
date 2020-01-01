@@ -29,7 +29,8 @@ class DFMGroup:
         COMM.UARTCOMM.UART_message+=self.NewMessageDirect
         Program.MCUProgram.Program_message+=self.NewMessageDirect
         self.theMessageList = MessagesList.MessageList()
-        self.currentProgram=Program.MCUProgram()        
+        self.currentProgram=Program.MCUProgram()       
+        self.activeDFM=None 
 
     def NewMessageDirect(self,newMessage):        
         self.theMessageList.AddMessage(newMessage)     
@@ -38,21 +39,29 @@ class DFMGroup:
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
-    def ClearDFMList(self):
-        
+    def ClearDFMList(self):        
         self.theDFMs.clear()
+        self.activeDFM=None
 
     def StartRecording(self):
         if len(self.theDFMs)==0:
             return False
         if self.isReading==False:
             self.StartReading()
+        self.theMessageList.ClearMessages()
         for i in self.theDFMs:
             i.sampleIndex=1
             i.ResetOutputFileStuff()
             i.SetStatus(Enums.CURRENTSTATUS.RECORDING)
-        self.stopRecordingSignal=False
-        self.theMessageList.ClearMessages()
+            isokay=False
+            for _ in range(0,5):
+                if self.theCOMM.RequestBufferReset(i.ID):
+                    isokay=True
+                    break
+            if(isokay==False):
+                self.NewMessage(i.ID, datetime.datetime.today(), 0, "Buffer reset failed", Enums.MESSAGETYPE.ERROR)
+        
+        self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
         writeThread = threading.Thread(target=self.WriteWorker)
         #writeThread = multiprocessing.Process(target=self.WriteWorker)
@@ -169,12 +178,14 @@ class DFMGroup:
         readThread.start()        
     def ReadWorker(self):    
         self.isReading=True
+        fastReadTimes=[0,190,390,590,790]
         tt = datetime.datetime.today()
         lastSecond=tt.second
         lastTime = time.time()
         while True:   
             tt = datetime.datetime.today()
-            if(tt.microsecond>0 and tt.second != lastSecond):   
+            if(self.isWriting):
+                if(tt.microsecond>0 and tt.second != lastSecond):   
                     if(time.time()-lastTime)>1:
                         s="Missed one second"                        
                         self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)                       
@@ -182,11 +193,19 @@ class DFMGroup:
                         ## It takes a little over 30ms to call and
                         ## receive the data from one DFM, given a baud
                         ## rate of 115200                        
-                        d.ReadValues(tt,self.isWriting)        
+                        d.ReadValues(self.currentProgram.startTime,self.isWriting)        
                         lastSecond=tt.second    
                         lastTime=time.time()
                         time.sleep(0.010)    
                     DFMGroup.DFMGroup_updatecomplete.notify()                                      
+            else:
+                if(time.time()-lastTime>0.2):
+                    if self.activeDFM != None:
+                        self.activeDFM.ReadValues(tt,False)
+                    lastSecond = tt.second
+                    lastTime = time.time()
+                    time.sleep(0.010)
+                    DFMGroup.DFMGroup_updatecomplete.notify()                                                                         
             if(self.stopReadingSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
@@ -213,7 +232,9 @@ class DFMGroup:
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
                 s = "DFM "+str(i)+" found"
                 self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
-            time.sleep(0.01)                
+            time.sleep(0.01)  
+        if(len(self.theDFMs)>0):               
+            self.activeDFM = self.theDFMs[0]
         if(startReading):
             self.StartReading()
 

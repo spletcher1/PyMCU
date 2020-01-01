@@ -19,9 +19,9 @@ class StatusPacket:
         self.optoPulseWidth=0
         self.errorFlags=0
         self.recordIndex=0
-    def ProcessStatusPacket(self,bytesData,timeOfMeasure,packetNum):        
+    def ProcessStatusPacket(self,bytesData,startTime,packetNum):        
         ## This function should receive packetnumbers 0-4
-        self.packetTime = timeOfMeasure - datetime.timedelta(microseconds=(5-packetNum)*200000)
+        
         indexer = (packetNum*65)+4
         # Calculate the checksum
         calculatedCheckSum=0
@@ -86,6 +86,8 @@ class StatusPacket:
         currentValue += bytesData[(indexer+60)]
         self.recordIndex = currentValue
         
+        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)
+
         return PROCESSEDPACKETRESULT.OKAY   
     def GetConsolePrintPacket(self):
         tmp = self.packetTime.microsecond/1000

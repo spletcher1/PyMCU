@@ -217,8 +217,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         retval=msg.exec_()        
 
     def SetActiveDFM(self,num):
-        self.activeDFMNum=num
+        self.activeDFMNum=num        
         self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]
+        self.theDFMGroup.activeDFM = self.activeDFM
         
         for i in range(0,len(self.DFMButtons)):
             if(i==self.activeDFMNum):

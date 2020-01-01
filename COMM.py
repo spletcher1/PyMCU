@@ -13,6 +13,7 @@ import datetime
 import Instruction
 import Enums
 import Board
+from cobs import cobs
 
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
@@ -145,7 +146,7 @@ class UARTCOMM():
         term = bytearray(1)
         term[0]=0x00
         result = self.thePort.read_until(term,maxBytes)
-        result = result[:-1]
+        result = result[:-1]        
         return result
     def GetAvailablePorts(self):
         ports = serial.tools.list_ports.comports()
@@ -180,7 +181,25 @@ class UARTCOMM():
         ba[3]=ID
         ba[4]=ID
         self._WriteByteArray(ba,0.001)
+    
+    def RequestBufferReset(self,ID):
+        ba = bytearray(5)
+        ba[0]=0xFF
+        ba[1]=0xFF
+        ba[2]=0xFE # Indicates buffer reset
+        ba[3]=ID
+        ba[4]=ID
+        self._WriteByteArray(ba,0.001)
+        tmp=self._Read(1)        
+        if(len(tmp)==0):
+            return False
+        if(tmp[0]==ID):
+            return True
+        else:
+            return False    
+
     def SendInstruction(self,ID,anInstruction):
+        ## TODO: Update this to the new cobs protocol
         ba = bytearray(43)   
         ba[0]=0xFF
         ba[1]=0xFF
@@ -223,25 +242,58 @@ class UARTCOMM():
         else:
             return False    
 
-
     def GetStatusPacket(self,ID):                  
         start = time.time()
         self.RequestStatus(ID)
         end=time.time()
         if ((end-start)>0.005) :
             print("Request time: "+str(end-start))        
-        #Now reading five packets.
-        return self._Read(329) 
-        #return tmp 
+       
+        return cobs.decode(self._ReadCOBSPacket(1050))
     def PollSlave(self,ID):
-        tmp=self.GetStatusPacket(ID)        
-        if(len(tmp)==329 and tmp[3]==ID):         
-            return True
-        else :            
-            return False
+       return self.RequestBufferReset(ID)        
+       
 
 
 
+def ModuleTest3():
+    Board.BoardSetup()
+    p=UARTCOMM()   
+    result=p.RequestBufferReset(1)
+    #counter = 0
+    #while counter<1000000:
+    #    counter+=1
+
+    #print(result)
+    #while result!=True:
+    #    time.sleep(1)
+    #    result=p.RequestBufferReset(1)
+    #    print(result)
+    
+    
+    #tmp=p.GetStatusPacket(1)            
+    #tmp2 = ((len(tmp)-69)/65)+1
+    #print(tmp2)
+
+def ModuleTest2():
+    Board.BoardSetup()
+    p=UARTCOMM()
+    counter=0
+    totalpackets=0
+    tmp=p.GetStatusPacket(1)
+    print(len(tmp))
+    return
+    time.sleep(1)
+    start = time.time()
+    while counter<12:
+        tmp=p.GetStatusPacket(1)
+        tmp2 = ((len(tmp)-69)/65)+1
+        totalpackets+=tmp2
+        print(totalpackets)
+        time.sleep(1)
+        counter+=1
+    end=time.time()
+    print("Time: "+str(end-start))
 
 def ModuleTest():
     Board.BoardSetup()
@@ -281,5 +333,5 @@ def ModuleTest():
 
 
 if __name__=="__main__" :
-    ModuleTest()   
+    ModuleTest3()   
     print("Done!!")     

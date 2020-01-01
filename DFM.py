@@ -12,7 +12,7 @@ import Message
 import Event
 import Instruction
 import Board
-
+import math
 
 class DFM:
     DFM_message = Event.Event()
@@ -126,23 +126,28 @@ class DFM:
         ##   self.isInstructionUpdateNeeded=True
 
 
-    def ProcessPackets(self,bytesData,timeOfMeasure):                 
+    def ProcessPackets(self,bytesData,startTime):      
+        numPacketsReceived = ((len(bytesData)-69)/65)+1            
+        if (math.floor(numPacketsReceived)!=numPacketsReceived):
+            # Need to figure out how to possibly recover some of the packets.
+            # for now, however, no.
+            a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
+            return [a]
+        else :
+            numPacketsReceived = int(numPacketsReceived)        
         if(len(bytesData)==0):
             a=Enums.PROCESSEDPACKETRESULT.NOANSWER
-            return [a,a,a,a,a]
-        if(len(bytesData)!=329):
-            a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES            
-            return [a,a,a,a,a]
+            return [a]      
         if(bytesData[3]!=self.ID):
             a=Enums.PROCESSEDPACKETRESULT.WRONGID
-            return [a,a,a,a,a]
+            return [a]
         self.currentStatusPackets.clear()
         results=[]
-        for i in range(0,5):
+        for i in range(0,numPacketsReceived):
             tmpPacket = StatusPacket.StatusPacket(self.sampleIndex+i)
-            results.append(tmpPacket.ProcessStatusPacket(bytesData,timeOfMeasure,i))
+            results.append(tmpPacket.ProcessStatusPacket(bytesData,startTime,i))
             self.currentStatusPackets.append(tmpPacket)
-        if(results[1] == Enums.PROCESSEDPACKETRESULT.OKAY):
+        if(results[-1] == Enums.PROCESSEDPACKETRESULT.OKAY):
              self.UpdateReportedValues()            
         return results
   
@@ -169,33 +174,34 @@ class DFM:
                 self.pastStatus = Enums.PASTSTATUS.PASTERROR
             self.status = newStatus
 
-    def ReadValues(self,timeOfMeasure,saveDataToQueue):
-        theResult = Enums.PROCESSEDPACKETRESULT.OKAY                                
+    def ReadValues(self,startTime,saveDataToQueue):
+        theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
+        currentTime = datetime.datetime.today()
         for _ in range(0,self.callLimit) :                        
             tmp=self.theCOMM.GetStatusPacket(self.ID)               
-            theResult = self.ProcessPackets(tmp,timeOfMeasure)
-            if(theResult[-1]==Enums.PROCESSEDPACKETRESULT.OKAY):
-                break                
-            print("Calling again: {:s}" + str(theResult[-1]))
-            s="Calling again: {:s}".format(str(theResult[-1]))
-            self.NewMessage(self.ID,datetime.datetime.today(),self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+            theResults = self.ProcessPackets(tmp,startTime)            
+            if(Enums.PROCESSEDPACKETRESULT.OKAY in theResults):
+                    break                
+            print("Calling again: {:s}" + str(theResults[-1]))
+            s="Calling again: {:s}".format(str(theResults[-1]))
+            self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             time.sleep(0.005)       
-
-        for j in range(0,5):    
-            isSuccess=False
-            if(theResult[j] == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
+       
+        for j in range(0,len(theResults)):    
+            isSuccess=False            
+            if(theResults[j] == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Checksum error".format(self.ID)
-                self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)                       
-            elif(theResult[j] == Enums.PROCESSEDPACKETRESULT.NOANSWER):
+                self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.NOANSWER):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) No answer".format(self.ID)
-                self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)                       
-            elif(theResult[j] == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
+                self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Wrong number of bytes".format(self.ID)
-                self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)                       
-            elif(theResult[j] == Enums.PROCESSEDPACKETRESULT.OKAY):
+                self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.OKAY):
                 isSuccess=True
             if isSuccess:
                 if (self.currentStatusPackets[j].recordIndex>0):
@@ -243,11 +249,8 @@ def ModuleTest():
     port = COMM.UARTCOMM()
     dfm = DFM(1,port)
     dfm.ReadValues(datetime.datetime.today(),False)  
-    print(dfm.currentStatusPackets[0].GetDataBufferPrintPacket())          
-    print(dfm.currentStatusPackets[1].GetDataBufferPrintPacket())          
-    print(dfm.currentStatusPackets[2].GetDataBufferPrintPacket())   
-    print(dfm.currentStatusPackets[3].GetDataBufferPrintPacket())   
-    print(dfm.currentStatusPackets[4].GetDataBufferPrintPacket())   
+    for sp in dfm.currentStatusPackets:
+        print(sp.GetDataBufferPrintPacket())          
        
 if __name__=="__main__" :
     ModuleTest()   
