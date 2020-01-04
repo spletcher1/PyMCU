@@ -1354,6 +1354,8 @@
    <addaction name="separator"/>
    <addaction name="clearMessagesAction"/>
    <addaction name="separator"/>
+   <addaction name="toggleOutputsAction"/>
+   <addaction name="separator"/>
    <addaction name="deleteDataAction"/>
    <addaction name="powerOffAction"/>
    <addaction name="separator"/>
@@ -1404,7 +1406,7 @@
      <normaloff>gnome-stock-text-indent.png</normaloff>gnome-stock-text-indent.png</iconset>
    </property>
    <property name="text">
-    <string>Program</string>
+    <string>Programming</string>
    </property>
    <property name="toolTip">
     <string>Go to program screen</string>
@@ -1468,6 +1470,18 @@
    </property>
    <property name="toolTip">
     <string>Clear existing messages</string>
+   </property>
+  </action>
+  <action name="toggleOutputsAction">
+   <property name="icon">
+    <iconset>
+     <normaloff>kcontrol.png</normaloff>kcontrol.png</iconset>
+   </property>
+   <property name="text">
+    <string>Toggle Outputs</string>
+   </property>
+   <property name="toolTip">
+    <string>Turn DFM outputs on and off</string>
    </property>
   </action>
  </widget>
