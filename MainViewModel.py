@@ -23,8 +23,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def __init__( self ):       
         super(MyMainWindow,self).__init__()        
         uic.loadUi("Mainwindow.ui",self)
-        tmp = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
-        tmp2 = "QTextEdit {background-color: "+tmp+"}"
+        self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
+        tmp2 = "QTextEdit {background-color: "+self.defaultBackgroundColor+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
         self.ProgramTextEdit.setStyleSheet(tmp2)
         #self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
@@ -49,7 +49,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.UpdateProgramGUI()
 
         self.main_widget = QtWidgets.QWidget(self)
-        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=tmp,width=5, height=4, dpi=100)
+        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=self.defaultBackgroundColor,width=5, height=4, dpi=100)
         #dc = DFMPlot.MyDynamicMplCanvas(self.main_widget, width=5, height=4, dpi=100)
         self.DFMPlotLayout.addWidget(self.theDFMDataPlot)   
 
@@ -60,8 +60,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
       
       
 
-    def DisableButtons(self):
-        self.findDFMAction.setEnabled(False)
+    def DisableButtons(self):        
         self.clearDFMAction.setEnabled(False)
         self.saveDataAction.setEnabled(False)
         self.clearMessagesAction.setEnabled(False)
@@ -78,8 +77,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StartTimeNowButton.setEnabled(False)
         self.StartTimeEdit.setEnabled(False)
 
-    def EnableButtons(self):
-        self.findDFMAction.setEnabled(True)
+    def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
         self.saveDataAction.setEnabled(True)
         self.clearMessagesAction.setEnabled(True)
@@ -146,9 +144,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.RunProgramButton.setText("Run Program")
             self.theDFMGroup.StopCurrentProgram()
         else:
-            self.DisableButtons()
+            self.DisableButtons()                        
             self.RunProgramButton.setText("Stop Program")                         
+            self.RunProgramButton.setEnabled(False)
             self.theDFMGroup.StageCurrentProgram()
+            self.RunProgramButton.setEnabled(True)
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
@@ -218,14 +218,24 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num        
-        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]
-        self.theDFMGroup.activeDFM = self.activeDFM
-        
-        for i in range(0,len(self.DFMButtons)):
-            if(i==self.activeDFMNum):
-                self.DFMButtons[i].setStyleSheet('QPushButton {color: red}')
-            else:
+        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]        
+        self.theDFMGroup.activeDFM = self.activeDFM       
+        self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
+
+    def UpdateDFMButtonTextColors(self):
+        return
+        for i in range(0,len(self.theDFMGroup.theDFMs)):
+            if(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.READING):
                 self.DFMButtons[i].setStyleSheet('QPushButton {color: black}')
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.RECORDING):
+                self.DFMButtons[i].setStyleSheet('QPushButton {color: green}')
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.ERROR):
+                self.DFMButtons[i].setStyleSheet('QPushButton {color: red}')
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.MISSING):
+                self.DFMButtons[i].setStyleSheet('QPushButton {color: blue}')
+            else:
+                self.DFMButtons[i].setStyleSheet('QPushButton {color: orange}')                
+
 
     def DFMButtonClicked(self):
         sender = self.sender()
@@ -235,10 +245,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.UpdateDFMPageGUI()                    
 
     def FindDFMs(self):   
+        self.ClearDFM()
         self.StatusBar.showMessage("Searching for DFMs...")     
         self.ClearMessages()
-        self.theDFMGroup.FindDFMs(2)
-        self.DFMButtons=[]
+        self.theDFMGroup.FindDFMs(5)            
+        if(len(self.theDFMGroup.theDFMs)==0):
+            self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
+            return
+        self.findDFMAction.setEnabled(False)
         for d in self.theDFMGroup.theDFMs:
             s = str(d)
             tmp = QPushButton(s)
@@ -249,8 +263,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.DFMListLayout2.addWidget(tmp)            
             self.DFMButtons.append(tmp)
             self.SetActiveDFM(0)   
-        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                
-
+        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                        
         for b in self.DFMButtons:
             b.clicked.connect(self.DFMButtonClicked)     
         self.UpdateDFMPageGUI()
@@ -276,7 +289,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 os.system("rm -rf FLICData")  
-            self.StatusBar.showMessage("Existing local data folder has been deleted.")                              
+            self.StatusBar.showMessage("Existing local data folder has been deleted.",self.statusmessageduration)                              
 
     def PowerOff(self):
         msg = QMessageBox()
@@ -293,7 +306,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
-                print("Shuttind down")
+                print("Shutting down")
                 #os.system("shotdown /s /t 1)")
 
     def AssureClearMessages(self):
@@ -322,8 +335,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.activeDFMNum=-1
         self.activeDFM=None
         self.DFMButtons.clear()
-        self.UpdateProgramGUI()
-        self.ClearMessages()
+        self.UpdateProgramGUI()        
+        self.findDFMAction.setEnabled(True)
 
     def GoToMessagesPage(self):
         self.StackedPages.setCurrentIndex(2)
@@ -353,55 +366,57 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.OptoStateLabel.setText("{:02X},{:02X}".format(self.activeDFM.reportedOptoStateCol1,self.activeDFM.reportedOptoStateCol2))
 
         if(self.activeDFM.status==Enums.CURRENTSTATUS.ERROR):
-            self.CurrentStatusLabel.setText("Err")
+            self.CurrentStatusLabel.setText("Error")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.MISSING):
             self.CurrentStatusLabel.setText("Miss")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.READING):
             self.CurrentStatusLabel.setText("Read")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.RECORDING):
-            self.CurrentStatusLabel.setText("Rec")
+            self.CurrentStatusLabel.setText("Record")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.UNDEFINED):
             self.CurrentStatusLabel.setText("None")
 
         if(self.activeDFM.pastStatus==Enums.PASTSTATUS.PASTERROR):
-            self.PastStatusLabel.setText("Err")
+            self.PastStatusLabel.setText("Error")
         if(self.activeDFM.pastStatus==Enums.PASTSTATUS.ALLCLEAR):
             self.PastStatusLabel.setText("Clear")
 
-        if(self.activeDFM.currentDFMErrors.GetI2CErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+        if(self.activeDFM.currentDFMErrors.GetI2CErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):            
             self.I2CErrorBox.setChecked(False)
-        else:
-            self.I2CErrorBox.setChecked(False)
+        else:            
+            self.I2CErrorBox.setChecked(True)
 
         if(self.activeDFM.currentDFMErrors.GetUARTErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.UARTErrorBox.setChecked(False)
         else:
-            self.UARTErrorBox.setChecked(False)
+            self.UARTErrorBox.setChecked(True)
          
         if(self.activeDFM.currentDFMErrors.GetPacketErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.PacketErrorBox.setChecked(False)
         else:
-            self.PacketErrorBox.setChecked(False)
+            self.PacketErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.Getsi7021ErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.SIErrorBox.setChecked(False)
         else:
-            self.SIErrorBox.setChecked(False)
+            self.SIErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetTSL2591ErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.TSLErrorBox.setChecked(False)
         else:
-            self.TSLErrorBox.setChecked(False)
+            self.TSLErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetConfigErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.ConfigErrorBox.setChecked(False)
         else:
-            self.ConfigErrorBox.setChecked(False)
+            self.ConfigErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetBufferErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.BufferErrorBox.setChecked(False)
         else:
-            self.BufferErrorBox.setChecked(False)
+            self.BufferErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetMiscErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.MiscErrorBox.setChecked(False)
         else:
-            self.MiscErrorBox.setChecked(False)
+            self.MiscErrorBox.setChecked(True)
+
+        self.UpdateDFMButtonTextColors()
 
     def UpdateDFMPlot(self):        
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                     

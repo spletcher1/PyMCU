@@ -248,8 +248,10 @@ class UARTCOMM():
         end=time.time()
         if ((end-start)>0.005) :
             print("Request time: "+str(end-start))        
-       
-        return cobs.decode(self._ReadCOBSPacket(1050))
+        try:
+            return cobs.decode(self._ReadCOBSPacket(1050))
+        except:
+            return ''
     def PollSlave(self,ID):
        return self.RequestBufferReset(ID)        
        
