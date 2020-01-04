@@ -52,14 +52,8 @@ class DFMGroup:
         for i in self.theDFMs:
             i.sampleIndex=1
             i.ResetOutputFileStuff()
-            i.SetStatus(Enums.CURRENTSTATUS.RECORDING)
-            isokay=False
-            for _ in range(0,5):
-                if self.theCOMM.RequestBufferReset(i.ID):
-                    isokay=True
-                    break
-            if(isokay==False):
-                self.NewMessage(i.ID, datetime.datetime.today(), 0, "Buffer reset failed", Enums.MESSAGETYPE.ERROR)
+            i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
+            i.isBufferResetNeeded=True                     
         
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
@@ -90,7 +84,7 @@ class DFMGroup:
             d.SetIdleStatus()
             # A delay is needed here because the MCU Sends an instruction
             # to each DFM.
-            time.sleep(0.005)                
+            time.sleep(0.100)                
     
     def WriteWorker(self):        
         dt=datetime.datetime.today()
@@ -115,7 +109,7 @@ class DFMGroup:
             tmp2.write(header)
             theFiles.append(tmp2)
 
-        self.isWriting=True
+        self.isWriting=True        
         currentDFMIndex=0
         while self.stopRecordingSignal==False:
             currentDFM = self.theDFMs[currentDFMIndex]
@@ -196,7 +190,7 @@ class DFMGroup:
                         d.ReadValues(self.currentProgram.startTime,self.isWriting)        
                         lastSecond=tt.second    
                         lastTime=time.time()
-                        time.sleep(0.010)    
+                        time.sleep(0.050)    
                     DFMGroup.DFMGroup_updatecomplete.notify()                                      
             else:
                 if(time.time()-lastTime>0.2):                                   
@@ -204,7 +198,7 @@ class DFMGroup:
                         self.activeDFM.ReadValues(tt,False)
                     lastSecond = tt.second
                     lastTime = time.time()
-                    time.sleep(0.010)
+                    time.sleep(0.020)
                     DFMGroup.DFMGroup_updatecomplete.notify()                                                                         
             if(self.stopReadingSignal):
                 for d in self.theDFMs:

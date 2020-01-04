@@ -35,6 +35,7 @@ class DFM:
         self.lidType=Enums.OPTOLIDTYPE.NONE            
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
+        self.isBufferResetNeeded=False
         self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
         self.reportedOptoPulsewidth=0
@@ -164,11 +165,10 @@ class DFM:
     def SetIdleStatus(self):
         ## Idle is opto off, dark running as its has been, and default other parameters.
         self.currentInstruction = Instruction.DFMInstruction()
-        # Try 3 times and give up
-        for _ in range(0,3):
-            if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):           
-                break 
-            time.sleep(0.005)                
+        self.isInstructionUpdateNeeded=True
+        ## Do not write to the serial device here because it will collide with its use in the ReadWorker
+        ## Thread.  Checkstatus, which should send the default instruction, is handled by that thread.
+                    
     
     def SetStatus(self, newStatus):
         if(newStatus != self.status):
@@ -239,11 +239,16 @@ class DFM:
                 self.currentInstruction.AddBaselineToCurrentOptoValues(self.signalBaselines)                        
             self.isInstructionUpdateNeeded=True
 
-    def CheckStatus(self):
-        if(self.isInstructionUpdateNeeded):
+    def CheckStatus(self):        
+        if(self.isBufferResetNeeded):
+            if self.theCOMM.RequestBufferReset(self.ID):
+                print("Buffer reset success!")
+                self.isBufferResetNeeded=False
+        elif(self.isInstructionUpdateNeeded):
             if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
                 print("Instruction success!")
                 self.isInstructionUpdateNeeded=False
+        
      
 
 def ModuleTest():

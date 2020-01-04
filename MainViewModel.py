@@ -222,8 +222,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.theDFMGroup.activeDFM = self.activeDFM       
         self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
 
-    def UpdateDFMButtonTextColors(self):
-        return
+    def UpdateDFMButtonTextColors(self):        
         for i in range(0,len(self.theDFMGroup.theDFMs)):
             if(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.READING):
                 self.DFMButtons[i].setStyleSheet('QPushButton {color: black}')
