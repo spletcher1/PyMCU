@@ -68,7 +68,7 @@ class DFMErrors:
         elif self.currentErrorStatuses[1]==Enums.REPORTEDERRORSTATUS.CURRENT:
             self.currentErrorStatuses[1]=Enums.REPORTEDERRORSTATUS.PAST
 
-        if((errorByte & 0x01) > 0):
+        if((errorByte & 0x01) > 0):            
             self.currentErrorStatuses[0]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[0]==Enums.REPORTEDERRORSTATUS.CURRENT:
+        elif self.currentErrorStatuses[0]==Enums.REPORTEDERRORSTATUS.CURRENT:            
             self.currentErrorStatuses[0]=Enums.REPORTEDERRORSTATUS.PAST

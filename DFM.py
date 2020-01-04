@@ -108,7 +108,7 @@ class DFM:
 
         for sp in self.currentStatusPackets:
             if(sp.errorFlags!=0):
-                s="({:d}) Non-zero DFM error code".format(self.ID)
+                s="({:d}) Non-zero DFM error code: {:02X}".format(self.ID,sp.errorFlags)
                 self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)
 
         ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior.
@@ -184,10 +184,9 @@ class DFM:
             tmp=self.theCOMM.GetStatusPacket(self.ID)               
             theResults = self.ProcessPackets(tmp,startTime)            
             if(Enums.PROCESSEDPACKETRESULT.OKAY in theResults):
-                    break                
-            print("Calling again: {:s}" + str(theResults[-1]))
-            s="Calling again: {:s}".format(str(theResults[-1]))
-            self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                    break                            
+            #s="Calling again: {:s}".format(str(theResults[-1]))
+            #self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             time.sleep(0.005)       
        
         for j in range(0,len(theResults)):    
