@@ -227,7 +227,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip=s.getsockname()[0]
         ss="Version 5.0\nIP: " + hostip
         msg.setInformativeText(ss)    
-        retval=msg.exec_()        
+        msg.exec_()        
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num        
