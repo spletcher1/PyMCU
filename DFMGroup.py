@@ -16,6 +16,8 @@ import Board
 class DFMGroup:
     DFMGroup_message = Event.Event()
     DFMGroup_updatecomplete = Event.Event()
+
+    #region Initialization, Messaging, and DFMlist Management
     def __init__(self,commProtocol):
         self.theDFMs = []
         DFM.DFM.DFM_message+=self.NewMessageDirect
@@ -44,10 +46,27 @@ class DFMGroup:
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
+    
     def ClearDFMList(self):        
         self.theDFMs.clear()
         self.activeDFM=None
 
+    def FindDFMs(self,maxNum=16,startReading=True):
+        self.StopReading()        
+        for i in range(1,maxNum+1):
+            if(self.theCOMM.PollSlave(i)):
+                self.theDFMs.append(DFM.DFM(i,self.theCOMM))
+                s = "DFM "+str(i)+" found"
+                self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
+            time.sleep(0.100)  
+        if(len(self.theDFMs)>0):               
+            self.activeDFM = self.theDFMs[0]
+        if(startReading):
+            time.sleep(0.200) # This is to avoid an empty packet being sent given the buffer reset upon polling.             
+            self.StartReading()
+    #endregion
+
+    #region Reading and Recording
     def StartRecording(self):
         if len(self.theDFMs)==0:
             return False
@@ -285,33 +304,9 @@ class DFMGroup:
                 return 
                
             time.sleep( 0.005 ) # Yeild to other threads for a bit
-    
+    #endregion
 
-    ## Below here are really the only methods that should be called by 
-    ## a GUI or ViewModel
-    def LoadTextProgram(self,programPath):
-        f=open(programPath,encoding="utf-8-sig")
-        lines = f.readlines()
-        f.close()
-        self.currentProgram.LoadProgram(lines,self.theDFMs)
-        for d in self.theDFMs:           
-            d.lidType = self.currentProgram.GetLidType(d.ID)
-       
-
-    def FindDFMs(self,maxNum=16,startReading=True):
-        self.StopReading()        
-        for i in range(1,maxNum+1):
-            if(self.theCOMM.PollSlave(i)):
-                self.theDFMs.append(DFM.DFM(i,self.theCOMM))
-                s = "DFM "+str(i)+" found"
-                self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
-            time.sleep(0.01)  
-        if(len(self.theDFMs)>0):               
-            self.activeDFM = self.theDFMs[0]
-        if(startReading):
-            time.sleep(0.200) # This is to avoid an empty packet being sent given the buffer reset upon polling.             
-            self.StartReading()
-
+    #region Updating Functions
     ## This function is the one that should be called by an external timer
     ## to keep things rolling correctly.
     def UpdateProgramStatus(self):
@@ -334,7 +329,17 @@ class DFMGroup:
     def UpdateDFMInstructions(self):
         for d in self.theDFMs:            
             d.UpdateInstruction(self.currentProgram.GetCurrentInstruction(d.ID),self.currentProgram.autoBaseline)    
-            
+    #endregion
+    
+    #region Program Methods
+    def LoadTextProgram(self,programPath):
+        f=open(programPath,encoding="utf-8-sig")
+        lines = f.readlines()
+        f.close()
+        self.currentProgram.LoadProgram(lines,self.theDFMs)
+        for d in self.theDFMs:           
+            d.lidType = self.currentProgram.GetLidType(d.ID)       
+        
     def LoadSimpleProgram(self,startTime,duration):
         self.currentProgram.CreateSimpleProgram(startTime,duration)
     
@@ -358,7 +363,9 @@ class DFMGroup:
             else:
                 d.ResetBaseline()   
         print("Staging program.")                           
+    #endregion
 
+#region Module Testing    
 def ModuleTest():
     Board.BoardSetup()
     #tmp = DFMGroup(COMM.TESTCOMM())
@@ -383,3 +390,4 @@ def ModuleTest():
 if __name__=="__main__" :
     ModuleTest()   
     print("Done!!")     
+#endregion

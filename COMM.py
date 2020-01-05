@@ -21,6 +21,7 @@ if(platform.system()!="Windows"):
 if(platform.node()=="raspberrypi"):        
     import RPi.GPIO as GPIO
 
+#region TESTCOMM
 class TESTCOMM():
     UART_message = Event.Event()
     def __init__(self):
@@ -117,10 +118,11 @@ class TESTCOMM():
     def GetStatusPacket(self,ID):        
         tmp = self._CreateFakeStatusPacket(ID) 
         return tmp
-
+#endregion
 
 class UARTCOMM():    
     UART_message = Event.Event()
+    #region Core read/write functions
     def __init__(self):
         self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=.1)           
         self.sendPIN = 17
@@ -148,6 +150,9 @@ class UARTCOMM():
         result = self.thePort.read_until(term,maxBytes)
         result = result[:-1]        
         return result
+    #endregion
+
+    #region Misc Functions
     def GetAvailablePorts(self):
         ports = serial.tools.list_ports.comports()
         available_ports=[]
@@ -172,74 +177,83 @@ class UARTCOMM():
         ba[tmp-4] = (checksum>>24) & 0xFF
         ba[tmp-3] = (checksum>>16) & 0xFF
         ba[tmp-2] = (checksum>>8) & 0xFF
-        ba[tmp-1] = (checksum) & 0xFF        
+        ba[tmp-1] = (checksum) & 0xFF   
+    #endregion
+
+    #region Specific DFM calls     
     def RequestStatus(self,ID):
-        ba = bytearray(5)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFC # Indicates status request
-        ba[3]=ID
-        ba[4]=ID
-        self._WriteByteArray(ba,0.001)
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xFC # Indicates status request
+        ba[2]=ID
+        
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)    
+
+        self._WriteByteArray(barray,0.001)
     
     def RequestBufferReset(self,ID):
-        ba = bytearray(5)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFE # Indicates buffer reset
-        ba[3]=ID
-        ba[4]=ID
-        self._WriteByteArray(ba,0.001)
-        tmp=self._Read(1)        
-        if(len(tmp)==0):
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xFE # Indicates buffer reset        
+        ba[2]=ID
+
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)            
+        self._WriteByteArray(barray,0.001)
+        tmp=self._Read(2)        
+        if(len(tmp)!=2):            
             return False
         if(tmp[0]==ID):
             return True
         else:
             return False    
 
-    def SendInstruction(self,ID,anInstruction):
-        ## TODO: Update this to the new cobs protocol
-        ba = bytearray(43)   
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
+    def SendInstruction(self,ID,anInstruction):        
+        ba = bytearray(41)   
+        ba[0]=ID
+        ba[1]=0xFD
+       
         if(anInstruction.theDarkState==Enums.DARKSTATE.ON):
-            ba[4]=1
+            ba[2]=1
         else:
-            ba[4]=0
-        ba[5]=(anInstruction.frequency>>8) & 0xFF
-        ba[6]=(anInstruction.frequency) & 0xFF
+            ba[2]=0
+        ba[3]=(anInstruction.frequency>>8) & 0xFF
+        ba[4]=(anInstruction.frequency) & 0xFF
 
-        ba[7]=(anInstruction.pulseWidth>>8) & 0xFF
-        ba[8]=(anInstruction.pulseWidth) & 0xFF
+        ba[5]=(anInstruction.pulseWidth>>8) & 0xFF
+        ba[6]=(anInstruction.pulseWidth) & 0xFF
 
-        ba[9]=(anInstruction.decay>>8) & 0xFF
-        ba[10]=(anInstruction.decay) & 0xFF
+        ba[7]=(anInstruction.decay>>8) & 0xFF
+        ba[8]=(anInstruction.decay) & 0xFF
     
-        ba[11]=(anInstruction.delay>>8) & 0xFF
-        ba[12]=(anInstruction.delay) & 0xFF
+        ba[9]=(anInstruction.delay>>8) & 0xFF
+        ba[10]=(anInstruction.delay) & 0xFF
 
-        ba[13]=(anInstruction.maxTimeOn>>8) & 0xFF
-        ba[14]=(anInstruction.maxTimeOn) & 0xFF
+        ba[11]=(anInstruction.maxTimeOn>>8) & 0xFF
+        ba[12]=(anInstruction.maxTimeOn) & 0xFF
 
         for i in range(0,12):
-            index=i*2+15
+            index=i*2+13
             ba[index] = (anInstruction.optoValues[i]>>8) & 0xFF            
-            ba[index+1] = (anInstruction.optoValues[i]) & 0xFF             
+            ba[index+1] = (anInstruction.optoValues[i]) & 0xFF                     
+        self._AddChecksumFourBytes(0,ba)       
         
-        self._AddChecksumFourBytes(3,ba)       
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)         
+
         # Using the RT patched linus, it appears that 
         # a delay of 0.005 is just enough to transmit 43 bytes.
-        self._WriteByteArray(ba,0.006)
-
-        tmp=self._Read(1)
-        if(len(tmp)==0):
+        self._WriteByteArray(barray,0.006)        
+        tmp=self._Read(2)
+        if(len(tmp)!=2):            
             return False
         if(tmp[0]==ID):
             return True
-        else:
+        else:            
             return False    
 
     def GetStatusPacket(self,ID):                  
@@ -253,15 +267,24 @@ class UARTCOMM():
         except:
             return ''
     def PollSlave(self,ID):
-       return self.RequestBufferReset(ID)        
+       return self.RequestBufferReset(ID)   
+    #endregion     
        
 
 
-
+#region Module Testing
 def ModuleTest3():
     Board.BoardSetup()
     p=UARTCOMM()   
     result=p.RequestBufferReset(1)
+    print(result)
+    time.sleep(.1)
+    result=p.RequestBufferReset(2)
+    print(result)
+    time.sleep(.1)
+    result=p.RequestBufferReset(1)
+    print(result)
+    
     #counter = 0
     #while counter<1000000:
     #    counter+=1
@@ -308,11 +331,6 @@ def ModuleTest():
     inst.delay=1234
     for i in range(0,12):
         inst.SetOptoValueWell(i,i*3)
-    #print(p.PollSlave(1))
-    #time.sleep(1)
-    #tmp = p.GetStatusPacket(1)
-    #print(str(tmp))
-    #time.sleep(1)
     print(p.SendInstruction(1,inst))    
     time.sleep(2)
     return
@@ -328,12 +346,9 @@ def ModuleTest():
     print(p.SendInstruction(1,inst)        )
 
     
-    
-
-
-    
-
 
 if __name__=="__main__" :
     ModuleTest3()   
     print("Done!!")     
+
+#endregion

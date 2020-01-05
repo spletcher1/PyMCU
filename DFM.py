@@ -26,7 +26,7 @@ class DFM:
         self.status = Enums.CURRENTSTATUS.UNDEFINED
         self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
         self.beforeErrorStatus = Enums.CURRENTSTATUS.UNDEFINED
-        self.callLimit=3
+        self.callLimit=2
         self.theData = DataBuffer.DataBuffer()             
         self.sampleIndex=1
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))        
@@ -49,11 +49,12 @@ class DFM:
 
     def __str__(self):
         return "DFM " + str(self.ID)
-    #endregion
+
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)        
         DFM.DFM_message.notify(tmp)        
-
+    #endregion
+  
     #region Property-like getters and setters
     def GetDFMName(self):
         return "DFM "+str(self.ID)
@@ -70,6 +71,31 @@ class DFM:
                 if(resultArray[i]<0):
                     resultArray[i]=0
             return resultArray        
+    def SetIdleStatus(self):
+        ## Idle is opto off, dark running as its has been, and default other parameters.
+        self.currentInstruction = Instruction.DFMInstruction()
+        self.isInstructionUpdateNeeded=True
+        ## Do not write to the serial device here because it will collide with its use in the ReadWorker
+        ## Thread.  Checkstatus, which should send the default instruction, is handled by that thread.
+
+    def SetOutputsOn(self):
+        self.currentInstruction = Instruction.DFMInstruction()
+        self.currentInstruction.SetOptoValues([0]*12)
+        self.isInstructionUpdateNeeded=True
+
+    def SetOutputsOff(self):
+        self.currentInstruction = Instruction.DFMInstruction()        
+        self.isInstructionUpdateNeeded=True
+    
+    def SetStatus(self, newStatus):
+        if(newStatus != self.status):
+            if(newStatus == Enums.CURRENTSTATUS.ERROR):
+                self.beforeErrorStatus = self.status
+                self.pastStatus = Enums.PASTSTATUS.PASTERROR
+            self.status = newStatus
+    #endregion
+  
+    #region Baselining
     def ResetBaseline(self):
         for i in range(0,len(self.signalBaselines)):
             self.signalBaselines[i]=0
@@ -84,13 +110,14 @@ class DFM:
             self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
         if(self.baselineSamples>=20):
-            self.isCalculatingBaseline=False
-    
+            self.isCalculatingBaseline=False  
     def BaselineDFM(self):
         self.ResetBaseline()
         self.isCalculatingBaseline = True
+    #endregion
 
-    #region Packet processing, etc.
+    #region Packet processing, reading, writing, file methods.
+
     def UpdateReportedValues(self):
         self.reportedHumidity = self.currentStatusPackets[-1].humidity
         self.reportedLUX = self.currentStatusPackets[-1].lux
@@ -126,70 +153,38 @@ class DFM:
         ##if(tmpisInstructionUpdateNeeded):
         ##   self.isInstructionUpdateNeeded=True
 
-
     def ProcessPackets(self,bytesData,startTime):  
         if(len(bytesData)==0):
             a=Enums.PROCESSEDPACKETRESULT.NOANSWER
             return [a]         
         
-        if(bytesData[3]!=self.ID):
+        if(bytesData[0]!=self.ID):            
             a=Enums.PROCESSEDPACKETRESULT.WRONGID
             return [a]
         
-        numPacketsReceived = ((len(bytesData)-69)/65)+1            
+        numPacketsReceived = len(bytesData)/66          
         if (math.floor(numPacketsReceived)!=numPacketsReceived):
-            # Need to figure out how to possibly recover some of the packets.
-            # for now, however, no.
+            # TODO: Need to figure out how to possibly recover some of the packets.
+            # TODO: for now, however, no.            
             a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
             return [a]
         else :
-            numPacketsReceived = int(numPacketsReceived)        
-       
+            numPacketsReceived = int(numPacketsReceived)                
         self.currentStatusPackets.clear()
         results=[]
         for i in range(0,numPacketsReceived):
             tmpPacket = StatusPacket.StatusPacket(self.sampleIndex+i)
-            results.append(tmpPacket.ProcessStatusPacket(bytesData,startTime,i))
-            self.currentStatusPackets.append(tmpPacket)
+            results.append(tmpPacket.ProcessStatusPacket(bytesData,startTime,i))           
+            self.currentStatusPackets.append(tmpPacket)            
         if(results[-1] == Enums.PROCESSEDPACKETRESULT.OKAY):
              self.UpdateReportedValues()            
         return results
   
-    #endregion
-    #     
-    #region DFM Commands                 
-    def IncrementOutputFile(self):
-        self.outputFileIncrementor+=1
-        self.outputFile="DFM" + str(self.ID) + "_"+str(self.outputFileIncrementor)+".csv"
-
-    def SetIdleStatus(self):
-        ## Idle is opto off, dark running as its has been, and default other parameters.
-        self.currentInstruction = Instruction.DFMInstruction()
-        self.isInstructionUpdateNeeded=True
-        ## Do not write to the serial device here because it will collide with its use in the ReadWorker
-        ## Thread.  Checkstatus, which should send the default instruction, is handled by that thread.
-
-    def SetOutputsOn(self):
-        self.currentInstruction = Instruction.DFMInstruction()
-        self.currentInstruction.SetOptoValues([0]*12)
-        self.isInstructionUpdateNeeded=True
-
-    def SetOutputsOff(self):
-        self.currentInstruction = Instruction.DFMInstruction()        
-        self.isInstructionUpdateNeeded=True
-    
-    def SetStatus(self, newStatus):
-        if(newStatus != self.status):
-            if(newStatus == Enums.CURRENTSTATUS.ERROR):
-                self.beforeErrorStatus = self.status
-                self.pastStatus = Enums.PASTSTATUS.PASTERROR
-            self.status = newStatus
-
     def ReadValues(self,startTime,saveDataToQueue):
         theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
         currentTime = datetime.datetime.today()
         for _ in range(0,self.callLimit) :                        
-            tmp=self.theCOMM.GetStatusPacket(self.ID)               
+            tmp=self.theCOMM.GetStatusPacket(self.ID)                    
             theResults = self.ProcessPackets(tmp,startTime)            
             if(Enums.PROCESSEDPACKETRESULT.OKAY in theResults):
                     break                            
@@ -213,7 +208,7 @@ class DFM:
                 self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.OKAY):
                 isSuccess=True
-            if isSuccess:
+            if isSuccess:            
                 if (self.currentStatusPackets[j].recordIndex>0):
                     if(self.theData.NewData(self.currentStatusPackets[j],saveDataToQueue)==False):
                         s="({:d}) Data queue error".format(self.ID)
@@ -231,13 +226,20 @@ class DFM:
                     print(self.currentStatusPackets[j].GetDataBufferPrintPacket())
                     self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
         if(isSuccess):
-            self.CheckStatus()        
-    #endregion
+            self.CheckStatus()   
 
     def ResetOutputFileStuff(self):
         self.outputFileIncrementor=0
-        self.outputFile="DFM" + str(self.ID) + "_0.csv"  
+        self.outputFile="DFM" + str(self.ID) + "_0.csv"       
+    
+    def IncrementOutputFile(self):
+        self.outputFileIncrementor+=1
+        self.outputFile="DFM" + str(self.ID) + "_"+str(self.outputFileIncrementor)+".csv"
 
+    #endregion
+
+    #region Updating                
+ 
     def UpdateInstruction(self,instruct,useBaseline):                    
         if(instruct is self.currentInstruction):            
             return 
@@ -254,12 +256,19 @@ class DFM:
             if self.theCOMM.RequestBufferReset(self.ID):
                 print("Buffer reset success!")
                 self.isBufferResetNeeded=False
+            else:
+                print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):
             if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
                 print("Instruction success!")
                 self.isInstructionUpdateNeeded=False
-        
+            else:
+                print("Instruction failure")
+    #endregion     
      
+
+    
+#region Module Testing
 
 def ModuleTest():
     Board.BoardSetup()
@@ -273,3 +282,5 @@ def ModuleTest():
 if __name__=="__main__" :
     ModuleTest()   
     print("Done!!")     
+
+#endregion

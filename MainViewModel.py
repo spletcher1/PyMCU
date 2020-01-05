@@ -26,8 +26,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
         tmp2 = "QTextEdit {background-color: "+self.defaultBackgroundColor+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
-        self.ProgramTextEdit.setStyleSheet(tmp2)
-        #self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
+        self.ProgramTextEdit.setStyleSheet(tmp2)             
         if(platform.node()=="raspberrypi"):
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
         else:
@@ -49,8 +48,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.UpdateProgramGUI()
 
         self.main_widget = QtWidgets.QWidget(self)
-        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=self.defaultBackgroundColor,width=5, height=4, dpi=100)
-        #dc = DFMPlot.MyDynamicMplCanvas(self.main_widget, width=5, height=4, dpi=100)
+        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=self.defaultBackgroundColor,width=5, height=4, dpi=100)        
         self.DFMPlotLayout.addWidget(self.theDFMDataPlot)   
 
         self.programDuration = datetime.timedelta(minutes=180)
@@ -145,12 +143,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if(self.theDFMGroup.currentProgram.isActive):
             self.RunProgramButton.setText("Run Program")
             self.theDFMGroup.StopCurrentProgram()
+            self.toggleOutputsState=False
         else:
             self.DisableButtons()                        
             self.RunProgramButton.setText("Stop Program")                         
             self.RunProgramButton.setEnabled(False)
             self.theDFMGroup.StageCurrentProgram()
             self.RunProgramButton.setEnabled(True)
+            self.toggleOutputsState=False
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
@@ -485,11 +485,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.UpdateProgramGUI() 
             except:
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
-
-        ## Donr forget to set programstarttime and duration here 
-        ## aFTER THE program is loaded.
-        print(direct)
-
 
     def ChooseDataSaveLocation( self ):
         ''' Called when the user presses the Browse button
