@@ -57,7 +57,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.SetProgramStartTime(datetime.datetime.today())
 
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
-      
+        self.toggleOutputsState=False
       
 
     def DisableButtons(self):        
@@ -76,6 +76,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.setEnabled(False)
         self.StartTimeNowButton.setEnabled(False)
         self.StartTimeEdit.setEnabled(False)
+        self.toggleOutputsAction.setEnabled(False)
 
     def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
@@ -93,6 +94,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.setEnabled(True)
         self.StartTimeNowButton.setEnabled(True)
         self.StartTimeEdit.setEnabled(True)
+        self.toggleOutputsAction.setEnabled(True)
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)    
@@ -184,6 +186,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.powerOffAction.triggered.connect(self.PowerOff)
         self.saveDataAction.triggered.connect(self.ChooseDataSaveLocation)
         self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
+        self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)
         
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -197,6 +200,16 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
         self.StartTimeNowButton.clicked.connect(self.SetStartTimeNow)
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
+
+    def ToggleOutputs(self):
+        if(self.toggleOutputsState):
+            for d in self.theDFMGroup.theDFMs:
+                d.SetOutputsOff()
+            self.toggleOutputsState = False
+        else:
+            for d in self.theDFMGroup.theDFMs:
+                d.SetOutputsOn()
+            self.toggleOutputsState = True
 
     def SetStartTimeNow(self):
         self.SetProgramStartTime(datetime.datetime.today())

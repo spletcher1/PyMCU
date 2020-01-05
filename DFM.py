@@ -168,7 +168,15 @@ class DFM:
         self.isInstructionUpdateNeeded=True
         ## Do not write to the serial device here because it will collide with its use in the ReadWorker
         ## Thread.  Checkstatus, which should send the default instruction, is handled by that thread.
-                    
+
+    def SetOutputsOn(self):
+        self.currentInstruction = Instruction.DFMInstruction()
+        self.currentInstruction.SetOptoValues([0]*12)
+        self.isInstructionUpdateNeeded=True
+
+    def SetOutputsOff(self):
+        self.currentInstruction = Instruction.DFMInstruction()        
+        self.isInstructionUpdateNeeded=True
     
     def SetStatus(self, newStatus):
         if(newStatus != self.status):

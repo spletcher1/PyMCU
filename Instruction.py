@@ -12,7 +12,7 @@ class DFMInstruction:
         self.frequency=freq
         self.decay=decay
         self.delay=delay
-        self.maxTimeOn=maxTime
+        self.maxTimeOn=maxTime        
 
     def SetOptoValues(self,vals):
         for i in range(0,12):
