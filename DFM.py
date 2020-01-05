@@ -240,6 +240,8 @@ class DFM:
             self.isInstructionUpdateNeeded=True
 
     def CheckStatus(self):        
+        ## These are else if groups so that both are not executed on the same pass.
+        ## A 1 sec delay for the latter conditions should not matter much.
         if(self.isBufferResetNeeded):
             if self.theCOMM.RequestBufferReset(self.ID):
                 print("Buffer reset success!")
