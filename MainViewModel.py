@@ -18,11 +18,24 @@ if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
 
+class MessagesUpdateThread(QtCore.QThread):
+    signal = QtCore.pyqtSignal([str])
+    
+    def __init__(self,dfmg):
+        QtCore.QThread.__init__(self)
+        self.theDFMGroup=dfmg
+
+    def run(self):        
+        while True:
+            self.signal.emit(str(self.theDFMGroup.theMessageList))            
+            time.sleep(1)
+
+
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
     def __init__( self ):       
         super(MyMainWindow,self).__init__()        
-        uic.loadUi("Mainwindow.ui",self)
+        uic.loadUi("/home/pi/Programming/Python/PyMCU/Mainwindow.ui",self)
         self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
         tmp2 = "QTextEdit {background-color: "+self.defaultBackgroundColor+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
@@ -42,8 +55,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
         self.StatusBar.addPermanentWidget(self.statusLabel)        
         self.stopUpdateLoop=False
-        self.guiThread = threading.Thread(target=self.UpdateGUI)
-        self.guiThread.start()
+       
         self.DFMButtons = []
         self.UpdateProgramGUI()
 
@@ -56,7 +68,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
         self.toggleOutputsState=False
-      
+
+        self.guiThread = threading.Thread(target=self.UpdateGUI)
+        self.guiThread.start()
+
+        self.MThread = MessagesUpdateThread(self.theDFMGroup)
+        self.MThread.signal.connect(self.UpdateMessagesText)      
+        self.MThread.start()
 
     def DisableButtons(self):        
         self.clearDFMAction.setEnabled(False)
@@ -164,6 +182,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.ProgramTextEdit.setText("No program loaded.")
 
+    def UpdateMessagesText(self,text):
+        self.MessagesTextEdit.setText(text)   
 
     def setupUi( self, MW ):
         ''' Setup the UI of the super class, and add here code
@@ -332,8 +352,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.ClearMessages()
         
     def ClearMessages(self):       
-        self.theDFMGroup.theMessageList.ClearMessages()
-        self.UpdateMessagesGUI()
+        self.theDFMGroup.theMessageList.ClearMessages()        
 
     def ClearLayout(self,layout):
         while layout.count():
@@ -351,18 +370,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.findDFMAction.setEnabled(True)
 
     def GoToMessagesPage(self):
-        self.StackedPages.setCurrentIndex(2)
-        self.UpdateMessagesGUI()        
+        self.StackedPages.setCurrentIndex(2)           
 
     def GoToProgramPage(self):        
         self.StackedPages.setCurrentIndex(0)
     
     def GotoDFMPage(self):
         self.StackedPages.setCurrentIndex(1)
-
-    def UpdateMessagesGUI(self):
-        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
-
+       
     def UpdateDFMPageGUI(self):
         self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
         self.HumidLabel.setText("{:.1f}%".format(self.activeDFM.reportedHumidity))
@@ -448,9 +463,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
             if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
                 self.UpdateDFMPageGUI()
-                #self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
-            elif self.StackedPages.currentIndex()==2:
-                self.UpdateMessagesGUI                          
+                #self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                            
             time.sleep(1)
                 
     def closeEvent(self,event):

@@ -260,7 +260,7 @@ class UARTCOMM():
         start = time.time()
         self.RequestStatus(ID)
         end=time.time()
-        if ((end-start)>0.005) :
+        if ((end-start)>0.010) :
             print("Request time: "+str(end-start))        
         try:
             return cobs.decode(self._ReadCOBSPacket(1050))
