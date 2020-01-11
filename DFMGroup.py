@@ -278,10 +278,8 @@ class DFMGroup:
                     for d in self.theDFMs:
                         ## It takes a little over 30ms to call and
                         ## receive the data from one DFM, given a baud
-                        ## rate of 115200
-                        print(str(d.ID))                           
-                        d.ReadValues(self.currentProgram.startTime,self.isWriting)                              
-                        #datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S")                
+                        ## rate of 115200                     
+                        d.ReadValues(self.currentProgram.startTime,self.isWriting)                                                      
                         time.sleep(0.005)      
                     if(self.isWriting):
                         if(self.stopRecordingSignal):
