@@ -169,6 +169,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.StageCurrentProgram()
             self.RunProgramButton.setEnabled(True)
             self.toggleOutputsState=False
+        self.UpdateDFMButtonTextColors()
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
@@ -251,19 +252,29 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]        
         self.theDFMGroup.activeDFM = self.activeDFM       
         self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
+        self.UpdateDFMButtonTextColors()
 
     def UpdateDFMButtonTextColors(self):        
         for i in range(0,len(self.theDFMGroup.theDFMs)):
-            if(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.READING):
-                self.DFMButtons[i].setStyleSheet('QPushButton {color: black}')
-            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.RECORDING):
-                self.DFMButtons[i].setStyleSheet('QPushButton {color: green}')
-            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.ERROR):
-                self.DFMButtons[i].setStyleSheet('QPushButton {color: red}')
-            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.MISSING):
-                self.DFMButtons[i].setStyleSheet('QPushButton {color: blue}')
+            if(self.activeDFMNum==i):
+                ss = 'QPushButton {font-weight:bold;'
             else:
-                self.DFMButtons[i].setStyleSheet('QPushButton {color: orange}')                
+                ss = 'QPushButton {'
+            if(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.READING):               
+                ss+= 'color: black}' 
+                self.DFMButtons[i].setStyleSheet(ss)                                
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.RECORDING):
+                ss+= 'color: green}' 
+                self.DFMButtons[i].setStyleSheet(ss)
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.ERROR):
+                ss+= 'color: red}' 
+                self.DFMButtons[i].setStyleSheet(ss)
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.MISSING):
+                ss+= 'color: blue}' 
+                self.DFMButtons[i].setStyleSheet(ss)
+            else:
+                ss+= 'color: orange}' 
+                self.DFMButtons[i].setStyleSheet(ss)                
 
 
     def DFMButtonClicked(self):
@@ -286,20 +297,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
             s = str(d)
             tmp = QPushButton(s)
             tmp.setFlat(False)            
-            tmp.setMinimumHeight(35)
+            tmp.setMinimumHeight(45)
             #tmp.setMaximumWidth(88)
             self.DFMListLayout2.setAlignment(Qt.AlignTop)
             self.DFMListLayout2.addWidget(tmp)            
-            self.DFMButtons.append(tmp)
-            self.SetActiveDFM(0)   
+            self.DFMButtons.append(tmp)             
         self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                        
         for b in self.DFMButtons:
-            b.clicked.connect(self.DFMButtonClicked)     
-        self.UpdateDFMPageGUI()
+            b.clicked.connect(self.DFMButtonClicked)             
         self.programStartTime = datetime.datetime.today()
         self.programDuration = datetime.timedelta(minutes=180)
-        self.LoadSimpleProgram()
+        self.LoadSimpleProgram()        
+        self.SetActiveDFM(0)  
+        self.UpdateDFMPageGUI()
         self.GotoDFMPage()     
+        
 
 
     def DeleteDataFolder(self):

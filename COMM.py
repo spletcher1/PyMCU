@@ -47,16 +47,17 @@ class TESTCOMM():
         self._DoNothing()
     def SendInstruction(self,ID,anInstruction):
         return True
+    def RequestBufferReset(self,ID):
+        return True
     def _CreateFakeStatusPacket(self,ID):
         tmp = StatusPacket.StatusPacket(0)
-        ba = bytearray(329)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        for j in range(0,5):
-            indexer = (j*65)+4
-            ba[indexer]=0x00 #Error flag     
+        ba = bytearray(66*5)       
+       
+        for j in range(0,5):           
+            baseindexer = (j*66)
+            ba[baseindexer]=ID 
+            indexer=baseindexer+1
+            ba[indexer]=0x00 #Error flaj 
             for i in range(0,12):
                 analog=50+randint(0,20)
                 analog *=128
@@ -100,12 +101,12 @@ class TESTCOMM():
 
             tmp = self.recordIndex
             ba[(indexer+57)] = tmp>>24
-            ba[(indexer+58)] = (tmp>>16) & 0xFF
+            ba[(indexer+58)]  = (tmp>>16) & 0xFF
             ba[(indexer+59)] = (tmp>>8) & 0xFF
             ba[(indexer+60)] = tmp & 0xFF
             
             calculatedCheckSum=0
-            for cs in range(indexer,indexer+61) :
+            for cs in range(baseindexer,baseindexer+62) :
                 calculatedCheckSum+=ba[cs]
             calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
             ba[(indexer+61)] = calculatedCheckSum>>24

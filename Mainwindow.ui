@@ -39,7 +39,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -373,6 +373,9 @@
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
+            <property name="spacing">
+             <number>1</number>
+            </property>
             <property name="leftMargin">
              <number>2</number>
             </property>
