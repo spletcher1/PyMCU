@@ -110,7 +110,7 @@ class DFM:
             self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
         if(self.baselineSamples>=20):
-            self.isCalculatingBaseline=False  
+            self.isCalculatingBaseline=False              
     def BaselineDFM(self):
         self.ResetBaseline()
         self.isCalculatingBaseline = True
@@ -246,7 +246,7 @@ class DFM:
         else:                      
             self.currentInstruction = instruct            
             if(useBaseline):
-                self.currentInstruction.AddBaselineToCurrentOptoValues(self.signalBaselines)                        
+                self.currentInstruction.SetBaseline(self.signalBaselines)                        
             self.isInstructionUpdateNeeded=True
 
     def CheckStatus(self):        
@@ -254,13 +254,13 @@ class DFM:
         ## A 1 sec delay for the latter conditions should not matter much.
         if(self.isBufferResetNeeded):
             if self.theCOMM.RequestBufferReset(self.ID):
-                print("Buffer reset success!")
+                #print("Buffer reset success!")
                 self.isBufferResetNeeded=False
             else:
                 print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):
             if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
-                print("Instruction success!")
+                #print("Instruction success: " + str(self.currentInstruction))                
                 self.isInstructionUpdateNeeded=False
             else:
                 print("Instruction failure")

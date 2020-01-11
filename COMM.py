@@ -183,6 +183,7 @@ class UARTCOMM():
 
     #region Specific DFM calls     
     def RequestStatus(self,ID):
+                 
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFC # Indicates status request
@@ -190,11 +191,10 @@ class UARTCOMM():
         
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
-        barray.append(0x00)    
-
+        barray.append(0x00)            
         self._WriteByteArray(barray,0.001)
     
-    def RequestBufferReset(self,ID):
+    def RequestBufferReset(self,ID):        
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFE # Indicates buffer reset        
@@ -212,8 +212,8 @@ class UARTCOMM():
         else:
             return False    
 
-    def SendInstruction(self,ID,anInstruction):        
-        ba = bytearray(41)   
+    def SendInstruction(self,ID,anInstruction):          
+        ba = bytearray(41)           
         ba[0]=ID
         ba[1]=0xFD
        
@@ -238,8 +238,8 @@ class UARTCOMM():
 
         for i in range(0,12):
             index=i*2+13
-            ba[index] = (anInstruction.optoValues[i]>>8) & 0xFF            
-            ba[index+1] = (anInstruction.optoValues[i]) & 0xFF                     
+            ba[index] = (anInstruction.adjustedThresholds[i]>>8) & 0xFF            
+            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                     
         self._AddChecksumFourBytes(0,ba)       
         
         encodedba=cobs.encode(ba)        
@@ -257,18 +257,21 @@ class UARTCOMM():
         else:            
             return False    
 
-    def GetStatusPacket(self,ID):                  
+    def GetStatusPacket(self,ID):                      
         start = time.time()
         self.RequestStatus(ID)
         end=time.time()
         if ((end-start)>0.010) :
             print("Request time: "+str(end-start))        
-        try:
+        try:      
+            #tmp = self._ReadCOBSPacket(1050)
+            #print(str(tmp))
+            #return cobs.decode(tmp)
             return cobs.decode(self._ReadCOBSPacket(1050))
         except:
             return ''
-    def PollSlave(self,ID):
-       return self.RequestBufferReset(ID)   
+    def PollSlave(self,ID):                     
+        return self.RequestBufferReset(ID)   
     #endregion     
        
 

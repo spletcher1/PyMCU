@@ -278,17 +278,19 @@ class DFMGroup:
                     for d in self.theDFMs:
                         ## It takes a little over 30ms to call and
                         ## receive the data from one DFM, given a baud
-                        ## rate of 115200                        
-                        d.ReadValues(self.currentProgram.startTime,self.isWriting)        
-                        lastSecond=tt.second    
-                        lastTime=time.time()                       
-                        time.sleep(0.050)    
+                        ## rate of 115200
+                        print(str(d.ID))                           
+                        d.ReadValues(self.currentProgram.startTime,self.isWriting)                              
+                        #datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S")                
+                        time.sleep(0.005)      
                     if(self.isWriting):
                         if(self.stopRecordingSignal):
                             self.WriteEnder()
                         else:
-                            self.WriteStep()              
-                    DFMGroup.DFMGroup_updatecomplete.notify()                                      
+                            self.WriteStep()                                                                           
+                    DFMGroup.DFMGroup_updatecomplete.notify()                                                                               
+                    lastSecond=tt.second    
+                    lastTime=time.time()                                     
             else:
                 if(time.time()-lastTime>0.2):                                   
                     if self.activeDFM != None:
@@ -303,7 +305,7 @@ class DFMGroup:
                 self.isReading = False                
                 return 
                
-            time.sleep( 0.005 ) # Yeild to other threads for a bit
+            time.sleep( 0.050 ) # Yeild to other threads for a bit
     #endregion
 
     #region Updating Functions
