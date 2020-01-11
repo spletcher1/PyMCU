@@ -21,11 +21,13 @@ class DFMGroup:
     def __init__(self,commProtocol):
         self.theDFMs = []
         DFM.DFM.DFM_message+=self.NewMessageDirect
-        self.stopReadingSignal = False
+        self.stopReadWorkerSignal = False        
+        self.stopProgramWorkerSignal = False    
         self.stopRecordingSignal = False
         self.longestQueue = 0
         self.isWriting = False
-        self.isReading = False
+        self.isReadWorkerRunning = False
+        self.isProgramWorkerRunning = False
         self.currentOutputDirectory = "./"
         self.theCOMM = commProtocol
         COMM.UARTCOMM.UART_message+=self.NewMessageDirect
@@ -48,11 +50,13 @@ class DFMGroup:
         DFMGroup.DFMGroup_message.notify(tmp)      
     
     def ClearDFMList(self):        
+        self.StopRecording()
+        self.StopProgramWorker()
+        self.StopReadWorker()
         self.theDFMs.clear()
         self.activeDFM=None
 
-    def FindDFMs(self,maxNum=16,startReading=True):
-        self.StopReading()        
+    def FindDFMs(self,maxNum=16,startReading=True):              
         for i in range(1,maxNum+1):
             if(self.theCOMM.PollSlave(i)):
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
@@ -62,16 +66,14 @@ class DFMGroup:
         if(len(self.theDFMs)>0):               
             self.activeDFM = self.theDFMs[0]
         if(startReading):
-            time.sleep(0.200) # This is to avoid an empty packet being sent given the buffer reset upon polling.             
-            self.StartReading()
+            time.sleep(0.500) # This is to avoid an empty packet being sent given the buffer reset upon polling.             
+            self.StartReadWorker()
     #endregion
 
     #region Reading and Recording
     def StartRecording(self):
         if len(self.theDFMs)==0:
-            return False
-        if self.isReading==False:
-            self.StartReading()
+            return False    
         self.theMessageList.ClearMessages()
         for i in self.theDFMs:
             i.sampleIndex=1
@@ -81,8 +83,6 @@ class DFMGroup:
         time.sleep(1) # To allow everyone to reset
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
-        #writeThread = threading.Thread(target=self.WriteWorker)        
-        #writeThread.start()
         self.WriteStarter()
         return True
 
@@ -90,6 +90,8 @@ class DFMGroup:
         if len(self.theDFMs)==0:
             return
         self.stopRecordingSignal=True
+        while(self.isWriting==True):
+            time.sleep(.1)        
     
     def WriteProgram(self):
         path=self.currentOutputDirectory+"/Program.txt"
@@ -105,10 +107,7 @@ class DFMGroup:
 
     def SetDFMIdleStatus(self):
         for d in self.theDFMs:
-            d.SetIdleStatus()
-            # A delay is needed here because the MCU Sends an instruction
-            # to each DFM.
-            time.sleep(0.100)                
+            d.SetIdleStatus()                        
 
     def WriteStarter(self):
         dt=datetime.datetime.today()
@@ -244,66 +243,87 @@ class DFMGroup:
         for d in self.theDFMs:
             d.SetStatus(Enums.CURRENTSTATUS.READING)      
 
-    def StopReading(self):
+    def StopReadWorker(self):
         if len(self.theDFMs)==0:
-            return
-        if(self.isWriting):
-            self.stopRecordingSignal = True               
-            self.isWriting =False
-            time.sleep(0.01)
-        self.stopReadingSignal = True
-        time.sleep(0.01)       
-        self.ClearDFMList()     
-    def StartReading(self):
+            return    
+        self.stopReadWorkerSignal = True
+        while(self.isReadWorkerRunning):
+            time.sleep(0.10)                
+
+    def StartReadWorker(self):
         if(len(self.theDFMs)==0): 
             return
         for d in self.theDFMs:
             d.SetStatus(Enums.CURRENTSTATUS.READING)      
-        self.stopReadingSignal=False
-        readThread = threading.Thread(target=self.ReadWorker)
-        #readThread = multiprocessing.Process(target=self.ReadWorker)
-        readThread.start()        
-    def ReadWorker(self):    
-        self.isReading=True        
-        tt = datetime.datetime.today()
-        lastSecond=tt.second
+        self.stopReadWorkerSignal=False
+        readThread = threading.Thread(target=self.ReadWorker)        
+        readThread.start()    
+
+    def StartProgramWorker(self):
+        if(len(self.theDFMs)==0): 
+            return     
+        for d in self.theDFMs:
+            d.SetStatus(Enums.CURRENTSTATUS.READING)              
+        self.stopProgramWorkerSignal=False
+        readThread = threading.Thread(target=self.ProgramWorker)        
+        readThread.start()     
+
+    def StopProgramWorker(self):
+        if len(self.theDFMs)==0:
+            return    
+        self.stopProgramWorkerSignal = True
+        while(self.isProgramWorkerRunning):
+            time.sleep(0.10)                
+
+    def ProgramWorker(self):
+        self.isProgramWorkerRunning=True        
+        tt = datetime.datetime.today()        
         lastTime = time.time()    
+        lastSecond = tt.second      
         while True:   
             tt = datetime.datetime.today()
-            if(self.currentProgram.isActive):
-                if(tt.microsecond>0 and tt.second != lastSecond):   
-                    if(time.time()-lastTime)>1:
-                        s="Missed one second"                        
-                        self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)                       
-                    for d in self.theDFMs:
-                        ## It takes a little over 30ms to call and
-                        ## receive the data from one DFM, given a baud
-                        ## rate of 115200                     
-                        d.ReadValues(self.currentProgram.startTime,self.isWriting)                                                      
-                        time.sleep(0.005)      
-                    if(self.isWriting):
-                        if(self.stopRecordingSignal):
-                            self.WriteEnder()
-                        else:
-                            self.WriteStep()                                                                           
-                    DFMGroup.DFMGroup_updatecomplete.notify()                                                                               
-                    lastSecond=tt.second    
-                    lastTime=time.time()                                     
-            else:
-                if(time.time()-lastTime>0.2):                                   
-                    if self.activeDFM != None:
-                        self.activeDFM.ReadValues(tt,False)
-                    lastSecond = tt.second
-                    lastTime = time.time()
-                    time.sleep(0.020)
-                    DFMGroup.DFMGroup_updatecomplete.notify()                                                                         
-            if(self.stopReadingSignal):
+            if(tt.microsecond>0 and tt.second != lastSecond):   
+                if(time.time()-lastTime)>1:
+                    s="Missed one second"                        
+                    self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)                       
+                for d in self.theDFMs:
+                    ## It takes a little over 30ms to call and
+                    ## receive the data from one DFM, given a baud
+                    ## rate of 115200                     
+                    d.ReadValues(self.currentProgram.startTime,self.isWriting)                                                      
+                    time.sleep(0.005)      
+                if(self.isWriting):
+                    if(self.stopRecordingSignal):
+                        self.WriteEnder()                            
+                    else:
+                        self.WriteStep()                                                                           
+                DFMGroup.DFMGroup_updatecomplete.notify()                                                                               
+                lastSecond=tt.second    
+                lastTime=time.time()                                     
+            if(self.stopProgramWorkerSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
-                self.isReading = False                
+                self.isProgramWorkerRunning = False                
+                return                
+            time.sleep( 0.020 ) # Yeild to other threads for a bit
+
+    def ReadWorker(self):    
+        self.isReadWorkerRunning=True        
+        lastTime = time.time()    
+        while True:   
+            tt = datetime.datetime.today()          
+            if(time.time()-lastTime>0.2):                                   
+                if self.activeDFM != None:
+                    self.activeDFM.ReadValues(tt,False)                
+                lastTime = time.time()                    
+                DFMGroup.DFMGroup_updatecomplete.notify()                                                                         
+            if(self.stopReadWorkerSignal):
+                for d in self.theDFMs:
+                    d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
+                self.isReadWorkerRunning = False                
                 return 
                
-            time.sleep( 0.050 ) # Yeild to other threads for a bit
+            time.sleep( 0.020 ) # Yeild to other threads for a bit
     #endregion
 
     #region Updating Functions
@@ -347,17 +367,17 @@ class DFMGroup:
         if(len(self.theDFMs)==0):
             return
         print("Stopping program.")        
-        self.StopRecording()
-        while(self.isWriting==True):
-            pass
-        time.sleep(1)
+        self.StopRecording()          
+        self.StopProgramWorker()  
         self.currentProgram.isActive=False
+        self.StartReadWorker()
         self.SetDFMIdleStatus()
         print("Done")
     
     def StageCurrentProgram(self):
         if(len(self.theDFMs)==0):
             return
+        self.StopReadWorker()
         print("Baselining")
         self.currentProgram.isActive=True
         for d in self.theDFMs:
@@ -365,6 +385,7 @@ class DFMGroup:
                 d.BaselineDFM()
             else:
                 d.ResetBaseline()   
+        self.StartProgramWorker()
         print("Staging program.")                           
     #endregion
 

@@ -129,7 +129,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             return
         sender = self.sender()
         tmp = sender.text()
-        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
+        #self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
+        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=.1)
         if(tmp == "30 minutes"):
             self.programDuration = datetime.timedelta(minutes=30)          
             self.LoadSimpleProgram()  
@@ -164,10 +165,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.toggleOutputsState=False
         else:
             self.DisableButtons()                        
-            self.RunProgramButton.setText("Stop Program")                         
-            self.RunProgramButton.setEnabled(False)
-            self.theDFMGroup.StageCurrentProgram()
-            self.RunProgramButton.setEnabled(True)
+            self.RunProgramButton.setText("Stop Program")      
+            self.theDFMGroup.StageCurrentProgram()            
             self.toggleOutputsState=False
         self.UpdateDFMButtonTextColors()
 
@@ -371,7 +370,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 child.widget().deleteLater()
 
     def ClearDFM(self):
-        self.theDFMGroup.StopReading()
+        self.theDFMGroup.ClearDFMList()
         self.ClearLayout(self.DFMListLayout2)
         self.activeDFMNum=-1
         self.activeDFM=None
