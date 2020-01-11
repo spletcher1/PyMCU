@@ -18,24 +18,28 @@ if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
 
-class MessagesUpdateThread(QtCore.QThread):
-    signal = QtCore.pyqtSignal([str])
+class GUIUpdateThread(QtCore.QThread):
+    updateGUISignal = QtCore.pyqtSignal()
     
-    def __init__(self,dfmg):
+    def __init__(self):
         QtCore.QThread.__init__(self)
-        self.theDFMGroup=dfmg
-
-    def run(self):        
-        while True:
-            self.signal.emit(str(self.theDFMGroup.theMessageList))            
+        self.keepRunning=True
+    def run(self):   
+        while self.keepRunning:
+            self.updateGUISignal.emit()
             time.sleep(1)
+    def StopThread(self):
+        self.keepRunning = False
+
+
 
 
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
     def __init__( self ):       
         super(MyMainWindow,self).__init__()        
-        uic.loadUi("/home/pi/Programming/Python/PyMCU/Mainwindow.ui",self)
+        #uic.loadUi("/home/pi/Programming/Python/PyMCU/Mainwindow.ui",self)
+        uic.loadUi("Mainwindow.ui",self)
         self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
         tmp2 = "QTextEdit {background-color: "+self.defaultBackgroundColor+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
@@ -54,7 +58,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.statusLabel.setFrameShadow(QFrame.Plain)
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
         self.StatusBar.addPermanentWidget(self.statusLabel)        
-        self.stopUpdateLoop=False
        
         self.DFMButtons = []
         self.UpdateProgramGUI()
@@ -69,11 +72,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
         self.toggleOutputsState=False
 
-        self.guiThread = threading.Thread(target=self.UpdateGUI)
-        self.guiThread.start()
-
-        self.MThread = MessagesUpdateThread(self.theDFMGroup)
-        self.MThread.signal.connect(self.UpdateMessagesText)      
+        self.MThread = GUIUpdateThread()
+        self.MThread.updateGUISignal.connect(self.UpdateGUI)      
         self.MThread.start()
 
     def DisableButtons(self):        
@@ -181,9 +181,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.ProgramTextEdit.setText(self.theDFMGroup.currentProgram.GetProgramDescription())
         else:
             self.ProgramTextEdit.setText("No program loaded.")
-
-    def UpdateMessagesText(self,text):
-        self.MessagesTextEdit.setText(text)   
 
     def setupUi( self, MW ):
         ''' Setup the UI of the super class, and add here code
@@ -353,7 +350,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         
     def ClearMessages(self):       
         self.theDFMGroup.theMessageList.ClearMessages()        
-
+        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))    
+    
     def ClearLayout(self,layout):
         while layout.count():
             child=layout.takeAt(0)
@@ -451,23 +449,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
             #end=time.time()        
             #print("Plotting time: "+str(end-start))    
+    
     def UpdateGUI(self):
-        while True:
-            if self.stopUpdateLoop:
-                return           
-            if (self.theDFMGroup.currentProgram.isActive):           
-                self.theDFMGroup.UpdateProgramStatus()         
-                self.DisableButtons()
-            else:
-                self.EnableButtons()
-            self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
-            if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
-                self.UpdateDFMPageGUI()
-                #self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                            
-            time.sleep(1)
-                
+        if (self.theDFMGroup.currentProgram.isActive):           
+            self.theDFMGroup.UpdateProgramStatus()         
+            self.DisableButtons()
+        else:
+            self.EnableButtons()
+        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
+        if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
+            self.UpdateDFMPageGUI() 
+        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                           
+        
+            
     def closeEvent(self,event):
-        self.stopUpdateLoop=True
+        self.MThread.StopThread()
         self.ClearDFM()
 
     # slot
