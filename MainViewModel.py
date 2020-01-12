@@ -14,6 +14,7 @@ import Board
 import DFMPlot
 import socket
 import os
+import glob
 if(platform.node()=="raspberrypi"):
     import RPi.GPIO as GPIO
 
@@ -42,8 +43,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         uic.loadUi("Mainwindow.ui",self)
         self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
         tmp2 = "QTextEdit {background-color: "+self.defaultBackgroundColor+"}"
+        tmp3 = "QListWidget {background-color: "+self.defaultBackgroundColor+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
-        self.ProgramTextEdit.setStyleSheet(tmp2)             
+        self.ProgramTextEdit.setStyleSheet(tmp2)     
+        self.ProgramPreviewTextBox.setStyleSheet(tmp2)
+        self.FilesListWidget.setStyleSheet(tmp3)        
         if(platform.node()=="raspberrypi"):
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
         else:
@@ -76,6 +80,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MThread.updateGUISignal.connect(self.UpdateGUI)      
         self.MThread.start()
 
+        self.FilesListWidget.currentItemChanged.connect(self.ProgramFileChoiceChanged)
+        self.currentChosenProgramFile=""
+        self.currentProgramFileDirectory=""
+
     def DisableButtons(self):        
         self.clearDFMAction.setEnabled(False)
         self.saveDataAction.setEnabled(False)
@@ -93,6 +101,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StartTimeNowButton.setEnabled(False)
         self.StartTimeEdit.setEnabled(False)
         self.toggleOutputsAction.setEnabled(False)
+        self.LoadProgramButton.setEnabled(False)
 
     def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
@@ -111,6 +120,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StartTimeNowButton.setEnabled(True)
         self.StartTimeEdit.setEnabled(True)
         self.toggleOutputsAction.setEnabled(True)
+        self.LoadProgramButton.setEnabled(True)
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)    
@@ -217,6 +227,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
         self.StartTimeNowButton.clicked.connect(self.SetStartTimeNow)
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
+        self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
+        self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
 
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -386,7 +398,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
     
     def GotoDFMPage(self):
         self.StackedPages.setCurrentIndex(1)
-       
+     
+    def GotoProgramLoadPage(self):  
+        self.StackedPages.setCurrentIndex(3)
+
     def UpdateDFMPageGUI(self):
         self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
         self.HumidLabel.setText("{:.1f}%".format(self.activeDFM.reportedHumidity))
@@ -477,10 +492,45 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MThread.StopThread()
         self.ClearDFM()
 
-    # slot
-    def LoadCustomProgram( self ):
-        ''' Called when the user presses the Browse button
-        '''
+    def ProgramFileChoiceChanged(self,curr, prev):
+        self.currentChosenProgramFile = curr.text()
+        fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
+        f = open(fn,"r")
+        lines=f.read()       
+        self.ProgramPreviewTextBox.setText(lines)    
+
+    def LoadProgramClicked(self):
+        if(self.currentChosenProgramFile!=""):
+            fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
+            try:              
+                self.theDFMGroup.LoadTextProgram(fn)
+                self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration)   
+                self.UpdateProgramGUI() 
+            except:
+                self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
+
+    def LoadFilesListWidget(self):
+        self.FilesListWidget.clear()       
+        subfolders = [f.path for f in os.scandir("/media/scott") if f.is_dir()]
+        if len(subfolders)==0:
+            self.currentProgramFileDirectory = "/media/scott/FLICPrograms/"
+        else:
+            self.currentProgramFileDirectory = subfolders[0]+"/FLICPrograms/"    
+
+        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
+        for f in files:
+            h, t = os.path.split(f)
+            self.FilesListWidget.insertItem(0,t)
+        if(len(files)>0):
+            self.FilesListWidget.setCurrentRow(0)
+    
+    def LoadCustomProgram( self ): 
+        self.LoadFilesListWidget()
+        self.GotoProgramLoadPage()
+        return
+      
+
+    def LoadCustomProgramOLD(self):
         #self.debugPrint( "Browse button pressed" )
         if(len(self.theDFMGroup.theDFMs)==0): 
             self.StatusBar.showMessage("Load programs only after DFMs have been defined.",self.statusmessageduration)
@@ -505,7 +555,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.UpdateProgramGUI() 
             except:
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
-
     def ChooseDataSaveLocation( self ):
         ''' Called when the user presses the Browse button
         '''
