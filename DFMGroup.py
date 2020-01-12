@@ -249,7 +249,6 @@ class DFMGroup:
         self.stopReadWorkerSignal = True
         while(self.isReadWorkerRunning):
             time.sleep(0.10)   
-        print("readworker stopped")             
 
     def StartReadWorker(self):
         if(len(self.theDFMs)==0): 
@@ -275,11 +274,9 @@ class DFMGroup:
         self.stopProgramWorkerSignal = True
         while(self.isProgramWorkerRunning):
             time.sleep(0.10)                
-        print("program worker stopped")             
 
     def ProgramWorker(self):
         self.isProgramWorkerRunning=True        
-        print("start Program worker")
         tt = datetime.datetime.today()        
         lastTime = time.time()    
         lastSecond = tt.second      
@@ -312,7 +309,6 @@ class DFMGroup:
 
     def ReadWorker(self):    
         self.isReadWorkerRunning=True    
-        print("start read worker")
         lastTime = time.time()    
         while True:   
             tt = datetime.datetime.today()          

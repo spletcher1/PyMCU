@@ -511,9 +511,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def LoadFilesListWidget(self):
         self.FilesListWidget.clear()       
-        subfolders = [f.path for f in os.scandir("/media/scott") if f.is_dir()]
+        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
         if len(subfolders)==0:
-            self.currentProgramFileDirectory = "/media/scott/FLICPrograms/"
+            self.currentProgramFileDirectory = "/media/pi/FLICPrograms/"
         else:
             self.currentProgramFileDirectory = subfolders[0]+"/FLICPrograms/"    
 
