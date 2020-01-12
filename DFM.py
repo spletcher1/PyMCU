@@ -162,7 +162,7 @@ class DFM:
             a=Enums.PROCESSEDPACKETRESULT.WRONGID
             return [a]
         
-        numPacketsReceived = len(bytesData)/66          
+        numPacketsReceived = len(bytesData)/66                
         if (math.floor(numPacketsReceived)!=numPacketsReceived):
             # TODO: Need to figure out how to possibly recover some of the packets.
             # TODO: for now, however, no.            
@@ -180,7 +180,8 @@ class DFM:
              self.UpdateReportedValues()            
         return results
   
-    def ReadValues(self,startTime,saveDataToQueue):
+    def ReadValues(self,startTime,saveDataToQueue):           
+        
         theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
         currentTime = datetime.datetime.today()
         for _ in range(0,self.callLimit) :                        
@@ -227,6 +228,7 @@ class DFM:
                     self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
         if(isSuccess):
             self.CheckStatus()   
+      
 
     def ResetOutputFileStuff(self):
         self.outputFileIncrementor=0

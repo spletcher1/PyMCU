@@ -285,7 +285,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def FindDFMs(self):   
         self.ClearDFM()
-        self.StatusBar.showMessage("Searching for DFMs...")     
+        self.StatusBar.showMessage("Searching for DFMs...",self.statusmessageduration)     
         self.ClearMessages()
         self.theDFMGroup.FindDFMs(5)            
         if(len(self.theDFMGroup.theDFMs)==0):
@@ -461,7 +461,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             #end=time.time()        
             #print("Plotting time: "+str(end-start))    
     
-    def UpdateGUI(self):
+    def UpdateGUI(self):     
         if (self.theDFMGroup.currentProgram.isActive):           
             self.theDFMGroup.UpdateProgramStatus()         
             self.DisableButtons()

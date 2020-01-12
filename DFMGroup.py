@@ -248,7 +248,8 @@ class DFMGroup:
             return    
         self.stopReadWorkerSignal = True
         while(self.isReadWorkerRunning):
-            time.sleep(0.10)                
+            time.sleep(0.10)   
+        print("readworker stopped")             
 
     def StartReadWorker(self):
         if(len(self.theDFMs)==0): 
@@ -274,9 +275,11 @@ class DFMGroup:
         self.stopProgramWorkerSignal = True
         while(self.isProgramWorkerRunning):
             time.sleep(0.10)                
+        print("program worker stopped")             
 
     def ProgramWorker(self):
         self.isProgramWorkerRunning=True        
+        print("start Program worker")
         tt = datetime.datetime.today()        
         lastTime = time.time()    
         lastSecond = tt.second      
@@ -299,7 +302,7 @@ class DFMGroup:
                         self.WriteStep()                                                                           
                 DFMGroup.DFMGroup_updatecomplete.notify()                                                                               
                 lastSecond=tt.second    
-                lastTime=time.time()                                     
+                lastTime=time.time()                                      
             if(self.stopProgramWorkerSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
@@ -308,11 +311,12 @@ class DFMGroup:
             time.sleep( 0.020 ) # Yeild to other threads for a bit
 
     def ReadWorker(self):    
-        self.isReadWorkerRunning=True        
+        self.isReadWorkerRunning=True    
+        print("start read worker")
         lastTime = time.time()    
         while True:   
             tt = datetime.datetime.today()          
-            if(time.time()-lastTime>0.2):                                   
+            if(time.time()-lastTime>.2):                                   
                 if self.activeDFM != None:
                     self.activeDFM.ReadValues(tt,False)                
                 lastTime = time.time()                    
@@ -336,7 +340,7 @@ class DFMGroup:
                 for d in self.theDFMs:
                     if d.isCalculatingBaseline:
                         isBaselineing = True
-                if(isBaselineing):
+                if(isBaselineing): 
                     return
                 else:
                     self.StartRecording()

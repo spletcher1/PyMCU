@@ -125,7 +125,10 @@ class UARTCOMM():
     UART_message = Event.Event()
     #region Core read/write functions
     def __init__(self):
-        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=.1)           
+        ## The timeout here is tricky.  For 15 packets to be sent, it seems to
+        ## take about 0.150 seconds, so the timeout has to be larger than this
+        ## or the packet gets cut off.
+        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=.3)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -191,20 +194,23 @@ class UARTCOMM():
         
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
-        barray.append(0x00)            
+        barray.append(0x00)                 
         self._WriteByteArray(barray,0.001)
     
     def RequestBufferReset(self,ID):        
+        self.thePort.reset_input_buffer()
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFE # Indicates buffer reset        
         ba[2]=ID
-
+    
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)            
         self._WriteByteArray(barray,0.001)
-        tmp=self._Read(2)        
+       
+        tmp=self._Read(2) 
+       
         if(len(tmp)!=2):            
             return False
         if(tmp[0]==ID):
@@ -253,7 +259,7 @@ class UARTCOMM():
         if(len(tmp)!=2):            
             return False
         if(tmp[0]==ID):
-            return True
+            return True 
         else:            
             return False    
 
@@ -265,7 +271,7 @@ class UARTCOMM():
             print("Request time: "+str(end-start))        
         try:      
             #tmp = self._ReadCOBSPacket(1050)
-            #print(str(tmp))
+            #print(str(len(tmp)))
             #return cobs.decode(tmp)
             return cobs.decode(self._ReadCOBSPacket(1050))
         except:
