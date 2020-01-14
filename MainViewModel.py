@@ -139,8 +139,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             return
         sender = self.sender()
         tmp = sender.text()
-        #self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
-        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=.1)
+        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
         if(tmp == "30 minutes"):
             self.programDuration = datetime.timedelta(minutes=30)          
             self.LoadSimpleProgram()  
@@ -165,7 +164,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         elif(tmp == "Custom"):
             self.LoadCustomProgram
 
-        self.StatusBar.showMessage("Loaded simple program: " + tmp,self.statusmessageduration)
+        self.StatusBar.showMessage("Loaded basic program: " + tmp,self.statusmessageduration)
                             
     def ToggleProgramRun(self):
         if(len(self.theDFMGroup.theDFMs)==0): return
@@ -214,7 +213,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.saveDataAction.triggered.connect(self.ChooseDataSaveLocation)
         self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
         self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)
-        
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -322,8 +320,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.SetActiveDFM(0)  
         self.UpdateDFMPageGUI()
         self.GotoDFMPage()     
-        
-
 
     def DeleteDataFolder(self):
         msg = QMessageBox()
@@ -341,7 +337,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 os.system("rm -rf FLICData")  
-            self.StatusBar.showMessage("Existing local data folder has been deleted.",self.statusmessageduration)                              
+            self.StatusBar.showMessage("Local data folder has been deleted.",self.statusmessageduration)                              
 
     def PowerOff(self):
         msg = QMessageBox()
@@ -503,8 +499,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if(self.currentChosenProgramFile!=""):
             fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
             try:              
-                self.theDFMGroup.LoadTextProgram(fn)
-                self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration)   
+                if(self.theDFMGroup.LoadTextProgram(fn)):
+                    self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration) 
+                else:  
+                    self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)   
                 self.UpdateProgramGUI() 
             except:
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
@@ -529,32 +527,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.GotoProgramLoadPage()
         return
       
-
-    def LoadCustomProgramOLD(self):
-        #self.debugPrint( "Browse button pressed" )
-        if(len(self.theDFMGroup.theDFMs)==0): 
-            self.StatusBar.showMessage("Load programs only after DFMs have been defined.",self.statusmessageduration)
-            return
-        options = QtWidgets.QFileDialog.Options()
-        options |= QtWidgets.QFileDialog.DontUseNativeDialog
-        dialog =QFileDialog(self)
-        dialog.setFileMode(QFileDialog.ExistingFile)
-        dialog.setNameFilter("Text Files (*.txt)")
-        dialog.setWindowTitle("Load Program")
-        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        if len(subfolders)==0:
-            dialog.setDirectory("/media/pi")
-        else:
-            dialog.setDirectory(subfolders[0])    
-
-        if(dialog.exec_()):
-            try:
-                direct = dialog.selectedFiles()[0]
-                self.theDFMGroup.LoadTextProgram(direct)
-                self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration)   
-                self.UpdateProgramGUI() 
-            except:
-                self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
     def ChooseDataSaveLocation( self ):
         ''' Called when the user presses the Browse button
         '''

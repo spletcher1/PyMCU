@@ -356,9 +356,13 @@ class DFMGroup:
         f=open(programPath,encoding="utf-8-sig")
         lines = f.readlines()
         f.close()
-        self.currentProgram.LoadProgram(lines,self.theDFMs)
-        for d in self.theDFMs:           
-            d.lidType = self.currentProgram.GetLidType(d.ID)       
+        result=self.currentProgram.LoadProgram(lines,self.theDFMs)
+        if (result):
+            for d in self.theDFMs:           
+                d.lidType = self.currentProgram.GetLidType(d.ID) 
+        else:
+            self.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=180))
+        return result  
         
     def LoadSimpleProgram(self,startTime,duration):
         self.currentProgram.CreateSimpleProgram(startTime,duration)

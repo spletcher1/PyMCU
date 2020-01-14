@@ -109,7 +109,7 @@ class InstructionSet:
             dur = datetime.timedelta(seconds=(float(ss[13])*60))
             # For now, we assume that freq, pw, decay, delay and maxtime are set only at the level of the whole
             # instruction set, as it was for the DFM V2 software. 
-            # TODO: loosen this and max each adjustable from the program for each instruction.
+            # TODO: loosen this and make each adjustable from the program for each instruction.
             tmp = Instruction.DFMInstruction(ds,self.optoFrequency,self.optoPulseWidth,self.optoDecay,self.optoDelay,self.maxTimeOn,dur,0)
             tmp.SetOptoValues(ov)
             self.AddInstruction(tmp)
