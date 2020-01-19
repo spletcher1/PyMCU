@@ -15,7 +15,7 @@ import DFMPlot
 import socket
 import os
 import glob
-if(platform.node()=="raspberrypi"):
+if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
 
 
@@ -48,7 +48,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ProgramTextEdit.setStyleSheet(tmp2)     
         self.ProgramPreviewTextBox.setStyleSheet(tmp2)
         self.FilesListWidget.setStyleSheet(tmp3)        
-        if(platform.node()=="raspberrypi"):
+        if("MCU" in platform.node()):
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
         else:
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
@@ -558,13 +558,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
 def main():
-    if(platform.node()=="raspberrypi"):
+    if("MCU" in platform.node()):
         Board.BoardSetup()  
     
     app = QtWidgets.QApplication(sys.argv)
     #app.setStyleSheet("QStatusBar.item {border : 0px black}")
     myapp = MyMainWindow()
-    if(platform.node()=="raspberrypi"):
+    if("MCU" in platform.node()):
         myapp.showFullScreen()
     else:
         myapp.show()

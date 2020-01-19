@@ -18,7 +18,7 @@ from cobs import cobs
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
 
-if(platform.node()=="raspberrypi"):        
+if("MCU" in platform.node()):        
     import RPi.GPIO as GPIO
 
 #region TESTCOMM

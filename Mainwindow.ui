@@ -26,7 +26,7 @@
    <cursorShape>BlankCursor</cursorShape>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>FLICMCU</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
@@ -77,8 +77,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>541</width>
-             <height>384</height>
+             <width>98</width>
+             <height>58</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -366,10 +366,10 @@
           <widget class="QWidget" name="scrollAreaWidgetContents_5">
            <property name="geometry">
             <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>116</width>
-             <height>382</height>
+             <x>1</x>
+             <y>1</y>
+             <width>96</width>
+             <height>26</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1231,8 +1231,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>769</width>
-             <height>384</height>
+             <width>98</width>
+             <height>60</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
