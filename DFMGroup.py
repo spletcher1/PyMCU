@@ -40,6 +40,12 @@ class DFMGroup:
         self.writeStartTimes=[]
         self.currentDFMIndex=0
 
+        Board.BoardSetup.Camera_message+=self.NewCameraMessage  
+        self.cameraRecordState=False
+
+    def NewCameraMessage(self,cameraRecordState):        
+        print("Camera message detected in DFM!")
+        print(str(cameraRecordState))
 
     def NewMessageDirect(self,newMessage):        
         self.theMessageList.AddMessage(newMessage)     
@@ -314,7 +320,8 @@ class DFMGroup:
             tt = datetime.datetime.today()          
             if(time.time()-lastTime>.2):                                   
                 if self.activeDFM != None:
-                    self.activeDFM.ReadValues(tt,False)                
+                    if(self.cameraRecordState==True):
+                        self.activeDFM.ReadValues(tt,False)                
                 lastTime = time.time()                    
                 DFMGroup.DFMGroup_updatecomplete.notify()                                                                         
             if(self.stopReadWorkerSignal):

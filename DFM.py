@@ -45,14 +45,16 @@ class DFM:
         self.reportedDarkState = Enums.DARKSTATE.UNCONTROLLED
         self.reportedHumidity=1.0
         self.reportedLUX=0
-        self.reportedVoltsIn=1.0      
+        self.reportedVoltsIn=1.0    
 
+       
     def __str__(self):
         return "DFM " + str(self.ID)
 
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)        
-        DFM.DFM_message.notify(tmp)        
+        DFM.DFM_message.notify(tmp)   
+
     #endregion
   
     #region Property-like getters and setters
