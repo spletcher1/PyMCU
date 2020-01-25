@@ -11,9 +11,9 @@ Baseline: Yes
 [DFM]
 ID: 1
 OptoLid: Twelve
-ProgramType: Linear
-Interval: 1,1,1,1,1,1,1,0,0,0,0,0,0,1
-Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
-Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,1
+ProgramType: Repeating
+Interval: 1,20,20,20,20,20,20,20,20,20,20,20,20,10
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,10
+Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,10
 
 

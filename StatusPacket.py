@@ -19,33 +19,33 @@ class StatusPacket:
         self.optoPulseWidth=0
         self.errorFlags=0
         self.recordIndex=0
-    def ProcessStatusPacket(self,bytesData,timeOfMeasure,packetNum):        
-        ## This function should receive packetnumbers 0-4
-        self.packetTime = timeOfMeasure - datetime.timedelta(microseconds=(5-packetNum)*200000)
-        indexer = (packetNum*65)+4
+    def ProcessStatusPacket(self,bytesData,startTime,packetNum):        
+        ## This function should receive packetnumbers 0-4        
+        indexer = (packetNum*66)
         # Calculate the checksum
         calculatedCheckSum=0
-        for cs in range(indexer,(indexer+61)) :
+        for cs in range(indexer,(indexer+62)) :
             calculatedCheckSum+=bytesData[cs]
         calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
-        expectedCheckSum = bytesData[(indexer+61)]<<24
-        expectedCheckSum += bytesData[(indexer+62)]<<16
-        expectedCheckSum += bytesData[(indexer+63)]<<8
-        expectedCheckSum += bytesData[(indexer+64)]
+        expectedCheckSum = bytesData[(indexer+62)]<<24
+        expectedCheckSum += bytesData[(indexer+63)]<<16
+        expectedCheckSum += bytesData[(indexer+64)]<<8
+        expectedCheckSum += bytesData[(indexer+65)]
        
-        
-        if(calculatedCheckSum != expectedCheckSum):                           
+        if(calculatedCheckSum != expectedCheckSum):            
             return PROCESSEDPACKETRESULT.CHECKSUMERROR
         
-        self.errorFlags = bytesData[indexer]
+        ## Add one to move past the ID
+        indexer+=1
 
+        self.errorFlags = bytesData[indexer]        
         for i in range(0,12):
             baseindex=(i*3)+(indexer+1)
             currentValue = bytesData[baseindex]<<16
             currentValue += bytesData[baseindex+1]<<8
             currentValue += bytesData[baseindex+2]
             self.analogValues[i] = currentValue >>7
-
+           
         currentValue = bytesData[(indexer+37)]<<16
         currentValue += bytesData[(indexer+38)]<<8
         currentValue += bytesData[(indexer+39)]
@@ -86,6 +86,8 @@ class StatusPacket:
         currentValue += bytesData[(indexer+60)]
         self.recordIndex = currentValue
         
+        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)
+
         return PROCESSEDPACKETRESULT.OKAY   
     def GetConsolePrintPacket(self):
         tmp = self.packetTime.microsecond/1000

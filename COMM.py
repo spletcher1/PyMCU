@@ -13,13 +13,15 @@ import datetime
 import Instruction
 import Enums
 import Board
+from cobs import cobs
 
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
 
-if(platform.node()=="raspberrypi"):        
+if("MCU" in platform.node()):        
     import RPi.GPIO as GPIO
 
+#region TESTCOMM
 class TESTCOMM():
     UART_message = Event.Event()
     def __init__(self):
@@ -45,16 +47,17 @@ class TESTCOMM():
         self._DoNothing()
     def SendInstruction(self,ID,anInstruction):
         return True
+    def RequestBufferReset(self,ID):
+        return True
     def _CreateFakeStatusPacket(self,ID):
         tmp = StatusPacket.StatusPacket(0)
-        ba = bytearray(329)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        for j in range(0,5):
-            indexer = (j*65)+4
-            ba[indexer]=0x00 #Error flag     
+        ba = bytearray(66*5)       
+       
+        for j in range(0,5):           
+            baseindexer = (j*66)
+            ba[baseindexer]=ID 
+            indexer=baseindexer+1
+            ba[indexer]=0x00 #Error flaj 
             for i in range(0,12):
                 analog=50+randint(0,20)
                 analog *=128
@@ -98,12 +101,12 @@ class TESTCOMM():
 
             tmp = self.recordIndex
             ba[(indexer+57)] = tmp>>24
-            ba[(indexer+58)] = (tmp>>16) & 0xFF
+            ba[(indexer+58)]  = (tmp>>16) & 0xFF
             ba[(indexer+59)] = (tmp>>8) & 0xFF
             ba[(indexer+60)] = tmp & 0xFF
             
             calculatedCheckSum=0
-            for cs in range(indexer,indexer+61) :
+            for cs in range(baseindexer,baseindexer+62) :
                 calculatedCheckSum+=ba[cs]
             calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
             ba[(indexer+61)] = calculatedCheckSum>>24
@@ -116,12 +119,16 @@ class TESTCOMM():
     def GetStatusPacket(self,ID):        
         tmp = self._CreateFakeStatusPacket(ID) 
         return tmp
-
+#endregion
 
 class UARTCOMM():    
     UART_message = Event.Event()
+    #region Core read/write functions
     def __init__(self):
-        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=.1)           
+        ## The timeout here is tricky.  For 15 packets to be sent, it seems to
+        ## take about 0.150 seconds, so the timeout has to be larger than this
+        ## or the packet gets cut off.
+        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=.3)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -145,8 +152,11 @@ class UARTCOMM():
         term = bytearray(1)
         term[0]=0x00
         result = self.thePort.read_until(term,maxBytes)
-        result = result[:-1]
+        result = result[:-1]        
         return result
+    #endregion
+
+    #region Misc Functions
     def GetAvailablePorts(self):
         ports = serial.tools.list_ports.comports()
         available_ports=[]
@@ -171,77 +181,154 @@ class UARTCOMM():
         ba[tmp-4] = (checksum>>24) & 0xFF
         ba[tmp-3] = (checksum>>16) & 0xFF
         ba[tmp-2] = (checksum>>8) & 0xFF
-        ba[tmp-1] = (checksum) & 0xFF        
+        ba[tmp-1] = (checksum) & 0xFF   
+    #endregion
+
+    #region Specific DFM calls     
     def RequestStatus(self,ID):
-        ba = bytearray(5)
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFC # Indicates status request
-        ba[3]=ID
-        ba[4]=ID
-        self._WriteByteArray(ba,0.001)
-    def SendInstruction(self,ID,anInstruction):
-        ba = bytearray(43)   
-        ba[0]=0xFF
-        ba[1]=0xFF
-        ba[2]=0xFD
-        ba[3]=ID
-        if(anInstruction.theDarkState==Enums.DARKSTATE.ON):
-            ba[4]=1
-        else:
-            ba[4]=0
-        ba[5]=(anInstruction.frequency>>8) & 0xFF
-        ba[6]=(anInstruction.frequency) & 0xFF
-
-        ba[7]=(anInstruction.pulseWidth>>8) & 0xFF
-        ba[8]=(anInstruction.pulseWidth) & 0xFF
-
-        ba[9]=(anInstruction.decay>>8) & 0xFF
-        ba[10]=(anInstruction.decay) & 0xFF
-    
-        ba[11]=(anInstruction.delay>>8) & 0xFF
-        ba[12]=(anInstruction.delay) & 0xFF
-
-        ba[13]=(anInstruction.maxTimeOn>>8) & 0xFF
-        ba[14]=(anInstruction.maxTimeOn) & 0xFF
-
-        for i in range(0,12):
-            index=i*2+15
-            ba[index] = (anInstruction.optoValues[i]>>8) & 0xFF            
-            ba[index+1] = (anInstruction.optoValues[i]) & 0xFF             
+                 
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xFC # Indicates status request
+        ba[2]=ID
         
-        self._AddChecksumFourBytes(3,ba)       
-        # Using the RT patched linus, it appears that 
-        # a delay of 0.005 is just enough to transmit 43 bytes.
-        self._WriteByteArray(ba,0.006)
-
-        tmp=self._Read(1)
-        if(len(tmp)==0):
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)                 
+        self._WriteByteArray(barray,0.001)
+    
+    def RequestBufferReset(self,ID):        
+        self.thePort.reset_input_buffer()
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xFE # Indicates buffer reset        
+        ba[2]=ID
+    
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)            
+        self._WriteByteArray(barray,0.001)
+       
+        tmp=self._Read(2) 
+       
+        if(len(tmp)!=2):            
             return False
         if(tmp[0]==ID):
             return True
         else:
             return False    
 
+    def SendInstruction(self,ID,anInstruction):          
+        ba = bytearray(41)           
+        ba[0]=ID
+        ba[1]=0xFD
+       
+        if(anInstruction.theDarkState==Enums.DARKSTATE.ON):
+            ba[2]=1
+        else:
+            ba[2]=0
+        ba[3]=(anInstruction.frequency>>8) & 0xFF
+        ba[4]=(anInstruction.frequency) & 0xFF
 
-    def GetStatusPacket(self,ID):                  
+        ba[5]=(anInstruction.pulseWidth>>8) & 0xFF
+        ba[6]=(anInstruction.pulseWidth) & 0xFF
+
+        ba[7]=(anInstruction.decay>>8) & 0xFF
+        ba[8]=(anInstruction.decay) & 0xFF
+    
+        ba[9]=(anInstruction.delay>>8) & 0xFF
+        ba[10]=(anInstruction.delay) & 0xFF
+
+        ba[11]=(anInstruction.maxTimeOn>>8) & 0xFF
+        ba[12]=(anInstruction.maxTimeOn) & 0xFF
+
+        for i in range(0,12):
+            index=i*2+13
+            ba[index] = (anInstruction.adjustedThresholds[i]>>8) & 0xFF            
+            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                     
+        self._AddChecksumFourBytes(0,ba)       
+        
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)         
+
+        # Using the RT patched linus, it appears that 
+        # a delay of 0.005 is just enough to transmit 43 bytes.
+        self._WriteByteArray(barray,0.006)        
+        tmp=self._Read(2)
+        if(len(tmp)!=2):            
+            return False
+        if(tmp[0]==ID):
+            return True 
+        else:            
+            return False    
+
+    def GetStatusPacket(self,ID):                      
         start = time.time()
         self.RequestStatus(ID)
         end=time.time()
-        if ((end-start)>0.005) :
+        if ((end-start)>0.010) :
             print("Request time: "+str(end-start))        
-        #Now reading five packets.
-        return self._Read(329) 
-        #return tmp 
-    def PollSlave(self,ID):
-        tmp=self.GetStatusPacket(ID)        
-        if(len(tmp)==329 and tmp[3]==ID):         
-            return True
-        else :            
-            return False
+        try:      
+            #tmp = self._ReadCOBSPacket(1050)
+            #print(str(len(tmp)))
+            #return cobs.decode(tmp)
+            return cobs.decode(self._ReadCOBSPacket(1050))
+        except:
+            return ''
+    def PollSlave(self,ID):                     
+        return self.RequestBufferReset(ID)   
+    #endregion     
+       
 
 
+#region Module Testing
+def ModuleTest3():
+    Board.BoardSetup()
+    p=UARTCOMM()   
+    result=p.RequestBufferReset(1)
+    print(result)
+    time.sleep(.1)
+    result=p.RequestBufferReset(2)
+    print(result)
+    time.sleep(.1)
+    result=p.RequestBufferReset(1)
+    print(result)
+    
+    #counter = 0
+    #while counter<1000000:
+    #    counter+=1
 
+    #print(result)
+    #while result!=True:
+    #    time.sleep(1)
+    #    result=p.RequestBufferReset(1)
+    #    print(result)
+    
+    
+    #tmp=p.GetStatusPacket(1)            
+    #tmp2 = ((len(tmp)-69)/65)+1
+    #print(tmp2)
+
+def ModuleTest2():
+    Board.BoardSetup()
+    p=UARTCOMM()
+    counter=0
+    totalpackets=0
+    tmp=p.GetStatusPacket(1)
+    print(len(tmp))
+    return
+    time.sleep(1)
+    start = time.time()
+    while counter<12:
+        tmp=p.GetStatusPacket(1)
+        tmp2 = ((len(tmp)-69)/65)+1
+        totalpackets+=tmp2
+        print(totalpackets)
+        time.sleep(1)
+        counter+=1
+    end=time.time()
+    print("Time: "+str(end-start))
 
 def ModuleTest():
     Board.BoardSetup()
@@ -254,11 +341,6 @@ def ModuleTest():
     inst.delay=1234
     for i in range(0,12):
         inst.SetOptoValueWell(i,i*3)
-    #print(p.PollSlave(1))
-    #time.sleep(1)
-    #tmp = p.GetStatusPacket(1)
-    #print(str(tmp))
-    #time.sleep(1)
     print(p.SendInstruction(1,inst))    
     time.sleep(2)
     return
@@ -274,12 +356,9 @@ def ModuleTest():
     print(p.SendInstruction(1,inst)        )
 
     
-    
-
-
-    
-
 
 if __name__=="__main__" :
-    ModuleTest()   
+    ModuleTest3()   
     print("Done!!")     
+
+#endregion

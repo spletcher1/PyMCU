@@ -1,6 +1,44 @@
+********
 Remember to consider disabling bluetooth and enabling the better uart by adding the following to /boot/config.txt
-
 dtoverlay=pi3-miniuart-bt
+********
+Here is how to set the PI to read from the DS3231 RTC on boot up automatically to set the time
+https://www.raspberrypi.org/forums/viewtopic.php?f=63&t=161133
+
+1. put the below line into the /boot/config.txt file: (edit it with your favourite editor and type the line in - or copy and paste it from here :-) )
+
+dtoverlay=i2c-rtc,ds3231
+
+2. edit the /lib/udev/hwclock-set file (sudo nano /lib/udev/hwclock-set) and "comment out" the following lines ("comment out" means put a # at the beginning of each of the lines, so they become comments and are ignored by the system)
+
+if [ -e /run/systemd/system ] ; then
+exit 0
+fi
+
+read time directly from rtc module
+sudo hwclock -r
+
+update rtc module time from system time (system time should be regularly updated by ntp from the internet if your pi is networked):
+sudo hwclock -w
+
+update system time from the rtc module (this should happen on startup):
+sudo hwclock -s
+
+and the most fun of all - monitor the "drift" between your system clock and the rtc module:
+sudo hwclock -c
+
+
+********
+
+
+
+
+
+
+
+
+
+
 
 **** INSTALLING PYPY on the PI ***********
 

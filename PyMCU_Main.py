@@ -8,11 +8,11 @@ import COMM
 import sys
 import Board
 
-if(platform.node()=="raspberrypi"):
+if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
 
 def main():
-    if(platform.node()=="raspberrypi"):
+    if("MCU" in platform.node()):
         Board.BoardSetup()   
     ##tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
     tmp = DFMGroup.DFMGroup(COMM.TESTCOMM())
@@ -32,7 +32,7 @@ def main():
     tmp.StopReading()
     
 def MiniMain():
-    if(platform.node()=="raspberrypi"):
+    if("MCU" in platform.node()):
         Board.BoardSetup()   
     tmp = DFMGroup.DFMGroup(COMM.UARTCOMM())
     tmp.FindDFMs(2,False)

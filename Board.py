@@ -1,5 +1,5 @@
 import platform
-if(platform.node()=="raspberrypi"):
+if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
 
 

@@ -14,21 +14,41 @@ import Board
 import DFMPlot
 import socket
 import os
-if(platform.node()=="raspberrypi"):
+import glob
+if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
+
+
+class GUIUpdateThread(QtCore.QThread):
+    updateGUISignal = QtCore.pyqtSignal()
+    
+    def __init__(self):
+        QtCore.QThread.__init__(self)
+        self.keepRunning=True
+    def run(self):   
+        while self.keepRunning:
+            self.updateGUISignal.emit()
+            time.sleep(1)
+    def StopThread(self):
+        self.keepRunning = False
+
+
 
 
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
     def __init__( self ):       
         super(MyMainWindow,self).__init__()        
+        #uic.loadUi("/home/pi/Programming/Python/PyMCU/Mainwindow.ui",self)
         uic.loadUi("Mainwindow.ui",self)
-        tmp = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
-        tmp2 = "QTextEdit {background-color: "+tmp+"}"
+        self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
+        tmp2 = "QTextEdit {background-color: "+self.defaultBackgroundColor+"}"
+        tmp3 = "QListWidget {background-color: "+self.defaultBackgroundColor+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
-        self.ProgramTextEdit.setStyleSheet(tmp2)
-        #self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
-        if(platform.node()=="raspberrypi"):
+        self.ProgramTextEdit.setStyleSheet(tmp2)     
+        self.ProgramPreviewTextBox.setStyleSheet(tmp2)
+        self.FilesListWidget.setStyleSheet(tmp3)        
+        if("MCU" in platform.node()):
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
         else:
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
@@ -42,26 +62,29 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.statusLabel.setFrameShadow(QFrame.Plain)
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
         self.StatusBar.addPermanentWidget(self.statusLabel)        
-        self.stopUpdateLoop=False
-        self.guiThread = threading.Thread(target=self.UpdateGUI)
-        self.guiThread.start()
+       
         self.DFMButtons = []
         self.UpdateProgramGUI()
 
         self.main_widget = QtWidgets.QWidget(self)
-        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=tmp,width=5, height=4, dpi=100)
-        #dc = DFMPlot.MyDynamicMplCanvas(self.main_widget, width=5, height=4, dpi=100)
+        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=self.defaultBackgroundColor,width=5, height=4, dpi=100)        
         self.DFMPlotLayout.addWidget(self.theDFMDataPlot)   
 
         self.programDuration = datetime.timedelta(minutes=180)
         self.SetProgramStartTime(datetime.datetime.today())
 
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
-      
-      
+        self.toggleOutputsState=False
 
-    def DisableButtons(self):
-        self.findDFMAction.setEnabled(False)
+        self.MThread = GUIUpdateThread()
+        self.MThread.updateGUISignal.connect(self.UpdateGUI)      
+        self.MThread.start()
+
+        self.FilesListWidget.currentItemChanged.connect(self.ProgramFileChoiceChanged)
+        self.currentChosenProgramFile=""
+        self.currentProgramFileDirectory=""
+
+    def DisableButtons(self):        
         self.clearDFMAction.setEnabled(False)
         self.saveDataAction.setEnabled(False)
         self.clearMessagesAction.setEnabled(False)
@@ -77,9 +100,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.setEnabled(False)
         self.StartTimeNowButton.setEnabled(False)
         self.StartTimeEdit.setEnabled(False)
+        self.toggleOutputsAction.setEnabled(False)
+        self.LoadProgramButton.setEnabled(False)
 
-    def EnableButtons(self):
-        self.findDFMAction.setEnabled(True)
+    def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
         self.saveDataAction.setEnabled(True)
         self.clearMessagesAction.setEnabled(True)
@@ -95,6 +119,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.setEnabled(True)
         self.StartTimeNowButton.setEnabled(True)
         self.StartTimeEdit.setEnabled(True)
+        self.toggleOutputsAction.setEnabled(True)
+        self.LoadProgramButton.setEnabled(True)
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)    
@@ -138,17 +164,20 @@ class MyMainWindow(QtWidgets.QMainWindow):
         elif(tmp == "Custom"):
             self.LoadCustomProgram
 
-        self.StatusBar.showMessage("Loaded simple program: " + tmp,self.statusmessageduration)
+        self.StatusBar.showMessage("Loaded basic program: " + tmp,self.statusmessageduration)
                             
     def ToggleProgramRun(self):
         if(len(self.theDFMGroup.theDFMs)==0): return
         if(self.theDFMGroup.currentProgram.isActive):
             self.RunProgramButton.setText("Run Program")
             self.theDFMGroup.StopCurrentProgram()
+            self.toggleOutputsState=False
         else:
-            self.DisableButtons()
-            self.RunProgramButton.setText("Stop Program")                         
-            self.theDFMGroup.StageCurrentProgram()
+            self.DisableButtons()                        
+            self.RunProgramButton.setText("Stop Program")      
+            self.theDFMGroup.StageCurrentProgram()            
+            self.toggleOutputsState=False
+        self.UpdateDFMButtonTextColors()
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
@@ -161,7 +190,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.ProgramTextEdit.setText(self.theDFMGroup.currentProgram.GetProgramDescription())
         else:
             self.ProgramTextEdit.setText("No program loaded.")
-
 
     def setupUi( self, MW ):
         ''' Setup the UI of the super class, and add here code
@@ -184,7 +212,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.powerOffAction.triggered.connect(self.PowerOff)
         self.saveDataAction.triggered.connect(self.ChooseDataSaveLocation)
         self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
-        
+        self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -197,6 +225,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
         self.StartTimeNowButton.clicked.connect(self.SetStartTimeNow)
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
+        self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
+        self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
+
+    def ToggleOutputs(self):
+        if(self.toggleOutputsState):
+            for d in self.theDFMGroup.theDFMs:
+                d.SetOutputsOff()
+            self.toggleOutputsState = False
+        else:
+            for d in self.theDFMGroup.theDFMs:
+                d.SetOutputsOn()
+            self.toggleOutputsState = True
 
     def SetStartTimeNow(self):
         self.SetProgramStartTime(datetime.datetime.today())
@@ -214,17 +254,37 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip=s.getsockname()[0]
         ss="Version 5.0\nIP: " + hostip
         msg.setInformativeText(ss)    
-        retval=msg.exec_()        
+        msg.exec_()        
 
     def SetActiveDFM(self,num):
-        self.activeDFMNum=num
-        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]
-        
-        for i in range(0,len(self.DFMButtons)):
-            if(i==self.activeDFMNum):
-                self.DFMButtons[i].setStyleSheet('QPushButton {color: red}')
+        self.activeDFMNum=num        
+        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]        
+        self.theDFMGroup.activeDFM = self.activeDFM       
+        self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
+        self.UpdateDFMButtonTextColors()
+
+    def UpdateDFMButtonTextColors(self):        
+        for i in range(0,len(self.theDFMGroup.theDFMs)):
+            if(self.activeDFMNum==i):
+                ss = 'QPushButton {font-weight:bold;'
             else:
-                self.DFMButtons[i].setStyleSheet('QPushButton {color: black}')
+                ss = 'QPushButton {'
+            if(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.READING):               
+                ss+= 'color: black}' 
+                self.DFMButtons[i].setStyleSheet(ss)                                
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.RECORDING):
+                ss+= 'color: green}' 
+                self.DFMButtons[i].setStyleSheet(ss)
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.ERROR):
+                ss+= 'color: red}' 
+                self.DFMButtons[i].setStyleSheet(ss)
+            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.MISSING):
+                ss+= 'color: blue}' 
+                self.DFMButtons[i].setStyleSheet(ss)
+            else:
+                ss+= 'color: orange}' 
+                self.DFMButtons[i].setStyleSheet(ss)                
+
 
     def DFMButtonClicked(self):
         sender = self.sender()
@@ -234,30 +294,32 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.UpdateDFMPageGUI()                    
 
     def FindDFMs(self):   
-        self.StatusBar.showMessage("Searching for DFMs...")     
+        self.ClearDFM()
+        self.StatusBar.showMessage("Searching for DFMs...",self.statusmessageduration)     
         self.ClearMessages()
-        self.theDFMGroup.FindDFMs(2)
-        self.DFMButtons=[]
+        self.theDFMGroup.FindDFMs(5)            
+        if(len(self.theDFMGroup.theDFMs)==0):
+            self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
+            return
+        self.findDFMAction.setEnabled(False)
         for d in self.theDFMGroup.theDFMs:
             s = str(d)
             tmp = QPushButton(s)
             tmp.setFlat(False)            
-            tmp.setMinimumHeight(35)
+            tmp.setMinimumHeight(45)
             #tmp.setMaximumWidth(88)
             self.DFMListLayout2.setAlignment(Qt.AlignTop)
             self.DFMListLayout2.addWidget(tmp)            
-            self.DFMButtons.append(tmp)
-            self.SetActiveDFM(0)   
-        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                
-
+            self.DFMButtons.append(tmp)             
+        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                        
         for b in self.DFMButtons:
-            b.clicked.connect(self.DFMButtonClicked)     
-        self.UpdateDFMPageGUI()
+            b.clicked.connect(self.DFMButtonClicked)             
         self.programStartTime = datetime.datetime.today()
         self.programDuration = datetime.timedelta(minutes=180)
-        self.LoadSimpleProgram()
+        self.LoadSimpleProgram()        
+        self.SetActiveDFM(0)  
+        self.UpdateDFMPageGUI()
         self.GotoDFMPage()     
-
 
     def DeleteDataFolder(self):
         msg = QMessageBox()
@@ -275,7 +337,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 os.system("rm -rf FLICData")  
-            self.StatusBar.showMessage("Existing local data folder has been deleted.")                              
+            self.StatusBar.showMessage("Local data folder has been deleted.",self.statusmessageduration)                              
 
     def PowerOff(self):
         msg = QMessageBox()
@@ -292,7 +354,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
-                print("Shuttind down")
+                print("Shutting down")
                 #os.system("shotdown /s /t 1)")
 
     def AssureClearMessages(self):
@@ -306,9 +368,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.ClearMessages()
         
     def ClearMessages(self):       
-        self.theDFMGroup.theMessageList.ClearMessages()
-        self.UpdateMessagesGUI()
-
+        self.theDFMGroup.theMessageList.ClearMessages()        
+        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))    
+    
     def ClearLayout(self,layout):
         while layout.count():
             child=layout.takeAt(0)
@@ -316,26 +378,25 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 child.widget().deleteLater()
 
     def ClearDFM(self):
-        self.theDFMGroup.StopReading()
+        self.theDFMGroup.ClearDFMList()
         self.ClearLayout(self.DFMListLayout2)
         self.activeDFMNum=-1
         self.activeDFM=None
         self.DFMButtons.clear()
-        self.UpdateProgramGUI()
-        self.ClearMessages()
+        self.UpdateProgramGUI()        
+        self.findDFMAction.setEnabled(True)
 
     def GoToMessagesPage(self):
-        self.StackedPages.setCurrentIndex(2)
-        self.UpdateMessagesGUI()        
+        self.StackedPages.setCurrentIndex(2)           
 
     def GoToProgramPage(self):        
         self.StackedPages.setCurrentIndex(0)
     
     def GotoDFMPage(self):
         self.StackedPages.setCurrentIndex(1)
-
-    def UpdateMessagesGUI(self):
-        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
+     
+    def GotoProgramLoadPage(self):  
+        self.StackedPages.setCurrentIndex(3)
 
     def UpdateDFMPageGUI(self):
         self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
@@ -352,55 +413,57 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.OptoStateLabel.setText("{:02X},{:02X}".format(self.activeDFM.reportedOptoStateCol1,self.activeDFM.reportedOptoStateCol2))
 
         if(self.activeDFM.status==Enums.CURRENTSTATUS.ERROR):
-            self.CurrentStatusLabel.setText("Err")
+            self.CurrentStatusLabel.setText("Error")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.MISSING):
             self.CurrentStatusLabel.setText("Miss")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.READING):
             self.CurrentStatusLabel.setText("Read")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.RECORDING):
-            self.CurrentStatusLabel.setText("Rec")
+            self.CurrentStatusLabel.setText("Record")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.UNDEFINED):
             self.CurrentStatusLabel.setText("None")
 
         if(self.activeDFM.pastStatus==Enums.PASTSTATUS.PASTERROR):
-            self.PastStatusLabel.setText("Err")
+            self.PastStatusLabel.setText("Error")
         if(self.activeDFM.pastStatus==Enums.PASTSTATUS.ALLCLEAR):
             self.PastStatusLabel.setText("Clear")
 
-        if(self.activeDFM.currentDFMErrors.GetI2CErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+        if(self.activeDFM.currentDFMErrors.GetI2CErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):            
             self.I2CErrorBox.setChecked(False)
-        else:
-            self.I2CErrorBox.setChecked(False)
+        else:            
+            self.I2CErrorBox.setChecked(True)
 
         if(self.activeDFM.currentDFMErrors.GetUARTErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.UARTErrorBox.setChecked(False)
         else:
-            self.UARTErrorBox.setChecked(False)
+            self.UARTErrorBox.setChecked(True)
          
         if(self.activeDFM.currentDFMErrors.GetPacketErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.PacketErrorBox.setChecked(False)
         else:
-            self.PacketErrorBox.setChecked(False)
+            self.PacketErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.Getsi7021ErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.SIErrorBox.setChecked(False)
         else:
-            self.SIErrorBox.setChecked(False)
+            self.SIErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetTSL2591ErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.TSLErrorBox.setChecked(False)
         else:
-            self.TSLErrorBox.setChecked(False)
+            self.TSLErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetConfigErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.ConfigErrorBox.setChecked(False)
         else:
-            self.ConfigErrorBox.setChecked(False)
+            self.ConfigErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetBufferErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.BufferErrorBox.setChecked(False)
         else:
-            self.BufferErrorBox.setChecked(False)
+            self.BufferErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetMiscErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.MiscErrorBox.setChecked(False)
         else:
-            self.MiscErrorBox.setChecked(False)
+            self.MiscErrorBox.setChecked(True)
+
+        self.UpdateDFMButtonTextColors()
 
     def UpdateDFMPlot(self):        
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                     
@@ -408,61 +471,62 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
             #end=time.time()        
             #print("Plotting time: "+str(end-start))    
-    def UpdateGUI(self):
-        while True:
-            if self.stopUpdateLoop:
-                return           
-            if (self.theDFMGroup.currentProgram.isActive):           
-                self.theDFMGroup.UpdateProgramStatus()         
-                self.DisableButtons()
-            else:
-                self.EnableButtons()
-            self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
-            if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
-                self.UpdateDFMPageGUI()
-                #self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
-            elif self.StackedPages.currentIndex()==2:
-                self.UpdateMessagesGUI                          
-            time.sleep(1)
-                
+    
+    def UpdateGUI(self):     
+        if (self.theDFMGroup.currentProgram.isActive):           
+            self.theDFMGroup.UpdateProgramStatus()         
+            self.DisableButtons()
+        else:
+            self.EnableButtons()
+        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
+        if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
+            self.UpdateDFMPageGUI() 
+        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                           
+        
+            
     def closeEvent(self,event):
-        self.stopUpdateLoop=True
+        self.MThread.StopThread()
         self.ClearDFM()
 
-    # slot
-    def LoadCustomProgram( self ):
-        ''' Called when the user presses the Browse button
-        '''
-        #self.debugPrint( "Browse button pressed" )
-        if(len(self.theDFMGroup.theDFMs)==0): 
-            self.StatusBar.showMessage("Load programs only after DFMs have been defined.",self.statusmessageduration)
-            return
-        options = QtWidgets.QFileDialog.Options()
-        options |= QtWidgets.QFileDialog.DontUseNativeDialog
-        dialog =QFileDialog(self)
-        dialog.setFileMode(QFileDialog.ExistingFile)
-        dialog.setNameFilter("Text Files (*.txt)")
-        dialog.setWindowTitle("Load Program")
-        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        if len(subfolders)==0:
-            dialog.setDirectory("/media/pi")
-        else:
-            dialog.setDirectory(subfolders[0])    
+    def ProgramFileChoiceChanged(self,curr, prev):
+        self.currentChosenProgramFile = curr.text()
+        fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
+        f = open(fn,"r")
+        lines=f.read()       
+        self.ProgramPreviewTextBox.setText(lines)    
 
-        if(dialog.exec_()):
-            try:
-                direct = dialog.selectedFiles()[0]
-                self.theDFMGroup.LoadTextProgram(direct)
-                self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration)   
+    def LoadProgramClicked(self):
+        if(self.currentChosenProgramFile!=""):
+            fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
+            try:              
+                if(self.theDFMGroup.LoadTextProgram(fn)):
+                    self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration) 
+                else:  
+                    self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)   
                 self.UpdateProgramGUI() 
             except:
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
 
-        ## Donr forget to set programstarttime and duration here 
-        ## aFTER THE program is loaded.
-        print(direct)
+    def LoadFilesListWidget(self):
+        self.FilesListWidget.clear()       
+        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+        if len(subfolders)==0:
+            self.currentProgramFileDirectory = "/media/pi/FLICPrograms/"
+        else:
+            self.currentProgramFileDirectory = subfolders[0]+"/FLICPrograms/"    
 
-
+        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
+        for f in files:
+            h, t = os.path.split(f)
+            self.FilesListWidget.insertItem(0,t)
+        if(len(files)>0):
+            self.FilesListWidget.setCurrentRow(0)
+    
+    def LoadCustomProgram( self ): 
+        self.LoadFilesListWidget()
+        self.GotoProgramLoadPage()
+        return
+      
     def ChooseDataSaveLocation( self ):
         ''' Called when the user presses the Browse button
         '''
@@ -494,13 +558,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
 def main():
-    if(platform.node()=="raspberrypi"):
+    if("MCU" in platform.node()):
         Board.BoardSetup()  
     
     app = QtWidgets.QApplication(sys.argv)
     #app.setStyleSheet("QStatusBar.item {border : 0px black}")
     myapp = MyMainWindow()
-    if(platform.node()=="raspberrypi"):
+    if("MCU" in platform.node()):
         myapp.showFullScreen()
     else:
         myapp.show()
