@@ -38,6 +38,9 @@ class GUIUpdateThread(QtCore.QThread):
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
     def __init__( self ):       
+        if("MCU" in platform.node()):
+            self.theBoard=Board.BoardSetup()  
+    
         super(MyMainWindow,self).__init__()        
         #uic.loadUi("/home/pi/Programming/Python/PyMCU/Mainwindow.ui",self)
         uic.loadUi("Mainwindow.ui",self)
@@ -139,7 +142,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             return
         sender = self.sender()
         tmp = sender.text()
-        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
+        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=.1)
         if(tmp == "30 minutes"):
             self.programDuration = datetime.timedelta(minutes=30)          
             self.LoadSimpleProgram()  
@@ -422,6 +425,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.CurrentStatusLabel.setText("Record")
         elif (self.activeDFM.status==Enums.CURRENTSTATUS.UNDEFINED):
             self.CurrentStatusLabel.setText("None")
+        else:
+            self.CurrentStatusLabel.setText("Huh?")
 
         if(self.activeDFM.pastStatus==Enums.PASTSTATUS.PASTERROR):
             self.PastStatusLabel.setText("Error")
@@ -481,7 +486,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
             self.UpdateDFMPageGUI() 
-        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                           
+        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))               
         
             
     def closeEvent(self,event):
@@ -557,10 +562,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         
 
 
-def main():
-    if("MCU" in platform.node()):
-        Board.BoardSetup()  
-    
+def main():   
     app = QtWidgets.QApplication(sys.argv)
     #app.setStyleSheet("QStatusBar.item {border : 0px black}")
     myapp = MyMainWindow()

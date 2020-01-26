@@ -44,8 +44,7 @@ class DFMGroup:
         self.cameraRecordState=False
 
     def NewCameraMessage(self,cameraRecordState):        
-        print("Camera message detected in DFM!")
-        print(str(cameraRecordState))
+        self.cameraRecordState = cameraRecordState
 
     def NewMessageDirect(self,newMessage):        
         self.theMessageList.AddMessage(newMessage)     
@@ -84,7 +83,8 @@ class DFMGroup:
         for i in self.theDFMs:
             i.sampleIndex=1
             i.ResetOutputFileStuff()
-            i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
+            i.SetStatus(Enums.CURRENTSTATUS.RECORDING)      
+            print("Status recording")      
             i.isBufferResetNeeded=True                     
         time.sleep(1) # To allow everyone to reset
         self.stopRecordingSignal=False        
@@ -285,7 +285,9 @@ class DFMGroup:
         self.isProgramWorkerRunning=True        
         tt = datetime.datetime.today()        
         lastTime = time.time()    
-        lastSecond = tt.second      
+        lastSecond = tt.second 
+        eventCounter=0     
+        inEvent=False
         while True:   
             tt = datetime.datetime.today()
             if(tt.microsecond>0 and tt.second != lastSecond):   
@@ -295,8 +297,16 @@ class DFMGroup:
                 for d in self.theDFMs:
                     ## It takes a little over 30ms to call and
                     ## receive the data from one DFM, given a baud
-                    ## rate of 115200                     
-                    d.ReadValues(self.currentProgram.startTime,self.isWriting)                                                      
+                    ## rate of 115200  
+                    if(self.cameraRecordState==True):   
+                        if(inEvent==False):
+                            eventCounter+=1
+                            inEvent=True
+                        d.ReadValues(self.currentProgram.startTime,self.isWriting,eventCounter)                                                      
+                    else:
+                        inEvent=False
+                        if self.activeDFM != None:                    
+                            self.activeDFM.ReadValues(tt,False)   
                     time.sleep(0.005)      
                 if(self.isWriting):
                     if(self.stopRecordingSignal):
@@ -319,9 +329,8 @@ class DFMGroup:
         while True:   
             tt = datetime.datetime.today()          
             if(time.time()-lastTime>.2):                                   
-                if self.activeDFM != None:
-                    if(self.cameraRecordState==True):
-                        self.activeDFM.ReadValues(tt,False)                
+                if self.activeDFM != None:                    
+                    self.activeDFM.ReadValues(tt,False)                
                 lastTime = time.time()                    
                 DFMGroup.DFMGroup_updatecomplete.notify()                                                                         
             if(self.stopReadWorkerSignal):
@@ -337,13 +346,16 @@ class DFMGroup:
     ## This function is the one that should be called by an external timer
     ## to keep things rolling correctly.
     def UpdateProgramStatus(self):
-        if(self.currentProgram.isActive):
-            if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):
+        if(self.currentProgram.isActive):            
+            if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):                
                 isBaselineing=False
                 for d in self.theDFMs:
                     if d.isCalculatingBaseline:
                         isBaselineing = True
                 if(isBaselineing): 
+                    tt = datetime.datetime.today() 
+                    for d in self.theDFMs:
+                        self.activeDFM.ReadValues(tt,False)  
                     return
                 else:
                     self.StartRecording()

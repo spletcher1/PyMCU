@@ -13,18 +13,21 @@ class BoardSetup():
         ledPIN=13
         relayPIN=6
 
-        self.cameraPin = 17
+        self.cameraPin = 27
 
         GPIO.setup(ledPIN,GPIO.OUT)
         GPIO.setup(relayPIN,GPIO.OUT)
-        GPIO.setup(self.cameraPin,GPIO.IN,pull_up_down=GPIO.PUD.UP)
+        #GPIO.setup(self.cameraPin,GPIO.IN,pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.cameraPin,GPIO.IN)
         GPIO.output(relayPIN,GPIO.HIGH)
         GPIO.output(ledPIN,GPIO.HIGH) 
 
         GPIO.add_event_detect(self.cameraPin,GPIO.BOTH, callback=self.CameraSignalChanged)        
 
-    def CameraSignalChanged(self, channel):
-        print("Callback called! {:d}".format(channel))
+    def GetCameraState(self):
+        return GPIO.input(self.cameraPin)==GPIO.HIGH
+
+    def CameraSignalChanged(self, channel):        
         if(GPIO.input(self.cameraPin)==GPIO.LOW):
             BoardSetup.Camera_message.notify(False)  
         else:

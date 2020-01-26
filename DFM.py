@@ -62,8 +62,8 @@ class DFM:
         return "DFM "+str(self.ID)
     def GetLastAnalogData(self,adjustForBaseline):
         tmp = self.theData.GetLastDataPoint()
-        if(tmp.sample==0):
-            return None
+        #if(tmp.sample==0):
+        #    return None
         if(adjustForBaseline == False):
             return tmp.analogValues
         else:
@@ -182,7 +182,7 @@ class DFM:
              self.UpdateReportedValues()            
         return results
   
-    def ReadValues(self,startTime,saveDataToQueue):           
+    def ReadValues(self,startTime,saveDataToQueue,eventCounter=0):           
         
         theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
         currentTime = datetime.datetime.today()
@@ -213,15 +213,17 @@ class DFM:
                 isSuccess=True
             if isSuccess:            
                 if (self.currentStatusPackets[j].recordIndex>0):
+                    if(eventCounter>0): # This avoid a lack of update before program starts.
+                        self.currentStatusPackets[j].sample=eventCounter
                     if(self.theData.NewData(self.currentStatusPackets[j],saveDataToQueue)==False):
                         s="({:d}) Data queue error".format(self.ID)
                         self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                         isSuccess = False
                     else:
-                        self.sampleIndex = self.sampleIndex+1
+                        #self.sampleIndex = self.sampleIndex+1
                         if(self.status == Enums.CURRENTSTATUS.ERROR):
-                            self.SetStatus(self.beforeErrorStatus)                  
+                            self.SetStatus(self.beforeErrorStatus)                                    
                     if(self.isCalculatingBaseline):
                         self.UpdateBaseline()
                 else :
