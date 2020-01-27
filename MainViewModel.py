@@ -165,7 +165,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.programDuration = datetime.timedelta(minutes=60*24*5)
             self.LoadSimpleProgram()
         elif(tmp == "Custom"):
-            self.LoadCustomProgram
+            return
 
         self.StatusBar.showMessage("Loaded basic program: " + tmp,self.statusmessageduration)
                             
@@ -494,6 +494,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ClearDFM()
 
     def ProgramFileChoiceChanged(self,curr, prev):
+        if(curr == None):
+            return
         self.currentChosenProgramFile = curr.text()
         fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
         f = open(fn,"r")
@@ -506,6 +508,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             try:              
                 if(self.theDFMGroup.LoadTextProgram(fn)):
                     self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration) 
+                    self.GoToProgramPage()
                 else:  
                     self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)   
                 self.UpdateProgramGUI() 
