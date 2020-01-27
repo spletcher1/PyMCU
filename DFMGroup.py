@@ -305,8 +305,8 @@ class DFMGroup:
                         d.ReadValues(self.currentProgram.startTime,self.isWriting,eventCounter)                                                      
                     else:
                         inEvent=False
-                        if self.activeDFM != None:                    
-                            self.activeDFM.ReadValues(tt,False)   
+                        #if self.activeDFM != None:                    
+                        #    self.activeDFM.ReadValues(tt,False)   
                     time.sleep(0.005)      
                 if(self.isWriting):
                     if(self.stopRecordingSignal):
