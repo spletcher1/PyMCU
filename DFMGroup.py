@@ -298,8 +298,15 @@ class DFMGroup:
                     ## It takes a little over 30ms to call and
                     ## receive the data from one DFM, given a baud
                     ## rate of 115200                     
-                    d.ReadValues(self.isWriting)                                                      
-                    time.sleep(0.005)      
+                    if(self.cameraRecordState==True):   
+                        if(inEvent==False):
+                            eventCounter+=1
+                            inEvent=True
+                        d.ReadValues(self.isWriting,eventCounter)                                                      
+                    else:
+                        inEvent=False
+                        #if self.activeDFM != None:                    
+                        #   self.activeDFM.ReadValues(False)         
                 if(self.isWriting):
                     if(self.stopRecordingSignal):
                         self.WriteEnder()                            
@@ -344,9 +351,8 @@ class DFMGroup:
                     if d.isCalculatingBaseline:
                         isBaselineing = True
                 if(isBaselineing): 
-                    tt = datetime.datetime.today() 
                     for d in self.theDFMs:
-                        self.activeDFM.ReadValues(tt,False)  
+                        self.activeDFM.ReadValues(False)  
                     return
                 else:
                     self.StartRecording()

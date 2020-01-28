@@ -183,7 +183,7 @@ class DFM:
              self.UpdateReportedValues()            
         return results
   
-    def ReadValues(self,saveDataToQueue):           
+    def ReadValues(self,saveDataToQueue,eventCounter=0):           
         
         theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
         currentTime = datetime.datetime.today()
