@@ -260,10 +260,11 @@ class DFM:
         ## These are else if groups so that both are not executed on the same pass.
         ## A 1 sec delay for the latter conditions should not matter much.
         if(self.isBufferResetNeeded):
-            if self.theCOMM.RequestBufferReset(self.ID):
-                #print("Buffer reset success!")
+            if self.theCOMM.RequestBufferReset(self.ID):                
                 self.isBufferResetNeeded=False
                 self.bufferResetTime = datetime.datetime.today()
+                ss = self.bufferResetTime.strftime("%m/%d/%Y,%H:%M:%S")
+                print("Reset time: " + ss)
             else:
                 print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):

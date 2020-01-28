@@ -290,23 +290,26 @@ class DFMGroup:
         inEvent=False
         while True:   
             tt = datetime.datetime.today()
-            if(tt.microsecond>0 and tt.second != lastSecond):   
-                if(time.time()-lastTime)>1:
-                    s="Missed one second"                        
-                    self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)                       
+            # We assume only one DFM will be attached for camera readings so
+            # the time between readings is reduced to poll faster.  This should
+            # also make it easier and faster to clear the DFM prologue buffer.
+            if(time.time()-lastTime>.2):                  
                 for d in self.theDFMs:
                     ## It takes a little over 30ms to call and
                     ## receive the data from one DFM, given a baud
                     ## rate of 115200                     
                     if(self.cameraRecordState==True):   
-                        if(inEvent==False):
+                        if(inEvent==False):                         
                             eventCounter+=1
                             inEvent=True
                         d.ReadValues(self.isWriting,eventCounter)                                                      
-                    else:
+                    else:                     
                         inEvent=False
-                        #if self.activeDFM != None:                    
-                        #   self.activeDFM.ReadValues(False)         
+                        # This needs to be here to write the first (and any subsequent instruction)
+                        # CheckStatus() is normally called by readvalues, but because we don't call 
+                        # that to allow the FLIC prologue buffer to fill, we need it here.
+                        if self.activeDFM != None:                    
+                            self.activeDFM.CheckStatus()                        
                 if(self.isWriting):
                     if(self.stopRecordingSignal):
                         self.WriteEnder()                            
