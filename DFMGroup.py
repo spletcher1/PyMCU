@@ -290,7 +290,7 @@ class DFMGroup:
                     ## It takes a little over 30ms to call and
                     ## receive the data from one DFM, given a baud
                     ## rate of 115200                     
-                    d.ReadValues(self.currentProgram.startTime,self.isWriting)                                                      
+                    d.ReadValues(self.isWriting)                                                      
                     time.sleep(0.005)      
                 if(self.isWriting):
                     if(self.stopRecordingSignal):
@@ -310,11 +310,10 @@ class DFMGroup:
     def ReadWorker(self):    
         self.isReadWorkerRunning=True    
         lastTime = time.time()    
-        while True:   
-            tt = datetime.datetime.today()          
+        while True:           
             if(time.time()-lastTime>.2):                                   
                 if self.activeDFM != None:
-                    self.activeDFM.ReadValues(tt,False)                
+                    self.activeDFM.ReadValues(False)                
                 lastTime = time.time()                    
                 DFMGroup.DFMGroup_updatecomplete.notify()                                                                         
             if(self.stopReadWorkerSignal):
@@ -406,7 +405,7 @@ def ModuleTest():
     while(1):
         tt = datetime.datetime.today()
         if(tt.microsecond>0 and tt.second != lastSecond): 
-            tmp.theDFMs[0].ReadValues(datetime.datetime.today(),False)
+            tmp.theDFMs[0].ReadValues(False)
             lastSecond=tt.second
             for i in range(0,5):
                 print(tmp.theDFMs[0].currentStatusPackets[i].GetConsolePrintPacket())         

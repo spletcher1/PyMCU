@@ -46,6 +46,8 @@ class DFM:
         self.reportedHumidity=1.0
         self.reportedLUX=0
         self.reportedVoltsIn=1.0      
+        self.bufferResetTime = datetime.datetime.today()
+
 
     def __str__(self):
         return "DFM " + str(self.ID)
@@ -180,13 +182,13 @@ class DFM:
              self.UpdateReportedValues()            
         return results
   
-    def ReadValues(self,startTime,saveDataToQueue):           
+    def ReadValues(self,saveDataToQueue):           
         
         theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
         currentTime = datetime.datetime.today()
         for _ in range(0,self.callLimit) :                        
             tmp=self.theCOMM.GetStatusPacket(self.ID)                    
-            theResults = self.ProcessPackets(tmp,startTime)            
+            theResults = self.ProcessPackets(tmp,self.bufferResetTime)            
             if(Enums.PROCESSEDPACKETRESULT.OKAY in theResults):
                     break                            
             #s="Calling again: {:s}".format(str(theResults[-1]))
@@ -258,6 +260,7 @@ class DFM:
             if self.theCOMM.RequestBufferReset(self.ID):
                 #print("Buffer reset success!")
                 self.isBufferResetNeeded=False
+                self.bufferResetTime = datetime.datetime.today()
             else:
                 print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):
@@ -277,7 +280,7 @@ def ModuleTest():
     #tmp = DFMGroup(COMM.TESTCOMM())
     port = COMM.UARTCOMM()
     dfm = DFM(1,port)
-    dfm.ReadValues(datetime.datetime.today(),False)  
+    dfm.ReadValues(False)  
     for sp in dfm.currentStatusPackets:
         print(sp.GetDataBufferPrintPacket())          
        
