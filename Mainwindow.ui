@@ -1543,21 +1543,21 @@
    <addaction name="dataAction"/>
    <addaction name="programAction"/>
    <addaction name="messagesAction"/>
+   <addaction name="clearMessagesAction"/>
    <addaction name="separator"/>
    <addaction name="findDFMAction"/>
    <addaction name="clearDFMAction"/>
    <addaction name="separator"/>
    <addaction name="saveDataAction"/>
    <addaction name="ejectAction"/>
-   <addaction name="separator"/>
-   <addaction name="clearMessagesAction"/>
+   <addaction name="deleteDataAction"/>
    <addaction name="separator"/>
    <addaction name="toggleOutputsAction"/>
    <addaction name="separator"/>
-   <addaction name="deleteDataAction"/>
    <addaction name="powerOffAction"/>
    <addaction name="separator"/>
    <addaction name="aboutMCUAction"/>
+   <addaction name="separator"/>
   </widget>
   <action name="powerOffAction">
    <property name="icon">
@@ -1664,7 +1664,7 @@
      <normaloff>editclear.png</normaloff>editclear.png</iconset>
    </property>
    <property name="text">
-    <string>Clear</string>
+    <string>Clear Messages</string>
    </property>
    <property name="toolTip">
     <string>Clear existing messages</string>
@@ -1688,7 +1688,7 @@
      <normaloff>USB.png</normaloff>USB.png</iconset>
    </property>
    <property name="text">
-    <string>Eject</string>
+    <string>Eject USB</string>
    </property>
    <property name="toolTip">
     <string>Eject USB</string>
