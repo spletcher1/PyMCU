@@ -213,6 +213,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.saveDataAction.triggered.connect(self.ChooseDataSaveLocation)
         self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
         self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)
+        self.ejectAction.triggered.connect(self.EjectUSB)
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -227,6 +228,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
         self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
+
+    def EjectUSB(self):
+        self.StatusBar.showMessage("Ejecting USB... ",self.statusmessageduration)
+        os.system("sudo eject /dev/sda")  
+        time.sleep(3)
+        self.StatusBar.showMessage("USB is now removable.",self.statusmessageduration)
+
 
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -531,32 +539,24 @@ class MyMainWindow(QtWidgets.QMainWindow):
         return
       
     def ChooseDataSaveLocation( self ):
-        ''' Called when the user presses the Browse button
-        '''
-        dialog =QFileDialog(self)
-        dialog.setFileMode(QFileDialog.Directory)
-        dialog.setOption(QFileDialog.ShowDirsOnly, True)
-        dialog.setWindowTitle("Save Data")
         subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
         if len(subfolders)==0:
-            dialog.setDirectory("/media/pi")
-        else:
+            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
+            return
+        else:        
+            print("Here")
+            dialog =QFileDialog(self)
+            dialog.showMaximized()
+            dialog.setFileMode(QFileDialog.Directory)
+            dialog.setOption(QFileDialog.ShowDirsOnly, True)
+            dialog.setWindowTitle("Save Data")
             dialog.setDirectory(subfolders[0])
-        if dialog.exec_():
-            direct = dialog.selectedFiles()
-            command = "cp -r FLICData/ " + direct[0]
-            self.StatusBar.showMessage("Copying data files...",120000)                
-            os.system(command)
-            self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
-        #options = QtWidgets.QFileDialog.Options()
-        #options |= QtWidgets.QFileDialog.DontUseNativeDialog
-        #fileName, _ = QtWidgets.QFileDialog.getExistingDirectory(
-        #                None,
-        #                "Choose Directory",
-        #                "/media/pi")                      
-
-        ## Donr forget to set programstarttime and duration here 
-        ## aFTER THE program is loaded.
+            if dialog.exec_():
+                direct = dialog.selectedFiles()
+                command = 'cp -r FLICData/ "' + direct[0]+'"'            
+                self.StatusBar.showMessage("Copying data files...",120000)                
+                os.system(command)
+                self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
         
 
 
