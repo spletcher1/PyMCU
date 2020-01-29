@@ -230,7 +230,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
 
     def EjectUSB(self):
+        self.StatusBar.showMessage("Ejecting USB... ",self.statusmessageduration)
         os.system("sudo eject /dev/sda")  
+        time.sleep(1)
+        self.StatusBar.showMessage("USB is now removable.",self.statusmessageduration)
 
 
     def ToggleOutputs(self):
