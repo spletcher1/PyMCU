@@ -213,6 +213,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.saveDataAction.triggered.connect(self.ChooseDataSaveLocation)
         self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
         self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)
+        self.ejectAction.triggered.conect(self.EjectUSB)
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -227,6 +228,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
         self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
+
+    def EjectUSB(self):
+        os.system("sudo eject /dev/sda")  
+
 
     def ToggleOutputs(self):
         if(self.toggleOutputsState):

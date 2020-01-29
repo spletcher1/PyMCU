@@ -78,7 +78,7 @@
              <x>0</x>
              <y>0</y>
              <width>98</width>
-             <height>58</height>
+             <height>88</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -1232,7 +1232,7 @@
              <x>0</x>
              <y>0</y>
              <width>98</width>
-             <height>60</height>
+             <height>90</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
@@ -1548,6 +1548,7 @@
    <addaction name="clearDFMAction"/>
    <addaction name="separator"/>
    <addaction name="saveDataAction"/>
+   <addaction name="ejectAction"/>
    <addaction name="separator"/>
    <addaction name="clearMessagesAction"/>
    <addaction name="separator"/>
@@ -1603,7 +1604,7 @@
      <normaloff>gnome-stock-text-indent.png</normaloff>gnome-stock-text-indent.png</iconset>
    </property>
    <property name="text">
-    <string>Programming</string>
+    <string>Program</string>
    </property>
    <property name="toolTip">
     <string>Go to program screen</string>
@@ -1663,7 +1664,7 @@
      <normaloff>editclear.png</normaloff>editclear.png</iconset>
    </property>
    <property name="text">
-    <string>Clear Messages</string>
+    <string>Clear</string>
    </property>
    <property name="toolTip">
     <string>Clear existing messages</string>
@@ -1675,10 +1676,22 @@
      <normaloff>kcontrol.png</normaloff>kcontrol.png</iconset>
    </property>
    <property name="text">
-    <string>Toggle Outputs</string>
+    <string>Outputs</string>
    </property>
    <property name="toolTip">
     <string>Turn DFM outputs on and off</string>
+   </property>
+  </action>
+  <action name="ejectAction">
+   <property name="icon">
+    <iconset>
+     <normaloff>USB.png</normaloff>USB.png</iconset>
+   </property>
+   <property name="text">
+    <string>Eject</string>
+   </property>
+   <property name="toolTip">
+    <string>Eject USB</string>
    </property>
   </action>
  </widget>
