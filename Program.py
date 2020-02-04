@@ -4,6 +4,7 @@ import InstructionSet
 import Instruction
 import Event
 import Message
+import array
 
 class MCUProgram():
     Program_message = Event.Event()
@@ -25,6 +26,7 @@ class MCUProgram():
         self.optoDecay= 0
         self.optoDelay= 0
         self.maxTimeOn = -1
+        self.globalLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
         self.globalLidType=Enums.OPTOLIDTYPE.NONE
         self.globalPType = Enums.INSTRUCTIONSETTYPE.LINEAR
         self.autoBaseline = True
@@ -61,15 +63,11 @@ class MCUProgram():
             s="Start Time: " + self.startTime.strftime("%m/%d/%Y %H:%M:%S")+"\n"
             s+="End Time: " + self.GetEndTime().strftime("%m/%d/%Y %H:%M:%S")+"\n"
             s+="Duration: " +  str(self.experimentDuration.total_seconds()/60) + " min\n"
-            s+="Default OptoLid: "
-            if self.globalLidType==Enums.OPTOLIDTYPE.NONE:
-                s+="None\n"
-            elif self.globalLidType == Enums.OPTOLIDTYPE.ONECHAMBER:
-                s+="One\n"
-            elif self.globalLidType == Enums.OPTOLIDTYPE.SIXCHAMBER:
-                s+="Six\n"
-            elif self.globalLidType == Enums.OPTOLIDTYPE.TWELVECHAMBER:
-                s+="Twelve\n"
+            s+="Default Linkage: "
+            for i in self.globalLinkage:
+                s+=str(i)+","
+            s=s[:-1]
+            s+="\n"
             s+="Default Opto Frequency: " + str(self.optoFrequency) +"Hz\n"
             s+="Default Opto Pulsewidth: " + str(self.optoPulseWidth) +"ms\n"
             s+="Default Opto Delay: " + str(self.optoDelay) +"ms\n"
@@ -105,13 +103,16 @@ class MCUProgram():
                 s+="Start Time: " + self.startTime.strftime("%m/%d/%Y %H:%M:%S")+"\n"
                 s+="End Time: " + self.GetEndTime().strftime("%m/%d/%Y %H:%M:%S")+"\n"
                 s+="Duration: " +  str(self.experimentDuration.total_seconds()/60) + " min\n"
-                s+="OptoLid: None\n"
+                s+="Linkage: "
+                for i in self.globalLinkage:
+                    s+=str(i)+","
+                s=s[:-1]
+                s+="\n"
                 s += "Baseline: "
                 if(self.autoBaseline):
                     s+="Yes\n"
                 else :
-                    s+="No\n"    
-                tmp=list(self.theInstructionSets.keys())[0]            
+                    s+="No\n"       
                 s+=self.theInstructionSets[1].__str__()
         return s
 
@@ -129,8 +130,8 @@ class MCUProgram():
         instruct.optoDelay = self.optoDelay
         instruct.optoFrequency = self.optoFrequency
         instruct.optoPulseWidth =self.optoPulseWidth
+        instruct.linkage = self.globalLinkage[:]
         instruct.maxTimeOn = self.maxTimeOn
-        instruct.lidType = self.globalLidType
         instruct.instructionSetType = self.globalPType
         instruct.AddSimpleInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))        
         self.theInstructionSets[dfmid]=instruct
