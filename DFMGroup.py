@@ -356,10 +356,7 @@ class DFMGroup:
         lines = f.readlines()
         f.close()
         result=self.currentProgram.LoadProgram(lines,self.theDFMs)
-        if (result):
-            for d in self.theDFMs:           
-                d.lidType = self.currentProgram.GetLidType(d.ID) 
-        else:
+        if (result==False):            
             self.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=180))
         return result  
         

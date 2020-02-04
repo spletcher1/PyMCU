@@ -31,8 +31,7 @@ class DFM:
         self.sampleIndex=1
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))        
         self.baselineSamples=0
-        self.isCalculatingBaseline=False    
-        self.lidType=Enums.OPTOLIDTYPE.NONE            
+        self.isCalculatingBaseline=False                   
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False

@@ -1,6 +1,5 @@
 import Instruction
 from Enums import INSTRUCTIONSETTYPE
-from Enums import OPTOLIDTYPE
 from Enums import DARKSTATE
 import datetime
 import array
@@ -146,16 +145,16 @@ class InstructionSet:
             
    
     def ToString(self,duration,startTime):
-        s="Default Linkage: "
+        s="Linkage: "
         for i in self.linkage:
             s+=str(i)+","
         s=s[:-1]
         s+="\n"
-        s+="Default Opto Frequency: " + str(self.optoFrequency) +"Hz\n"
-        s+="Default Opto Pulsewidth: " + str(self.optoPulseWidth) + "ms\n"
-        s+="Default Opto Delay: " + str(self.optoDelay) + "ms\n"
-        s+="Default Opto Decay: " + str(self.optoDecay) + "ms\n"
-        s+="Default Max Time On: " + str(self.maxTimeOn) + "ms\n"
+        s+="Opto Frequency: " + str(self.optoFrequency) +"Hz\n"
+        s+="Opto Pulsewidth: " + str(self.optoPulseWidth) + "ms\n"
+        s+="Opto Delay: " + str(self.optoDelay) + "ms\n"
+        s+="Opto Decay: " + str(self.optoDecay) + "ms\n"
+        s+="Max Time On: " + str(self.maxTimeOn) + "ms\n"
 
         s += "Program Type: "
         if(self.instructionSetType == INSTRUCTIONSETTYPE.LINEAR):

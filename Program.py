@@ -26,8 +26,7 @@ class MCUProgram():
         self.optoDecay= 0
         self.optoDelay= 0
         self.maxTimeOn = -1
-        self.globalLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
-        self.globalLidType=Enums.OPTOLIDTYPE.NONE
+        self.globalLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])        
         self.globalPType = Enums.INSTRUCTIONSETTYPE.LINEAR
         self.autoBaseline = True
         self.isActive = False
@@ -135,7 +134,13 @@ class MCUProgram():
         instruct.instructionSetType = self.globalPType
         instruct.AddSimpleInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))        
         self.theInstructionSets[dfmid]=instruct
-
+    
+    def SetLinkageFromString(self,lk):
+        ss = lk.split(",")
+        if(len(ss)==12):
+            for x in range(0,12):
+                self.globalLinkage[x]=int(ss[x])
+    
     def LoadProgram(self,lines, dfmList):        
         self.ClearProgram()
         currentSection=""
@@ -177,18 +182,8 @@ class MCUProgram():
                                     self.globalPType = Enums.INSTRUCTIONSETTYPE.CONSTANT
                                 else:
                                     self.globalPType = Enums.INSTRUCTIONSETTYPE.CONSTANT
-                            elif(thesplit[0].lower().strip()=="optolid"):
-                                lt=thesplit[1].strip().lower()
-                                if(lt.lower()=="none" or lt=="0"):
-                                    self.globalLidType = Enums.OPTOLIDTYPE.NONE
-                                elif(lt.lower()=="one" or lt=="1"):
-                                    self.globalLidType = Enums.OPTOLIDTYPE.ONECHAMBER
-                                elif(lt.lower()=="six" or lt=="6"):
-                                    self.globalLidType = Enums.OPTOLIDTYPE.SIXCHAMBER
-                                elif(lt.lower()=="twelve" or lt=="12"):
-                                    self.globalLidType = Enums.OPTOLIDTYPE.TWELVECHAMBER
-                                else:
-                                    self.globalLidType = Enums.OPTOLIDTYPE.NONE        
+                            elif(thesplit[0].lower().strip()=="linkage"):                              
+                                self.SetLinkageFromString(thesplit[1].strip())
                             elif(thesplit[0].lower().strip()=="baseline"):
                                 if(thesplit[1].strip().lower()=="yes"):
                                         self.autoBaseline=True
@@ -211,13 +206,13 @@ class MCUProgram():
                                 ti.optoDelay = self.optoDelay
                                 ti.optoFrequency = self.optoFrequency
                                 ti.optoPulseWidth = self.optoPulseWidth
-                                ti.maxTimeOn = self.maxTimeOn
-                                ti.lidType = self.globalLidType
+                                ti.linkage = self.globalLinkage[:]
+                                ti.maxTimeOn = self.maxTimeOn                                
                                 ti.instructionSetType = self.globalPType
                                 self.theInstructionSets[currentDFM] = ti
-                            elif(thesplit[0].lower().strip() == "optolid"):
+                            elif(thesplit[0].lower().strip() == "linkage"):
                                 if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].SetLidTypeFromString(thesplit[1].lower().strip())
+                                    self.theInstructionSets[currentDFM].SetLinkageFromString(thesplit[1].strip())
                             elif(thesplit[0].lower().strip() == "optodelay"):
                                 if(currentDFM != -1):
                                     self.theInstructionSets[currentDFM].optoDelay=int(thesplit[1].lower().strip())
@@ -243,7 +238,7 @@ class MCUProgram():
                 for key in self.theInstructionSets:
                     if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
                         self.experimentDuration = self.theInstructionSets[key].GetDuration()
-
+            return True
             # Get rid of DFMs that are not in the experiment to simply the description textbox.           
             tmp ={}
             for key in self.theInstructionSets:
@@ -297,13 +292,7 @@ class MCUProgram():
         if(iset!="None"):
             return iset.instructionSetType
         else:
-            return self.globalPType    
-    def GetLidType(self,dfmid):
-        iset=self.theInstructionSets.get(dfmid,'None')    
-        if(iset!="None"):
-            return iset.lidType
-        else:
-            return self.globalLidType
+            return self.globalPType       
     def GetOptoFrequency(self,dfmid):
         iset=self.theInstructionSets.get(dfmid,'None')    
         if(iset!="None"):
@@ -351,12 +340,13 @@ class MCUProgram():
 
 def ModuleTest():
     tmp = MCUProgram()
-    tmp.AddSimpleProgram(1,datetime.timedelta(minutes=120))
-    #tmp.isProgramLoaded=False
-    #f=open("TestProgram2.txt",encoding="utf-8-sig")
-    #lines = f.readlines()
-    #f.close()
-    #tmp.LoadProgram(lines)
+    #tmp.AddSimpleProgram(1,datetime.timedelta(minutes=120))
+
+    f=open("TestProgram1.txt",encoding="utf-8-sig")
+    lines = f.readlines()
+    f.close()
+    tmp.LoadProgram(lines,None)
+    tmp.isProgramLoaded=True
     print(tmp)
     
 
