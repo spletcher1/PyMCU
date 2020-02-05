@@ -217,6 +217,24 @@ class UARTCOMM():
             return True
         else:
             return False    
+    def SendLinkage(self,ID,linkage):
+        ba = bytearray(18)
+        ba[0]=ID
+        ba[1]=0xFB
+        for i in range(0,12):
+            ba[i+2]=linkage[i]
+        self._AddChecksumFourBytes(0,ba)
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)        
+        self._WriteByteArray(barray,0.006)        
+        tmp=self._Read(2)
+        if(len(tmp)!=2):            
+            return False
+        if(tmp[0]==ID):
+            return True 
+        else:            
+            return False    
 
     def SendInstruction(self,ID,anInstruction):          
         ba = bytearray(41)           
@@ -286,15 +304,9 @@ class UARTCOMM():
 def ModuleTest3():
     Board.BoardSetup()
     p=UARTCOMM()   
-    result=p.RequestBufferReset(1)
+    linkage=array.array("i",[1,1,1,1,1,6,7,8,9,10,11,1])
+    result=p.SendLinkage(5,linkage)
     print(result)
-    time.sleep(.1)
-    result=p.RequestBufferReset(2)
-    print(result)
-    time.sleep(.1)
-    result=p.RequestBufferReset(1)
-    print(result)
-    
     #counter = 0
     #while counter<1000000:
     #    counter+=1
@@ -315,16 +327,18 @@ def ModuleTest2():
     p=UARTCOMM()
     counter=0
     totalpackets=0
-    tmp=p.GetStatusPacket(1)
+    tmp=p.GetStatusPacket(5)
+    theResults = self.ProcessPackets(tmp,self.bufferResetTime)            
+    for j in range(0,len(theResults)): 
+        
     print(len(tmp))
-    return
     time.sleep(1)
     start = time.time()
     while counter<12:
-        tmp=p.GetStatusPacket(1)
-        tmp2 = ((len(tmp)-69)/65)+1
-        totalpackets+=tmp2
-        print(totalpackets)
+        tmp=p.GetStatusPacket(5)
+        #tmp2 = ((len(tmp)-69)/65)+1
+        #totalpackets+=tmp2
+        print(tmp)
         time.sleep(1)
         counter+=1
     end=time.time()
@@ -358,7 +372,7 @@ def ModuleTest():
     
 
 if __name__=="__main__" :
-    ModuleTest3()   
+    ModuleTest2()   
     print("Done!!")     
 
 #endregion

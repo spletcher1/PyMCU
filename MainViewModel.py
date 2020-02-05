@@ -533,6 +533,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if(len(files)>0):
             self.FilesListWidget.setCurrentRow(0)
     
+    def LoadFilesListWidgetLOCAL(self):
+        self.FilesListWidget.clear()       
+        self.currentProgramFileDirectory ="./"    
+
+        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
+        for f in files:
+            h, t = os.path.split(f)
+            self.FilesListWidget.insertItem(0,t)
+        if(len(files)>0):
+            self.FilesListWidget.setCurrentRow(0)
+    
     def LoadCustomProgram( self ): 
         self.LoadFilesListWidget()
         self.GotoProgramLoadPage()

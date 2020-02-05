@@ -75,11 +75,12 @@ class DFMGroup:
         if len(self.theDFMs)==0:
             return False    
         self.theMessageList.ClearMessages()
-        for i in self.theDFMs:
-            i.sampleIndex=1
+        for i in self.theDFMs:            
             i.ResetOutputFileStuff()
             i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
-            i.isBufferResetNeeded=True                     
+            i.isBufferResetNeeded=True   
+            i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
+            i.isLinkageSetNeeded=True
         time.sleep(1) # To allow everyone to reset
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
