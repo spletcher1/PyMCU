@@ -362,8 +362,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
-                print("Shutting down")
-                #os.system("shotdown /s /t 1)")
+                print("Shutting down")                                   
+                QCoreApplication.instance().quit()
 
     def AssureClearMessages(self):
         msg = QMessageBox()
@@ -573,7 +573,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 def main():
     if("MCU" in platform.node()):
-        Board.BoardSetup()  
+        theBoard=Board.BoardSetup()  
     
     app = QtWidgets.QApplication(sys.argv)
     #app.setStyleSheet("QStatusBar.item {border : 0px black}")
@@ -582,8 +582,9 @@ def main():
         myapp.showFullScreen()
     else:
         myapp.show()
-       
-    sys.exit(app.exec_())    
+    if("MCU" in platform.node()):
+        theBoard.TurnOffDFMPower()
+    sys.exit(app.exec_()) 
     print("Done")
     
 

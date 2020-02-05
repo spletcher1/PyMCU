@@ -8,10 +8,13 @@ class BoardSetup():
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
 
-        ledPIN=13
-        relayPIN=6
+        self.ledPIN=13
+        self.relayPIN=6
 
-        GPIO.setup(ledPIN,GPIO.OUT)
-        GPIO.setup(relayPIN,GPIO.OUT)
-        GPIO.output(relayPIN,GPIO.HIGH)
-        GPIO.output(ledPIN,GPIO.HIGH) 
+        GPIO.setup(self.ledPIN,GPIO.OUT)
+        GPIO.setup(self.relayPIN,GPIO.OUT)
+        GPIO.output(self.relayPIN,GPIO.HIGH)
+        GPIO.output(self.ledPIN,GPIO.HIGH) 
+    
+    def TurnOffDFMPower(self):
+        GPIO.output(self.relayPIN,GPIO.LOW)

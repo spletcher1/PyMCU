@@ -10,8 +10,10 @@ Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
 Baseline: Yes
 
 [DFM]
-ID: 5
+ID: 3
 Linkage: 1,2,3,1,5,6,7,1,9,10,1,12
+OptoDecay:5000
+OptoDelay:1000 
 ProgramType: Repeating
 Interval: 1,20,20,20,20,20,20,20,20,20,20,20,20,10
 Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,10
