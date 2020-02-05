@@ -95,6 +95,9 @@ class DFM:
             if(newStatus == Enums.CURRENTSTATUS.ERROR):
                 self.beforeErrorStatus = self.status
                 self.pastStatus = Enums.PASTSTATUS.PASTERROR
+            elif(newStatus == Enums.CURRENTSTATUS.RECORDING)
+                self.beforeErrorStatus = newStatus
+                self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
             self.status = newStatus
     #endregion
   
@@ -274,7 +277,7 @@ class DFM:
         elif(self.isLinkageSetNeeded):
             if self.theCOMM.SendLinkage(self.ID,self.currentLinkage):                          
                 self.isLinkageSetNeeded=False
-                print("Linkage success: " + str(self.currentLinkage))  
+                #print("Linkage success: " + str(self.currentLinkage))  
             else:
                 print("Linkage failure")
 

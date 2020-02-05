@@ -25,7 +25,7 @@ class MCUProgram():
         self.optoPulseWidth= 8
         self.optoDecay= 0
         self.optoDelay= 0
-        self.maxTimeOn = -1
+        self.maxTimeOn = 0
         self.globalLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])        
         self.globalPType = Enums.INSTRUCTIONSETTYPE.LINEAR
         self.autoBaseline = True
