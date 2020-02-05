@@ -95,7 +95,7 @@ class DFM:
             if(newStatus == Enums.CURRENTSTATUS.ERROR):
                 self.beforeErrorStatus = self.status
                 self.pastStatus = Enums.PASTSTATUS.PASTERROR
-            elif(newStatus == Enums.CURRENTSTATUS.RECORDING)
+            elif(newStatus == Enums.CURRENTSTATUS.RECORDING):
                 self.beforeErrorStatus = newStatus
                 self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
             self.status = newStatus

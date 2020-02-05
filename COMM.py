@@ -329,8 +329,6 @@ def ModuleTest2():
     totalpackets=0
     tmp=p.GetStatusPacket(5)
     theResults = self.ProcessPackets(tmp,self.bufferResetTime)            
-    for j in range(0,len(theResults)): 
-        
     print(len(tmp))
     time.sleep(1)
     start = time.time()
