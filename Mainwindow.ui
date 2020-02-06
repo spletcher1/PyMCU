@@ -1549,7 +1549,6 @@
    <addaction name="clearDFMAction"/>
    <addaction name="separator"/>
    <addaction name="saveDataAction"/>
-   <addaction name="ejectAction"/>
    <addaction name="deleteDataAction"/>
    <addaction name="separator"/>
    <addaction name="toggleOutputsAction"/>
@@ -1604,7 +1603,7 @@
      <normaloff>gnome-stock-text-indent.png</normaloff>gnome-stock-text-indent.png</iconset>
    </property>
    <property name="text">
-    <string>Program</string>
+    <string>Programs</string>
    </property>
    <property name="toolTip">
     <string>Go to program screen</string>
@@ -1616,7 +1615,7 @@
      <normaloff>gtk-about.png</normaloff>gtk-about.png</iconset>
    </property>
    <property name="text">
-    <string>About</string>
+    <string>About MCU</string>
    </property>
    <property name="toolTip">
     <string>About MCU</string>
