@@ -262,7 +262,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip=s.getsockname()[0]
         ss="Version 5.0\nIP: " + hostip
         msg.setInformativeText(ss)    
-        msg.exec_()        
+        msg.exec_()   
+
+    def AboutPyMCUV2(self):       
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        hostip=socket.inet_ntoa(fcntl.ioctl(s.fileno(),0x8915,struct.pack('256s', "eth0"))[20:24])
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText("Flidea Master Control Unit")
+        msg.setWindowTitle("About MCU")
+        ss="Version 5.0\nIP: " + hostip
+        msg.setInformativeText(ss)    
+        msg.exec_()   
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num        
@@ -582,8 +593,6 @@ def main():
         myapp.showFullScreen()
     else:
         myapp.show()
-    if("MCU" in platform.node()):
-        theBoard.TurnOffDFMPower()
     sys.exit(app.exec_()) 
     print("Done")
     

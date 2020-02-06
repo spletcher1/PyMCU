@@ -18,3 +18,4 @@ class BoardSetup():
     
     def TurnOffDFMPower(self):
         GPIO.output(self.relayPIN,GPIO.LOW)
+        GPIO.output(self.ledPIN,GPIO.LOW)
