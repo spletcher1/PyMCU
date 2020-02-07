@@ -368,11 +368,12 @@ class DFMGroup:
         if(len(self.theDFMs)==0):
             return
         print("Stopping program.")        
-        self.StopRecording()          
+        self.StopRecording()         
+        self.SetDFMIdleStatus() 
+        time.sleep(1000)
         self.StopProgramWorker()  
         self.currentProgram.isActive=False
-        self.StartReadWorker()
-        self.SetDFMIdleStatus()
+        self.StartReadWorker()        
         print("Done")
     
     def StageCurrentProgram(self):
