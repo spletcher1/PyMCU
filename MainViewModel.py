@@ -1,4 +1,6 @@
 import sys
+import fcntl
+import struct
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -101,15 +103,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if(device.action=="add"):
             self.isUSBAttached=True
             self.StatusBar.showMessage("USB connected...",2000)
-            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "USB connected.", Enums.MESSAGETYPE.NOTICE)          
-            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
             self.saveDataAction.setEnabled(True)
             QApplication.processEvents()
         elif(device.action=="remove"):
             self.isUSBAttached=False
             self.StatusBar.showMessage("USB removed...",2000)
-            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "USB removed.", Enums.MESSAGETYPE.NOTICE)          
-            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
             self.saveDataAction.setEnabled(False)
             QApplication.processEvents()
 
@@ -286,9 +284,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setInformativeText(ss)    
         msg.exec_()   
 
-    def AboutPyMCU(self):       
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        hostip=socket.inet_ntoa(fcntl.ioctl(s.fileno(),0x8915,struct.pack('256s', "eth0"))[20:24])
+    def AboutPyMCU(self):      
+        try: 
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            hostip= s.getsockname()[0]
+        except:
+            hostip="unknown"
+        
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
@@ -623,21 +626,7 @@ def main():
     print("Done")
     
 
-    
-def IsUSBMountedOld():
-    ss = subprocess.call("mount | grep /media/pi")
-    #print(ss)
-
-def IsUSBMounted():
-    ss =os.system("mount | grep /media/pi")
-    print(ss)
-
-
 if __name__ == "__main__":
-    #t1=time.time()
-    #IsUSBMounted()
-    #t2=time.time()
-    #print(t2-t1)
     main()
     
 
