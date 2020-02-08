@@ -370,7 +370,7 @@ class DFMGroup:
         print("Stopping program.")        
         self.StopRecording()         
         self.SetDFMIdleStatus() 
-        time.sleep(1000)
+        time.sleep(2)
         self.StopProgramWorker()  
         self.currentProgram.isActive=False
         self.StartReadWorker()        
