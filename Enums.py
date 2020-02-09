@@ -34,12 +34,6 @@ class DARKSTATE(Enum):
     ON=2,
     UNCONTROLLED=3
 
-class OPTOLIDTYPE(Enum):
-    NONE=1
-    ONECHAMBER=2,
-    SIXCHAMBER=3,
-    TWELVECHAMBER=4
-
 class MESSAGETYPE(Enum):
     NOTICE=1,
     WARNING=2,
