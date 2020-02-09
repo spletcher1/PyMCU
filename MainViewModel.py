@@ -51,7 +51,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         tmp3 = "QListWidget {background-color: "+self.defaultBackgroundColor+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
         self.ProgramTextEdit.setStyleSheet(tmp2)     
-        self.ProgramPreviewTextBox.setStyleSheet(tmp2)
+        self.ProgramPreviewTextBox.setStyleSheet(tmp2)       
         self.FilesListWidget.setStyleSheet(tmp3)        
         if("MCU" in platform.node()):
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
@@ -63,10 +63,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MakeConnections()
         self.StackedPages.setCurrentIndex(1)
         self.statusLabel = QLabel()  
+        self.statusLabel.setFont(QFont('Arial', 11))
         self.statusLabel.setFrameStyle(QFrame.NoFrame)
         self.statusLabel.setFrameShadow(QFrame.Plain)
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
-        self.StatusBar.addPermanentWidget(self.statusLabel)        
+        self.StatusBar.addPermanentWidget(self.statusLabel)    
+        self.StatusBar.setFont(QFont('Arial', 11))
+
+        self.toolBar.setFont(QFont('Arial', 9))
+
+        self.StatusBar.setStyleSheet('border: 0')
+        self.StatusBar.setStyleSheet("QStatusBar::item {border: none;}")    
        
         self.DFMButtons = []
         self.UpdateProgramGUI()
@@ -521,8 +528,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.UpdateProgramStatus()         
             self.DisableButtons()
         else:
-            self.EnableButtons()            
-        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
+            self.EnableButtons()           
+        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S  "))                    
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
             self.UpdateDFMPageGUI() 
         self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                           
