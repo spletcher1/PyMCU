@@ -1,8 +1,12 @@
 import sys
+import fcntl
+import struct
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
+from pyudev.pyqt5 import MonitorObserver
+from pyudev import Context,Monitor
 import datetime
 import time
 import threading
@@ -14,6 +18,7 @@ import Board
 import DFMPlot
 import socket
 import os
+import subprocess
 import glob
 if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
@@ -49,7 +54,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         tmp3 = "QListWidget {background-color: "+self.defaultBackgroundColor+"}"
         self.MessagesTextEdit.setStyleSheet(tmp2)        
         self.ProgramTextEdit.setStyleSheet(tmp2)     
-        self.ProgramPreviewTextBox.setStyleSheet(tmp2)
+        self.ProgramPreviewTextBox.setStyleSheet(tmp2)       
         self.FilesListWidget.setStyleSheet(tmp3)        
         if("MCU" in platform.node()):
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
@@ -61,13 +66,22 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MakeConnections()
         self.StackedPages.setCurrentIndex(1)
         self.statusLabel = QLabel()  
+        self.statusLabel.setFont(QFont('Arial', 11))
         self.statusLabel.setFrameStyle(QFrame.NoFrame)
         self.statusLabel.setFrameShadow(QFrame.Plain)
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
-        self.StatusBar.addPermanentWidget(self.statusLabel)        
+        self.StatusBar.addPermanentWidget(self.statusLabel)    
+        self.StatusBar.setFont(QFont('Arial', 11))
+
+        self.toolBar.setFont(QFont('Arial', 9))
+
+        self.StatusBar.setStyleSheet('border: 0')
+        self.StatusBar.setStyleSheet("QStatusBar::item {border: none;}")    
        
         self.DFMButtons = []
         self.UpdateProgramGUI()
+        self.DisableButtons()
+        self.isUSBAttached=False
 
         self.main_widget = QtWidgets.QWidget(self)
         self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=self.defaultBackgroundColor,width=5, height=4, dpi=100)        
@@ -86,6 +100,26 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.FilesListWidget.currentItemChanged.connect(self.ProgramFileChoiceChanged)
         self.currentChosenProgramFile=""
         self.currentProgramFileDirectory=""
+
+        self.context = Context()
+        self.monitor = Monitor.from_netlink(self.context)
+        self.monitor.filter_by(subsystem="usb")
+        self.observer=MonitorObserver(self.monitor)
+        self.observer.deviceEvent.connect(self.device_connected)
+        self.monitor.start()
+
+    def device_connected(self,device):
+        print(device.action)
+        if(device.action=="add"):
+            self.isUSBAttached=True
+            self.StatusBar.showMessage("USB connected...",2000)
+            self.saveDataAction.setEnabled(True)
+            QApplication.processEvents()
+        elif(device.action=="remove"):
+            self.isUSBAttached=False
+            self.StatusBar.showMessage("USB removed...",2000)
+            self.saveDataAction.setEnabled(False)
+            QApplication.processEvents()
 
     def DisableButtons(self):        
         self.clearDFMAction.setEnabled(False)
@@ -108,7 +142,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
-        self.saveDataAction.setEnabled(True)
+        if(self.isUSBAttached==True):            
+                self.saveDataAction.setEnabled(True)        
         self.clearMessagesAction.setEnabled(True)
         self.deleteDataAction.setEnabled(True)
         self.powerOffAction.setEnabled(True)
@@ -215,8 +250,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.powerOffAction.triggered.connect(self.PowerOff)
         self.saveDataAction.triggered.connect(self.ChooseDataSaveLocation)
         self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
-        self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)
-        self.ejectAction.triggered.connect(self.EjectUSB)
+        self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)        
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -231,14 +265,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
         self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
-
-    def EjectUSB(self):
-        self.StatusBar.showMessage("Ejecting USB... ",self.statusmessageduration)
-        os.system("sudo eject /dev/sda")  
-        time.sleep(3)
-        self.StatusBar.showMessage("USB is now removable.",self.statusmessageduration)
-
-
+  
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
             for d in self.theDFMGroup.theDFMs:
@@ -255,7 +282,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         #self.programStartTime= tmp.toPyDateTime()
 
 
-    def AboutPyMCU(self):
+    def AboutPyMCUOLD(self):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
@@ -265,7 +292,23 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip=s.getsockname()[0]
         ss="Version 5.0\nIP: " + hostip
         msg.setInformativeText(ss)    
-        msg.exec_()        
+        msg.exec_()   
+
+    def AboutPyMCU(self):      
+        try: 
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            hostip= s.getsockname()[0]
+        except:
+            hostip="unknown"
+        
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText("Flidea Master Control Unit")
+        msg.setWindowTitle("About MCU")
+        ss="Version 5.0\nIP: " + hostip
+        msg.setInformativeText(ss)    
+        msg.exec_()   
 
     def SetActiveDFM(self,num):
         self.activeDFMNum=num        
@@ -365,8 +408,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
-                print("Shutting down")
-                #os.system("shotdown /s /t 1)")
+                print("Shutting down")                                   
+                QCoreApplication.instance().quit()
 
     def AssureClearMessages(self):
         msg = QMessageBox()
@@ -490,8 +533,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.UpdateProgramStatus()         
             self.DisableButtons()
         else:
-            self.EnableButtons()
-        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
+            self.EnableButtons()           
+        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S  "))                    
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
             self.UpdateDFMPageGUI() 
         self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))               
@@ -538,6 +581,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if(len(files)>0):
             self.FilesListWidget.setCurrentRow(0)
     
+    def LoadFilesListWidgetLOCAL(self):
+        self.FilesListWidget.clear()       
+        self.currentProgramFileDirectory ="./"    
+
+        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
+        for f in files:
+            h, t = os.path.split(f)
+            self.FilesListWidget.insertItem(0,t)
+        if(len(files)>0):
+            self.FilesListWidget.setCurrentRow(0)
+    
     def LoadCustomProgram( self ): 
         self.LoadFilesListWidget()
         self.GotoProgramLoadPage()
@@ -548,8 +602,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if len(subfolders)==0:
             self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
             return
-        else:        
-            print("Here")
+        else:                    
             dialog =QFileDialog(self)
             dialog.showMaximized()
             dialog.setFileMode(QFileDialog.Directory)
@@ -557,15 +610,23 @@ class MyMainWindow(QtWidgets.QMainWindow):
             dialog.setWindowTitle("Save Data")
             dialog.setDirectory(subfolders[0])
             if dialog.exec_():
+                self.GoToMessagesPage()                
                 direct = dialog.selectedFiles()
                 command = 'cp -r FLICData/ "' + direct[0]+'"'            
-                self.StatusBar.showMessage("Copying data files...",120000)                
+                self.StatusBar.showMessage("Copying data files...",120000)      
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.NOTICE)          
+                self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
+                QApplication.processEvents()
                 os.system(command)
                 self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)          
         
 
 
-def main():   
+def main():
+    if("MCU" in platform.node()):
+        theBoard=Board.BoardSetup()  
+    
     app = QtWidgets.QApplication(sys.argv)
     #app.setStyleSheet("QStatusBar.item {border : 0px black}")
     myapp = MyMainWindow()
@@ -573,16 +634,12 @@ def main():
         myapp.showFullScreen()
     else:
         myapp.show()
-       
-    sys.exit(app.exec_())    
+    sys.exit(app.exec_()) 
     print("Done")
     
 
-    
-
-
-
 if __name__ == "__main__":
     main()
+    
 
 

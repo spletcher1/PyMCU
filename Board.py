@@ -10,8 +10,8 @@ class BoardSetup():
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
 
-        ledPIN=13
-        relayPIN=6
+        self.ledPIN=13
+        self.relayPIN=6
 
         self.cameraPin = 27
 
@@ -21,8 +21,12 @@ class BoardSetup():
         GPIO.setup(self.cameraPin,GPIO.IN)
         GPIO.output(relayPIN,GPIO.HIGH)
         GPIO.output(ledPIN,GPIO.HIGH) 
-
+    
         GPIO.add_event_detect(self.cameraPin,GPIO.BOTH, callback=self.CameraSignalChanged)        
+
+    def TurnOffDFMPower(self):
+        GPIO.output(self.relayPIN,GPIO.LOW)
+        GPIO.output(self.ledPIN,GPIO.LOW)
 
     def GetCameraState(self):
         return GPIO.input(self.cameraPin)==GPIO.HIGH

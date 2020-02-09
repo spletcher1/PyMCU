@@ -1,6 +1,5 @@
 import Instruction
 from Enums import INSTRUCTIONSETTYPE
-from Enums import OPTOLIDTYPE
 from Enums import DARKSTATE
 import datetime
 import array
@@ -128,22 +127,16 @@ class InstructionSet:
         else:
             self.instructionSetType = INSTRUCTIONSETTYPE.CONSTANT
 
-    def SetLidTypeFromString(self,lt):
-        if(lt.lower()=="none" or lt=="0"):
-            self.lidType = OPTOLIDTYPE.NONE
-        elif(lt.lower()=="one" or lt=="1"):
-            self.lidType = OPTOLIDTYPE.ONECHAMBER
-        elif(lt.lower()=="six" or lt=="6"):
-            self.lidType = OPTOLIDTYPE.SIXCHAMBER
-        elif(lt.lower()=="twelve" or lt=="12"):
-            self.lidType = OPTOLIDTYPE.TWELVECHAMBER
-        else:
-            self.lidType = OPTOLIDTYPE.NONE                      
+    def SetLinkageFromString(self,lk):
+        ss = lk.split(",")
+        if(len(ss)==12):
+            for x in range(0,12):
+                self.linkage[x]=int(ss[x])
 
     def Clear(self):
         self.instructions=[]
         self.instructionSetType = INSTRUCTIONSETTYPE.LINEAR 
-        self.lidType = OPTOLIDTYPE.NONE
+        self.linkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
         self.optoDelay=0
         self.optoDecay=0
         self.optoFrequency=40
@@ -152,22 +145,16 @@ class InstructionSet:
             
    
     def ToString(self,duration,startTime):
-        s="Optolid: "
-        if(self.lidType==OPTOLIDTYPE.NONE):
-            s+="None"
-        elif(self.lidType==OPTOLIDTYPE.ONECHAMBER):
-            s+="One"
-        elif(self.lidType==OPTOLIDTYPE.TWELVECHAMBER):
-            s+="Twelve"
-        elif(self.lidType==OPTOLIDTYPE.SIXCHAMBER):
-            s+="Six"            
-
+        s="Linkage: "
+        for i in self.linkage:
+            s+=str(i)+","
+        s=s[:-1]
         s+="\n"
-        s+="Default Opto Frequency: " + str(self.optoFrequency) +"Hz\n"
-        s+="Default Opto Pulsewidth: " + str(self.optoPulseWidth) + "ms\n"
-        s+="Default Opto Delay: " + str(self.optoDelay) + "ms\n"
-        s+="Default Opto Decay: " + str(self.optoDecay) + "ms\n"
-        s+="Default Max Time On: " + str(self.maxTimeOn) + "ms\n"
+        s+="Opto Frequency: " + str(self.optoFrequency) +"Hz\n"
+        s+="Opto Pulsewidth: " + str(self.optoPulseWidth) + "ms\n"
+        s+="Opto Delay: " + str(self.optoDelay) + "ms\n"
+        s+="Opto Decay: " + str(self.optoDecay) + "ms\n"
+        s+="Max Time On: " + str(self.maxTimeOn) + "ms\n"
 
         s += "Program Type: "
         if(self.instructionSetType == INSTRUCTIONSETTYPE.LINEAR):
@@ -197,7 +184,7 @@ def ModuleTest():
     tmp.AddInstruction(tmp2)
     tmp.AddInstructionFromString("1,10,11,12,13,14,15,16,17,18,19,20,21,30")
     tmp.SetProgramTypeFromString("circadian")
-    tmp.SetLidTypeFromString("twelve")
+    tmp.SetLinkageFromString("1,2,3,1,5,6,7,1,9,10,1,12")
     print(tmp.ToString(datetime.timedelta(minutes=200),datetime.datetime.today()-datetime.timedelta(minutes=200)))
     
 

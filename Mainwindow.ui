@@ -30,6 +30,18 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
+    <property name="leftMargin">
+     <number>6</number>
+    </property>
+    <property name="topMargin">
+     <number>6</number>
+    </property>
+    <property name="rightMargin">
+     <number>6</number>
+    </property>
+    <property name="bottomMargin">
+     <number>9</number>
+    </property>
     <item>
      <widget class="QStackedWidget" name="StackedPages">
       <property name="minimumSize">
@@ -77,8 +89,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>98</width>
-             <height>88</height>
+             <width>547</width>
+             <height>379</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -113,6 +125,12 @@
            <enum>QFrame::Raised</enum>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_2">
+           <property name="leftMargin">
+            <number>9</number>
+           </property>
+           <property name="bottomMargin">
+            <number>9</number>
+           </property>
            <item>
             <widget class="QFrame" name="frame">
              <property name="maximumSize">
@@ -366,10 +384,10 @@
           <widget class="QWidget" name="scrollAreaWidgetContents_5">
            <property name="geometry">
             <rect>
-             <x>1</x>
-             <y>1</y>
-             <width>96</width>
-             <height>26</height>
+             <x>0</x>
+             <y>0</y>
+             <width>116</width>
+             <height>377</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1231,8 +1249,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>98</width>
-             <height>90</height>
+             <width>775</width>
+             <height>379</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
@@ -1501,13 +1519,17 @@
    <property name="minimumSize">
     <size>
      <width>0</width>
-     <height>0</height>
+     <height>22</height>
     </size>
    </property>
    <property name="font">
     <font>
-     <pointsize>10</pointsize>
+     <family>Ubuntu</family>
+     <pointsize>11</pointsize>
     </font>
+   </property>
+   <property name="sizeGripEnabled">
+    <bool>false</bool>
    </property>
   </widget>
   <widget class="QToolBar" name="toolBar">
@@ -1549,7 +1571,6 @@
    <addaction name="clearDFMAction"/>
    <addaction name="separator"/>
    <addaction name="saveDataAction"/>
-   <addaction name="ejectAction"/>
    <addaction name="deleteDataAction"/>
    <addaction name="separator"/>
    <addaction name="toggleOutputsAction"/>
@@ -1604,7 +1625,7 @@
      <normaloff>gnome-stock-text-indent.png</normaloff>gnome-stock-text-indent.png</iconset>
    </property>
    <property name="text">
-    <string>Program</string>
+    <string>Programs</string>
    </property>
    <property name="toolTip">
     <string>Go to program screen</string>
@@ -1616,7 +1637,7 @@
      <normaloff>gtk-about.png</normaloff>gtk-about.png</iconset>
    </property>
    <property name="text">
-    <string>About</string>
+    <string>About MCU</string>
    </property>
    <property name="toolTip">
     <string>About MCU</string>
@@ -1664,7 +1685,7 @@
      <normaloff>editclear.png</normaloff>editclear.png</iconset>
    </property>
    <property name="text">
-    <string>Clear Messages</string>
+    <string>Clear Mess</string>
    </property>
    <property name="toolTip">
     <string>Clear existing messages</string>

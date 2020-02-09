@@ -80,12 +80,12 @@ class DFMGroup:
         if len(self.theDFMs)==0:
             return False    
         self.theMessageList.ClearMessages()
-        for i in self.theDFMs:
-            i.sampleIndex=1
+        for i in self.theDFMs:            
             i.ResetOutputFileStuff()
-            i.SetStatus(Enums.CURRENTSTATUS.RECORDING)      
-            print("Status recording")      
-            i.isBufferResetNeeded=True                     
+            i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
+            i.isBufferResetNeeded=True   
+            i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
+            i.isLinkageSetNeeded=True
         time.sleep(1) # To allow everyone to reset
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
@@ -376,10 +376,7 @@ class DFMGroup:
         lines = f.readlines()
         f.close()
         result=self.currentProgram.LoadProgram(lines,self.theDFMs)
-        if (result):
-            for d in self.theDFMs:           
-                d.lidType = self.currentProgram.GetLidType(d.ID) 
-        else:
+        if (result==False):            
             self.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=180))
         return result  
         
@@ -390,11 +387,12 @@ class DFMGroup:
         if(len(self.theDFMs)==0):
             return
         print("Stopping program.")        
-        self.StopRecording()          
+        self.StopRecording()         
+        self.SetDFMIdleStatus() 
+        time.sleep(2)
         self.StopProgramWorker()  
         self.currentProgram.isActive=False
-        self.StartReadWorker()
-        self.SetDFMIdleStatus()
+        self.StartReadWorker()        
         print("Done")
     
     def StageCurrentProgram(self):

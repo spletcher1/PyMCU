@@ -29,13 +29,14 @@ class DFM:
         self.callLimit=2
         self.theData = DataBuffer.DataBuffer()             
         self.sampleIndex=1
-        self.signalBaselines=array.array("i",(0 for i in range(0,12)))        
+        self.signalBaselines=array.array("i",(0 for i in range(0,12)))      
+        self.currentLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])    
         self.baselineSamples=0
-        self.isCalculatingBaseline=False    
-        self.lidType=Enums.OPTOLIDTYPE.NONE            
+        self.isCalculatingBaseline=False                   
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
+        self.isLinkageSetNeeded=False
         self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
         self.reportedOptoPulsewidth=0
@@ -95,6 +96,9 @@ class DFM:
             if(newStatus == Enums.CURRENTSTATUS.ERROR):
                 self.beforeErrorStatus = self.status
                 self.pastStatus = Enums.PASTSTATUS.PASTERROR
+            elif(newStatus == Enums.CURRENTSTATUS.RECORDING):
+                self.beforeErrorStatus = newStatus
+                self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
             self.status = newStatus
     #endregion
   
@@ -265,6 +269,7 @@ class DFM:
                 self.bufferResetTime = datetime.datetime.today()
                 ss = self.bufferResetTime.strftime("%m/%d/%Y,%H:%M:%S")
                 print("Reset time: " + ss)
+                self.sampleIndex=1
             else:
                 print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):
@@ -273,6 +278,13 @@ class DFM:
                 self.isInstructionUpdateNeeded=False
             else:
                 print("Instruction failure")
+        elif(self.isLinkageSetNeeded):
+            if self.theCOMM.SendLinkage(self.ID,self.currentLinkage):                          
+                self.isLinkageSetNeeded=False
+                #print("Linkage success: " + str(self.currentLinkage))  
+            else:
+                print("Linkage failure")
+
     #endregion     
      
 
