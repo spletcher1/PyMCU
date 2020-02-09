@@ -303,7 +303,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
         msg.setWindowTitle("About MCU")
-        ss="Version 5.0\nIP: " + hostip
+        ss="Version: 0.2 beta\nIP: " + hostip
         msg.setInformativeText(ss)    
         msg.exec_()   
 
