@@ -287,7 +287,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as s:
             s.connect(("google.com",80))    
             hostip=s.getsockname()[0]
-        ss="Version 5.0\nIP: " + hostip
+        ss="Version: 0.2 beta\nIP: " + hostip
         msg.setInformativeText(ss)    
         msg.exec_()   
 
