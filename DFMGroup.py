@@ -286,13 +286,17 @@ class DFMGroup:
             if(tt.microsecond>0 and tt.second != lastSecond):   
                 if(time.time()-lastTime)>1:
                     s="Missed one second"                        
-                    self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)                       
+                    self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)   
+                ##start = time.time()                    
                 for d in self.theDFMs:
                     ## It takes a little over 30ms to call and
                     ## receive the data from one DFM, given a baud
                     ## rate of 115200                     
                     d.ReadValues(self.isWriting)                                                      
-                    time.sleep(0.005)      
+                    time.sleep(0.005)  
+                ##end=time.time()
+                ##print("All DFM time: "+str(end-start))     
+                ## abpit 0.3 seconds for 6 DFM.  May be able to get 10 in before needs a separate process.
                 if(self.isWriting):
                     if(self.stopRecordingSignal):
                         self.WriteEnder()                            
