@@ -51,7 +51,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -89,8 +89,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>547</width>
-             <height>379</height>
+             <width>98</width>
+             <height>88</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -384,10 +384,10 @@
           <widget class="QWidget" name="scrollAreaWidgetContents_5">
            <property name="geometry">
             <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>116</width>
-             <height>377</height>
+             <x>1</x>
+             <y>1</y>
+             <width>96</width>
+             <height>26</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1250,7 +1250,7 @@
              <x>0</x>
              <y>0</y>
              <width>775</width>
-             <height>379</height>
+             <height>384</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
@@ -1291,7 +1291,7 @@
                  </property>
                  <property name="font">
                   <font>
-                   <pointsize>8</pointsize>
+                   <pointsize>10</pointsize>
                   </font>
                  </property>
                  <property name="autoFillBackground">
@@ -1352,13 +1352,13 @@
             <number>1</number>
            </property>
            <property name="topMargin">
-            <number>1</number>
+            <number>3</number>
            </property>
            <property name="rightMargin">
             <number>1</number>
            </property>
            <property name="bottomMargin">
-            <number>1</number>
+            <number>3</number>
            </property>
            <item>
             <widget class="QTextEdit" name="ProgramPreviewTextBox">
@@ -1382,6 +1382,12 @@
          <widget class="QGroupBox" name="groupBox_4">
           <property name="title">
            <string>Files:</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+          </property>
+          <property name="flat">
+           <bool>true</bool>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_9">
            <property name="spacing">
@@ -1415,13 +1421,13 @@
                <number>1</number>
               </property>
               <property name="topMargin">
-               <number>1</number>
+               <number>3</number>
               </property>
               <property name="rightMargin">
                <number>1</number>
               </property>
               <property name="bottomMargin">
-               <number>1</number>
+               <number>3</number>
               </property>
               <item>
                <widget class="QListWidget" name="FilesListWidget">
