@@ -15,13 +15,13 @@ class DataBuffer:
     def NewData(self,newStatusPacket,addToQueue=True):
         if(self.IsFull()):
             return False       
-        self.lastDataPoint = newStatusPacket
+        self.lastDataPoint = newStatusPacket       
         if(addToQueue):
-            self.theData.append(newStatusPacket)
+            self.theData.append(newStatusPacket)           
         return True
     def PullAllRecordsAsString(self):
         s=""
         while self.theData:
-            sdr = self.theData.popleft()            
+            sdr = self.theData.popleft()                   
             s+=sdr.GetDataBufferPrintPacket()
         return s

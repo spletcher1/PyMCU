@@ -158,7 +158,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.LoadProgramButton.setEnabled(True)
 
     def SetProgramStartTime(self,theTime):
-        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)    
+        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)            
         self.programEndTime = self.programStartTime + self.programDuration        
         qtDate=QtCore.QDateTime.currentDateTime()    
         ss=self.programStartTime.strftime("%m-%d-%Y %H:%M:%S")        
@@ -174,7 +174,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             return
         sender = self.sender()
         tmp = sender.text()
-        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
+        #self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
+        self.programStartTime = datetime.datetime.today() + datetime.timedelta(seconds=10)
         if(tmp == "30 minutes"):
             self.programDuration = datetime.timedelta(minutes=30)          
             self.LoadSimpleProgram()  

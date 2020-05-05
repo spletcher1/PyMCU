@@ -81,6 +81,7 @@ class DFMGroup:
             i.isBufferResetNeeded=True   
             i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
             i.isLinkageSetNeeded=True
+            i.currentDFMErrors.ClearErrors()
         time.sleep(1) # To allow everyone to reset
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)

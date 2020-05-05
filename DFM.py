@@ -179,9 +179,8 @@ class DFM:
         self.currentStatusPackets.clear()
         results=[]
         for i in range(0,numPacketsReceived):
-            ## Problem with assuming all packets are okay to add sample index here because it is only 
-            ## incremented below if a packet is accepted.
-            tmpPacket = StatusPacket.StatusPacket(self.sampleIndex+i)
+            ## sampleIndex is set to -1 here because it is only added to the packet if it is a success.
+            tmpPacket = StatusPacket.StatusPacket(-1)
             results.append(tmpPacket.ProcessStatusPacket(bytesData,startTime,i))           
             self.currentStatusPackets.append(tmpPacket)            
         if(results[-1] == Enums.PROCESSEDPACKETRESULT.OKAY):
@@ -219,14 +218,13 @@ class DFM:
                 isSuccess=True
             if isSuccess:            
                 if (self.currentStatusPackets[j].recordIndex>0):
+                    self.currentStatusPackets[j].sample = self.sampleIndex                    
                     if(self.theData.NewData(self.currentStatusPackets[j],saveDataToQueue)==False):
                         s="({:d}) Data queue error".format(self.ID)
                         self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                         isSuccess = False
                     else:
-                        ## I think we need to figure out how to include correct sample index to packet when it is accepted
-                        ## into the queue, rather than when it is received.  Otherwise, the sample indices can get duplicated.
                         self.sampleIndex = self.sampleIndex+1
                         if(self.status == Enums.CURRENTSTATUS.ERROR):
                             self.SetStatus(self.beforeErrorStatus)                  
