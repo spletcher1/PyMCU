@@ -210,7 +210,7 @@ class UARTCOMM():
         self._WriteByteArray(barray,0.001)
        
         tmp=self._Read(2) 
-       
+        print(tmp)
         if(len(tmp)!=2):            
             return False
         if(tmp[0]==ID):
@@ -367,10 +367,20 @@ def ModuleTest():
     inst.maxTimeOn=1000
     print(p.SendInstruction(1,inst)        )
 
+def ModuleTest4():
+    Board.BoardSetup()
+    p=UARTCOMM()
+    #print(p.RequestBufferReset(1))
+    #
+    print(p.RequestBufferReset(4))
+    time.sleep(1)
+    tmp=p.GetStatusPacket(4)    
+    #theResults = self.ProcessPackets(tmp,self.bufferResetTime)       
+
     
 
 if __name__=="__main__" :
-    ModuleTest2()   
+    ModuleTest4()   
     print("Done!!")     
 
 #endregion
