@@ -205,8 +205,8 @@
           <widget class="QWidget" name="">
            <property name="geometry">
             <rect>
-             <x>10</x>
-             <y>140</y>
+             <x>11</x>
+             <y>141</y>
              <width>181</width>
              <height>231</height>
             </rect>
@@ -215,7 +215,7 @@
             <property name="spacing">
              <number>2</number>
             </property>
-            <item row="0" column="0" colspan="2">
+            <item row="0" column="0">
              <widget class="QPushButton" name="T30MinButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -224,11 +224,11 @@
                </sizepolicy>
               </property>
               <property name="text">
-               <string>30 minutes</string>
+               <string>30 min</string>
               </property>
              </widget>
             </item>
-            <item row="0" column="2">
+            <item row="0" column="1">
              <widget class="QPushButton" name="T60MinButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
@@ -237,11 +237,11 @@
                </sizepolicy>
               </property>
               <property name="text">
-               <string>60 minutes</string>
+               <string>60 min</string>
               </property>
              </widget>
             </item>
-            <item row="1" column="0" colspan="2">
+            <item row="1" column="0">
              <widget class="QPushButton" name="T3HrButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -254,7 +254,7 @@
               </property>
              </widget>
             </item>
-            <item row="1" column="2">
+            <item row="1" column="1">
              <widget class="QPushButton" name="T6HrButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -267,7 +267,7 @@
               </property>
              </widget>
             </item>
-            <item row="2" column="0" colspan="2">
+            <item row="2" column="0">
              <widget class="QPushButton" name="T12HrButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -280,7 +280,7 @@
               </property>
              </widget>
             </item>
-            <item row="2" column="2">
+            <item row="2" column="1">
              <widget class="QPushButton" name="T24HrButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -296,7 +296,7 @@
               </property>
              </widget>
             </item>
-            <item row="3" column="0" colspan="2">
+            <item row="3" column="0">
              <widget class="QPushButton" name="T5DButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -309,7 +309,7 @@
               </property>
              </widget>
             </item>
-            <item row="3" column="2">
+            <item row="3" column="1">
              <widget class="QPushButton" name="CustomButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -322,7 +322,7 @@
               </property>
              </widget>
             </item>
-            <item row="4" column="0" rowspan="2" colspan="2">
+            <item row="4" column="0">
              <widget class="QPushButton" name="RunProgramButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -335,7 +335,7 @@
               </property>
              </widget>
             </item>
-            <item row="4" column="2">
+            <item row="4" column="1">
              <widget class="QPushButton" name="MoveButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
