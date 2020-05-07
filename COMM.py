@@ -209,8 +209,7 @@ class UARTCOMM():
         barray.append(0x00)            
         self._WriteByteArray(barray,0.001)
        
-        tmp=self._Read(2) 
-        print(tmp)
+        tmp=self._Read(2)         
         if(len(tmp)!=2):            
             return False
         if(tmp[0]==ID):
@@ -291,7 +290,7 @@ class UARTCOMM():
             #tmp = self._ReadCOBSPacket(1050)
             #print(str(len(tmp)))
             #return cobs.decode(tmp)
-            return cobs.decode(self._ReadCOBSPacket(1050))
+            return cobs.decode(self._ReadCOBSPacket(2050))
         except:
             return ''
     def PollSlave(self,ID):                     
@@ -322,21 +321,16 @@ def ModuleTest3():
     #tmp2 = ((len(tmp)-69)/65)+1
     #print(tmp2)
 
-def ModuleTest2():
+def ModuleTest2(dfmID):
     Board.BoardSetup()
     p=UARTCOMM()
-    counter=0
-    totalpackets=0
-    tmp=p.GetStatusPacket(5)
-    theResults = self.ProcessPackets(tmp,self.bufferResetTime)            
-    print(len(tmp))
-    time.sleep(1)
+    counter=2
     start = time.time()
     while counter<12:
-        tmp=p.GetStatusPacket(5)
+        tmp=p.GetStatusPacket(dfmID)
         #tmp2 = ((len(tmp)-69)/65)+1
         #totalpackets+=tmp2
-        print(tmp)
+        print(len(tmp)/66)
         time.sleep(1)
         counter+=1
     end=time.time()
@@ -367,20 +361,20 @@ def ModuleTest():
     inst.maxTimeOn=1000
     print(p.SendInstruction(1,inst)        )
 
-def ModuleTest4():
+def ModuleTest4(dfmID):
     Board.BoardSetup()
     p=UARTCOMM()
     #print(p.RequestBufferReset(1))
     #
     print(p.RequestBufferReset(4))
     time.sleep(1)
-    tmp=p.GetStatusPacket(4)    
+    #tmp=p.GetStatusPacket(4)    
     #theResults = self.ProcessPackets(tmp,self.bufferResetTime)       
 
     
 
 if __name__=="__main__" :
-    ModuleTest4()   
+    ModuleTest2(4)   
     print("Done!!")     
 
 #endregion

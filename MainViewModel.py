@@ -165,6 +165,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         qtDate = QtCore.QDateTime.fromString(ss,"MM-dd-yyyy HH:mm:ss")        
         self.StartTimeEdit.setDateTime(qtDate)
         self.theDFMGroup.currentProgram.startTime = self.programStartTime
+        self.UpdateProgramGUI()
         self.StatusBar.showMessage("Set program start time: " + self.programStartTime.strftime("%m/%d/%Y %H:%M:%S") ,self.statusmessageduration)
 
 
@@ -205,14 +206,23 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def ToggleProgramRun(self):
         if(len(self.theDFMGroup.theDFMs)==0): return
         if(self.theDFMGroup.currentProgram.isActive):
-            self.RunProgramButton.setText("Run Program")
+            self.RunProgramButton.setEnabled(False)
+            self.StatusBar.showMessage("Stopping program.",self.statusmessageduration)   
+            QApplication.processEvents()            
             self.theDFMGroup.StopCurrentProgram()
+            while self.theDFMGroup.currentProgram.isActive:
+                pass
+            self.RunProgramButton.setText("Run Program")
             self.toggleOutputsState=False
+            self.RunProgramButton.setEnabled(True)
         else:
+            self.RunProgramButton.setEnabled(False)
             self.DisableButtons()                        
-            self.RunProgramButton.setText("Stop Program")      
+            QApplication.processEvents()            
             self.theDFMGroup.StageCurrentProgram()            
             self.toggleOutputsState=False
+            self.RunProgramButton.setText("Stop Program")      
+            self.RunProgramButton.setEnabled(True)
         self.UpdateDFMButtonTextColors()
 
     def LoadSimpleProgram(self):
@@ -564,23 +574,26 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
 
     def LoadFilesListWidget(self):
-        self.FilesListWidget.clear()       
-        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        if len(subfolders)==0:
-            self.currentProgramFileDirectory = "/media/pi/FLICPrograms/"
-        else:
-            self.currentProgramFileDirectory = subfolders[0]+"/FLICPrograms/"    
+        self.FilesListWidget.clear()   
+        try:    
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+            if len(subfolders)==0:
+                self.currentProgramFileDirectory = "/media/pi/FLICPrograms/"
+            else:
+                self.currentProgramFileDirectory = subfolders[0]+"/FLICPrograms/"    
 
-        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
-        for f in files:
-            h, t = os.path.split(f)
-            self.FilesListWidget.insertItem(0,t)
-        if(len(files)>0):
-            self.FilesListWidget.setCurrentRow(0)
+            files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
+            for f in files:
+                h, t = os.path.split(f)
+                self.FilesListWidget.insertItem(0,t)
+            if(len(files)>0):
+                self.FilesListWidget.setCurrentRow(0)
+        except:
+            self.StatusBar.showMessage("Problem loading program. Is USB connected?",self.statusmessageduration)  
     
     def LoadFilesListWidgetLOCAL(self):
         self.FilesListWidget.clear()       
-        self.currentProgramFileDirectory ="./"    
+        self.currentProgramFileDirectory ="./FLICPrograms"    
 
         files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
         for f in files:
@@ -590,7 +603,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.FilesListWidget.setCurrentRow(0)
     
     def LoadCustomProgram( self ): 
-        self.LoadFilesListWidget()
+        self.LoadFilesListWidgetLOCAL()
         self.GotoProgramLoadPage()
         return
       
