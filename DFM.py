@@ -21,7 +21,7 @@ class DFM:
         self.ID=id     
         self.theCOMM = commProtocol
         self.currentStatusPackets = []
-        self.outputFile = "DFM" + str(self.ID) + "_0.csv"
+        self.outputFile = "DFM_" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
         self.pastStatus = Enums.PASTSTATUS.ALLCLEAR

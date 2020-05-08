@@ -137,11 +137,13 @@ class UARTCOMM():
         UARTCOMM.UART_message.notify(tmp)   
     def _Write(self,s,delay=0.005):
         GPIO.output(self.sendPIN,GPIO.HIGH)       
+        time.sleep(delay)    
         self.thePort.write(s.encode())               
         time.sleep(delay)     
         GPIO.output(self.sendPIN,GPIO.LOW)
     def _WriteByteArray(self,ba,delay=0.005):       
         GPIO.output(self.sendPIN,GPIO.HIGH)
+        time.sleep(delay)    
         self.thePort.write(ba)   
         time.sleep(delay)             
         GPIO.output(self.sendPIN,GPIO.LOW)

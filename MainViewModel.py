@@ -20,6 +20,8 @@ import socket
 import os
 import subprocess
 import glob
+import shutil
+
 if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
 
@@ -177,10 +179,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         tmp = sender.text()
         #self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(seconds=10)
-        if(tmp == "30 minutes"):
+        if(tmp == "30 min"):
             self.programDuration = datetime.timedelta(minutes=30)          
             self.LoadSimpleProgram()  
-        elif(tmp == "60 minutes"):
+        elif(tmp == "60 min"):
             self.programDuration = datetime.timedelta(minutes=60)            
             self.LoadSimpleProgram()
         elif(tmp == "3 hours"):
@@ -198,6 +200,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         elif(tmp == "5 days"):
             self.programDuration = datetime.timedelta(minutes=60*24*5)
             self.LoadSimpleProgram()
+        elif(tmp == "Move"):
+            return
         elif(tmp == "Custom"):
             return
 
@@ -212,7 +216,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.StopCurrentProgram()
             while self.theDFMGroup.currentProgram.isActive:
                 pass
-            self.RunProgramButton.setText("Run Program")
+            self.RunProgramButton.setText("Run")
             self.toggleOutputsState=False
             self.RunProgramButton.setEnabled(True)
         else:
@@ -221,7 +225,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             QApplication.processEvents()            
             self.theDFMGroup.StageCurrentProgram()            
             self.toggleOutputsState=False
-            self.RunProgramButton.setText("Stop Program")      
+            self.RunProgramButton.setText("Stop")      
             self.RunProgramButton.setEnabled(True)
         self.UpdateDFMButtonTextColors()
 
@@ -273,6 +277,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
         self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
+        self.MoveProgramButton.clicked.connect(self.MoveProgramFilesToLocal)
   
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -291,6 +296,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
     def AboutPyMCUOLD(self):
+        stat = os.statvfs("./MainViewModel.py")
+        availableMegaBytes=(stat.f_bree*stat.f_bsize)/1048576
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
@@ -299,6 +306,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             s.connect(("google.com",80))    
             hostip=s.getsockname()[0]
         ss="Version: 0.2 beta\nIP: " + hostip
+        ss=ss+"\n Available space: " + str(int(availableMegaBytes)) +"MB"
         msg.setInformativeText(ss)    
         msg.exec_()   
 
@@ -496,10 +504,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:            
             self.I2CErrorBox.setChecked(True)
 
-        if(self.activeDFM.currentDFMErrors.GetUARTErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.UARTErrorBox.setChecked(False)
+        if(self.activeDFM.currentDFMErrors.GetOERRErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.OERRErrorBox.setChecked(False)
         else:
-            self.UARTErrorBox.setChecked(True)
+            self.OERRErrorBox.setChecked(True)
          
         if(self.activeDFM.currentDFMErrors.GetPacketErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.PacketErrorBox.setChecked(False)
@@ -513,10 +521,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.TSLErrorBox.setChecked(False)
         else:
             self.TSLErrorBox.setChecked(True)
-        if(self.activeDFM.currentDFMErrors.GetConfigErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.ConfigErrorBox.setChecked(False)
+        if(self.activeDFM.currentDFMErrors.GetFERRErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.FERRErrorBox.setChecked(False)
         else:
-            self.ConfigErrorBox.setChecked(True)
+            self.FERRErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetBufferErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.BufferErrorBox.setChecked(False)
         else:
@@ -573,7 +581,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             except:
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
 
-    def LoadFilesListWidget(self):
+    def LoadFilesListWidgetDEPRICATED(self):
         self.FilesListWidget.clear()   
         try:    
             subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
@@ -591,11 +599,30 @@ class MyMainWindow(QtWidgets.QMainWindow):
         except:
             self.StatusBar.showMessage("Problem loading program. Is USB connected?",self.statusmessageduration)  
     
+    def MoveProgramFilesToLocal(self):
+        try:    
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+            if len(subfolders)==0:
+                sourceDirectory = "/media/pi/FLICPrograms/"
+            else:
+                sourceDirectory = subfolders[0]+"/FLICPrograms/"    
+            targetDirectory ="./FLICPrograms/"    
+            files=(glob.glob(sourceDirectory+"*.txt"))
+            if(len(files)>0):
+                for i in files:
+                    shutil.copy(i,targetDirectory)
+            else:
+                self.StatusBar.showMessage("No .txt files found.",self.statusmessageduration)  
+                
+        except:
+            self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)  
+    
     def LoadFilesListWidgetLOCAL(self):
         self.FilesListWidget.clear()       
-        self.currentProgramFileDirectory ="./FLICPrograms"    
+        self.currentProgramFileDirectory ="./FLICPrograms/"    
 
         files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
+        print(files)
         for f in files:
             h, t = os.path.split(f)
             self.FilesListWidget.insertItem(0,t)
