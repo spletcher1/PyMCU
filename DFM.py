@@ -48,6 +48,8 @@ class DFM:
         self.reportedLUX=0
         self.reportedVoltsIn=1.0      
         self.bufferResetTime = datetime.datetime.today()
+        self.lastReadTime = datetime.datetime.now()
+        self.programReadInterval=3
 
 
     def __str__(self):
@@ -115,7 +117,7 @@ class DFM:
             tmp = self.signalBaselines[i] * self.baselineSamples
             self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
-        if(self.baselineSamples>=20):
+        if(self.baselineSamples>=10):
             self.isCalculatingBaseline=False              
     def BaselineDFM(self):
         self.ResetBaseline()
@@ -188,7 +190,7 @@ class DFM:
         return results
   
     def ReadValues(self,saveDataToQueue):           
-        
+        self.lastReadTime = datetime.datetime.now()
         theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
         currentTime = datetime.datetime.today()
         for _ in range(0,self.callLimit) :                        
