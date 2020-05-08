@@ -202,7 +202,7 @@
             </item>
            </layout>
           </widget>
-          <widget class="QWidget" name="">
+          <widget class="QWidget" name="layoutWidget">
            <property name="geometry">
             <rect>
              <x>11</x>
@@ -336,7 +336,7 @@
              </widget>
             </item>
             <item row="4" column="1">
-             <widget class="QPushButton" name="MoveButton">
+             <widget class="QPushButton" name="MoveProgramButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
                 <horstretch>0</horstretch>
@@ -414,8 +414,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>96</width>
-             <height>22</height>
+             <width>116</width>
+             <height>382</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1141,7 +1141,7 @@
                </widget>
               </item>
               <item row="1" column="1">
-               <widget class="QCheckBox" name="ConfigErrorBox">
+               <widget class="QCheckBox" name="FERRErrorBox">
                 <property name="font">
                  <font>
                   <pointsize>10</pointsize>
@@ -1150,7 +1150,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>Config</string>
+                 <string>FERR</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1175,7 +1175,7 @@
                </widget>
               </item>
               <item row="1" column="0">
-               <widget class="QCheckBox" name="UARTErrorBox">
+               <widget class="QCheckBox" name="OERRErrorBox">
                 <property name="font">
                  <font>
                   <pointsize>10</pointsize>
@@ -1184,7 +1184,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>UART</string>
+                 <string>OERR</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1277,8 +1277,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>775</width>
-             <height>384</height>
+             <width>98</width>
+             <height>90</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
