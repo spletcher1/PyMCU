@@ -39,6 +39,7 @@ class DFMGroup:
         self.theFiles = []
         self.writeStartTimes=[]
         self.currentDFMIndex=0
+        self.readIntervalSeconds=1
 
 
     def NewMessageDirect(self,newMessage):        
@@ -284,8 +285,9 @@ class DFMGroup:
         while True:   
             tt = datetime.datetime.now()
             diffTime = lastTime-tt            
-            if(diffTime.total_seconds>3):   
-                if(diffTime.total_seconds>5):
+            if(diffTime.total_seconds()>self.readIntervalSeconds):  
+                print("read") 
+                if(diffTime.total_seconds()>5):
                     s="Missed five seconds"                        
                     self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)   
                 ##start = time.time()                    
@@ -344,6 +346,7 @@ class DFMGroup:
                     return
                 else:
                     self.StartRecording()
+                    self.readIntervalSeconds=3
             elif(self.currentProgram.IsAfterExperiment() and self.currentProgram.isActive):
                 self.StopCurrentProgram()
 
