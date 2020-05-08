@@ -141,7 +141,7 @@ class DFMGroup:
     def WriteStep(self):
         currentDFM = self.theDFMs[self.currentDFMIndex]
         currentDuration=datetime.datetime.today()-self.writeStartTimes[self.currentDFMIndex]
-        if(currentDuration.total_seconds()>=86400):
+        if(currentDuration.total_seconds()>=43200):
             self.theFiles[self.currentDFMIndex].close()   
             currentDFM.IncrementOutputFile()                
             tmp=self.currentOutputDirectory+"/"+currentDFM.outputFile
@@ -279,14 +279,14 @@ class DFMGroup:
 
     def ProgramWorker(self):
         self.isProgramWorkerRunning=True        
-        tt = datetime.datetime.today()        
-        lastTime = time.time()    
-        lastSecond = tt.second      
+        lastTime = datetime.datetime.now()    
+        time.sleep(0.01)        
         while True:   
-            tt = datetime.datetime.today()
-            if(tt.microsecond>0 and tt.second != lastSecond):   
-                if(time.time()-lastTime)>1:
-                    s="Missed one second"                        
+            tt = datetime.datetime.now()
+            diffTime = lastTime-tt            
+            if(diffTime.total_seconds>3):   
+                if(diffTime.total_seconds>5):
+                    s="Missed five seconds"                        
                     self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)   
                 ##start = time.time()                    
                 for d in self.theDFMs:
@@ -294,7 +294,7 @@ class DFMGroup:
                     ## receive the data from one DFM, given a baud
                     ## rate of 115200                     
                     d.ReadValues(self.isWriting)                                                      
-                    time.sleep(0.005)  
+                    time.sleep(0.010)  
                 ##end=time.time()
                 ##print("All DFM time: "+str(end-start))     
                 ## abpit 0.3 seconds for 6 DFM.  May be able to get 10 in before needs a separate process.
@@ -303,9 +303,8 @@ class DFMGroup:
                         self.WriteEnder()                            
                     else:
                         self.WriteStep()                                                                           
-                DFMGroup.DFMGroup_updatecomplete.notify()                                                                               
-                lastSecond=tt.second    
-                lastTime=time.time()                                      
+                DFMGroup.DFMGroup_updatecomplete.notify()                                                                                               
+                lastTime=datetime.datetime.now()                                      
             if(self.stopProgramWorkerSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
