@@ -412,10 +412,10 @@
           <widget class="QWidget" name="scrollAreaWidgetContents_5">
            <property name="geometry">
             <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>116</width>
-             <height>382</height>
+             <x>1</x>
+             <y>1</y>
+             <width>96</width>
+             <height>26</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1671,7 +1671,7 @@
      <normaloff>gtk-about.png</normaloff>gtk-about.png</iconset>
    </property>
    <property name="text">
-    <string>About MCU</string>
+    <string>About</string>
    </property>
    <property name="toolTip">
     <string>About MCU</string>
