@@ -51,7 +51,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -412,10 +412,10 @@
           <widget class="QWidget" name="scrollAreaWidgetContents_5">
            <property name="geometry">
             <rect>
-             <x>1</x>
-             <y>1</y>
+             <x>0</x>
+             <y>0</y>
              <width>96</width>
-             <height>26</height>
+             <height>22</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1277,7 +1277,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>98</width>
+             <width>90</width>
              <height>90</height>
             </rect>
            </property>
@@ -1408,6 +1408,9 @@
         </item>
         <item>
          <widget class="QGroupBox" name="groupBox_4">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="title">
            <string>Files:</string>
           </property>
@@ -1495,10 +1498,7 @@
              <property name="frameShadow">
               <enum>QFrame::Raised</enum>
              </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_9">
-              <property name="spacing">
-               <number>1</number>
-              </property>
+             <layout class="QHBoxLayout" name="horizontalLayout_9" stretch="0,0,0">
               <property name="leftMargin">
                <number>1</number>
               </property>
@@ -1534,6 +1534,19 @@
                 </property>
                 <property name="text">
                  <string>Load Program</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="DeleteProgramButton">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Delete Program</string>
                 </property>
                </widget>
               </item>
