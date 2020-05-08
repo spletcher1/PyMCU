@@ -113,11 +113,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.isUSBAttached=True
             self.StatusBar.showMessage("USB connected...",2000)
             self.saveDataAction.setEnabled(True)
+            self.MoveProgramButton.setEnabled(True)
             QApplication.processEvents()
         elif(device.action=="remove"):
             self.isUSBAttached=False
             self.StatusBar.showMessage("USB removed...",2000)
             self.saveDataAction.setEnabled(False)
+            self.MoveProgramButton.setEnabled(False)
             QApplication.processEvents()
 
     def DisableButtons(self):        
@@ -138,11 +140,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StartTimeEdit.setEnabled(False)
         self.toggleOutputsAction.setEnabled(False)
         self.LoadProgramButton.setEnabled(False)
+        self.MoveProgramButton.setEnabled(False)
+        self.DeleteProgramButton.setEnabled(False)
 
     def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
         if(self.isUSBAttached==True):            
                 self.saveDataAction.setEnabled(True)        
+                self.MoveProgramButton.setEnabled(True)
         self.clearMessagesAction.setEnabled(True)
         self.deleteDataAction.setEnabled(True)
         self.powerOffAction.setEnabled(True)
@@ -158,6 +163,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StartTimeEdit.setEnabled(True)
         self.toggleOutputsAction.setEnabled(True)
         self.LoadProgramButton.setEnabled(True)
+        self.DeleteProgramButton.setEnabled(True)
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)            
@@ -278,6 +284,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
         self.MoveProgramButton.clicked.connect(self.MoveProgramFilesToLocal)
+        self.DeleteProgramButton.clicked.connect(self.DeleteProgramFile)
   
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -311,6 +318,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.exec_()   
 
     def AboutPyMCU(self):      
+        stat = os.statvfs("./MainViewModel.py")
+        availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
         try: 
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -322,7 +331,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
         msg.setWindowTitle("About MCU")
-        ss="Version: 0.2 beta\nIP: " + hostip
+        ss="Version: 0.5 beta\nIP: " + hostip
+        ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +"MB"
         msg.setInformativeText(ss)    
         msg.exec_()   
 
@@ -580,6 +590,22 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.UpdateProgramGUI() 
             except:
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
+        else:
+            self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)    
+
+
+    def DeleteProgramFile(self):
+        if(self.currentChosenProgramFile!=""):
+            fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
+            try:              
+               os.remove(fn)
+               self.StatusBar.showMessage("Program deleted.",self.statusmessageduration) 
+               self.LoadFilesListWidget()
+            except:
+                self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration) 
+        else:
+            self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)      
+
 
     def LoadFilesListWidgetDEPRICATED(self):
         self.FilesListWidget.clear()   
@@ -600,6 +626,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("Problem loading program. Is USB connected?",self.statusmessageduration)  
     
     def MoveProgramFilesToLocal(self):
+        self.StatusBar.showMessage("Moving programs from USB...",self.statusmessageduration)  
         try:    
             subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
             if len(subfolders)==0:
@@ -616,13 +643,16 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 
         except:
             self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)  
+        sss="Move complete. {:d} program files moved.".format(len(files))
+        self.StatusBar.showMessage(sss,self.statusmessageduration)  
+        self.LoadCustomProgram()
+
     
-    def LoadFilesListWidgetLOCAL(self):
+    def LoadFilesListWidget(self):
         self.FilesListWidget.clear()       
         self.currentProgramFileDirectory ="./FLICPrograms/"    
 
-        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
-        print(files)
+        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))        
         for f in files:
             h, t = os.path.split(f)
             self.FilesListWidget.insertItem(0,t)
@@ -630,7 +660,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.FilesListWidget.setCurrentRow(0)
     
     def LoadCustomProgram( self ): 
-        self.LoadFilesListWidgetLOCAL()
+        self.LoadFilesListWidget()
         self.GotoProgramLoadPage()
         return
       
