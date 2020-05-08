@@ -339,7 +339,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def SetActiveDFM(self,num):
         self.activeDFMNum=num        
         self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]        
-        self.theDFMGroup.activeDFM = self.activeDFM       
+        self.theDFMGroup.activeDFM = self.activeDFM   
+        ## This is here to ensure that current data is shown quickly regardless of the DFM buffer.    
+        self.activeDFM.isBufferResetNeeded=True
         self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
         self.UpdateDFMButtonTextColors()
 
