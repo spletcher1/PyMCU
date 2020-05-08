@@ -284,9 +284,8 @@ class DFMGroup:
         time.sleep(0.01)        
         while True:   
             tt = datetime.datetime.now()
-            diffTime = lastTime-tt            
+            diffTime = tt-lastTime            
             if(diffTime.total_seconds()>self.readIntervalSeconds):  
-                print("read") 
                 if(diffTime.total_seconds()>5):
                     s="Missed five seconds"                        
                     self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)   
@@ -306,7 +305,7 @@ class DFMGroup:
                     else:
                         self.WriteStep()                                                                           
                 DFMGroup.DFMGroup_updatecomplete.notify()                                                                                               
-                lastTime=datetime.datetime.now()                                      
+                lastTime=tt                                     
             if(self.stopProgramWorkerSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
