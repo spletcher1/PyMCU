@@ -146,6 +146,18 @@
             <enum>QFrame::Raised</enum>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_8">
+            <property name="leftMargin">
+             <number>6</number>
+            </property>
+            <property name="topMargin">
+             <number>2</number>
+            </property>
+            <property name="rightMargin">
+             <number>2</number>
+            </property>
+            <property name="bottomMargin">
+             <number>9</number>
+            </property>
             <item>
              <widget class="QLabel" name="label_11">
               <property name="text">
@@ -202,18 +214,18 @@
             </item>
            </layout>
           </widget>
-          <widget class="QWidget" name="layoutWidget">
+          <widget class="QWidget" name="">
            <property name="geometry">
             <rect>
-             <x>11</x>
-             <y>141</y>
+             <x>12</x>
+             <y>142</y>
              <width>181</width>
              <height>231</height>
             </rect>
            </property>
            <layout class="QGridLayout" name="gridLayout_2">
             <property name="spacing">
-             <number>2</number>
+             <number>1</number>
             </property>
             <item row="0" column="0">
              <widget class="QPushButton" name="T30MinButton">
@@ -322,7 +334,7 @@
               </property>
              </widget>
             </item>
-            <item row="4" column="0">
+            <item row="4" column="0" colspan="2">
              <widget class="QPushButton" name="RunProgramButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -332,19 +344,6 @@
               </property>
               <property name="text">
                <string>Run</string>
-              </property>
-             </widget>
-            </item>
-            <item row="4" column="1">
-             <widget class="QPushButton" name="MoveProgramButton">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string>Move</string>
               </property>
              </widget>
             </item>
@@ -1498,7 +1497,10 @@
              <property name="frameShadow">
               <enum>QFrame::Raised</enum>
              </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_9" stretch="0,0,0">
+             <layout class="QHBoxLayout" name="horizontalLayout_9">
+              <property name="spacing">
+               <number>1</number>
+              </property>
               <property name="leftMargin">
                <number>1</number>
               </property>
@@ -1525,19 +1527,6 @@
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="LoadProgramButton">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Load Program</string>
-                </property>
-               </widget>
-              </item>
-              <item>
                <widget class="QPushButton" name="DeleteProgramButton">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
@@ -1546,7 +1535,33 @@
                  </sizepolicy>
                 </property>
                 <property name="text">
-                 <string>Delete Program</string>
+                 <string>Delete</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="MoveProgramButton">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Get (USB)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="LoadProgramButton">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Load</string>
                 </property>
                </widget>
               </item>
