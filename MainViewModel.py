@@ -275,7 +275,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.clearMessagesAction.triggered.connect(self.AssureClearMessages)
         self.aboutMCUAction.triggered.connect(self.AboutPyMCU)
         self.powerOffAction.triggered.connect(self.PowerOff)
-        self.saveDataAction.triggered.connect(self.ChooseDataSaveLocation)
+        self.saveDataAction.triggered.connect(self.SaveDataToUSB)
         self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
         self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)        
 
@@ -300,10 +300,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
             for d in self.theDFMGroup.theDFMs:
                 d.SetOutputsOff()
             self.toggleOutputsState = False
+            self.StatusBar.showMessage("Outputs toggled off.",self.statusmessageduration)  
         else:
             for d in self.theDFMGroup.theDFMs:
                 d.SetOutputsOn()
             self.toggleOutputsState = True
+            self.StatusBar.showMessage("Outputs toggled on.",self.statusmessageduration)  
 
     def SetStartTimeNow(self):
         self.SetProgramStartTime(datetime.datetime.today())
@@ -684,7 +686,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.GotoProgramLoadPage()
         return
 
-    def ChooseDataSaveLocation( self ):
+    def SaveDataToUSB( self ):
         subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
         if len(subfolders)==0:
             self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
