@@ -90,7 +90,7 @@
              <x>0</x>
              <y>0</y>
              <width>580</width>
-             <height>384</height>
+             <height>389</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -414,7 +414,7 @@
              <x>0</x>
              <y>0</y>
              <width>116</width>
-             <height>382</height>
+             <height>387</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1283,7 +1283,7 @@
              <x>0</x>
              <y>0</y>
              <width>775</width>
-             <height>384</height>
+             <height>389</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
