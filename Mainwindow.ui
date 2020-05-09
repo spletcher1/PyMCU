@@ -51,7 +51,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -90,7 +90,7 @@
              <x>0</x>
              <y>0</y>
              <width>580</width>
-             <height>384</height>
+             <height>379</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -214,7 +214,7 @@
             </item>
            </layout>
           </widget>
-          <widget class="QWidget" name="">
+          <widget class="QWidget" name="layoutWidget">
            <property name="geometry">
             <rect>
              <x>12</x>
@@ -414,7 +414,7 @@
              <x>0</x>
              <y>0</y>
              <width>116</width>
-             <height>382</height>
+             <height>377</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -1268,6 +1268,12 @@
         </property>
         <item>
          <widget class="QScrollArea" name="scrollArea">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="widgetResizable">
            <bool>true</bool>
           </property>
@@ -1277,14 +1283,14 @@
              <x>0</x>
              <y>0</y>
              <width>775</width>
-             <height>384</height>
+             <height>379</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
             <item>
              <widget class="QWidget" name="widget" native="true">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -1315,6 +1321,12 @@
                 <widget class="QTextEdit" name="MessagesTextEdit">
                  <property name="enabled">
                   <bool>true</bool>
+                 </property>
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
                  </property>
                  <property name="font">
                   <font>
@@ -1590,6 +1602,12 @@
    </layout>
   </widget>
   <widget class="QStatusBar" name="StatusBar">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
    <property name="minimumSize">
     <size>
      <width>0</width>
@@ -1601,6 +1619,12 @@
      <family>Ubuntu</family>
      <pointsize>11</pointsize>
     </font>
+   </property>
+   <property name="cursor">
+    <cursorShape>ArrowCursor</cursorShape>
+   </property>
+   <property name="contextMenuPolicy">
+    <enum>Qt::NoContextMenu</enum>
    </property>
    <property name="sizeGripEnabled">
     <bool>false</bool>
