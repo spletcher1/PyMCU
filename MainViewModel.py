@@ -600,13 +600,20 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def DeleteProgramFile(self):
         if(self.currentChosenProgramFile!=""):
-            fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
-            try:              
-               os.remove(fn)
-               self.StatusBar.showMessage("Program deleted.",self.statusmessageduration) 
-               self.LoadFilesListWidget()
-            except:
-                self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration) 
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Question)
+            msg.setText("Are you sure that you would like to delete this program file?")
+            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg.setWindowTitle("Delete Program")
+            retval=msg.exec_()
+            if(retval==QMessageBox.Yes):
+                fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
+                try:              
+                    os.remove(fn)
+                    self.StatusBar.showMessage("Program deleted.",self.statusmessageduration) 
+                    self.LoadFilesListWidget()
+                except:
+                    self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration) 
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)      
 
