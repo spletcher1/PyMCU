@@ -62,7 +62,7 @@ class DFMGroup:
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
                 s = "DFM "+str(i)+" found"
                 self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
-            time.sleep(0.100)  
+            time.sleep(0.010)  
         if(len(self.theDFMs)>0):               
             self.activeDFM = self.theDFMs[0]
         if(startReading):
@@ -296,15 +296,17 @@ class DFMGroup:
             for d in self.theDFMs:         
                 diffTime = tt-d.lastReadTime   
                 if(diffTime.total_seconds()>d.programReadInterval):  
+                    start=time.time()
                     if(diffTime.total_seconds()>5):
                         s="Missed five seconds"                        
                         self.NewMessage(d.ID,tt,0,s,Enums.MESSAGETYPE.ERROR)                                                     
                     d.ReadValues(self.isWriting)    
-                    DFMGroup.DFMGroup_updatecomplete.notify()                                                      
+                    DFMGroup.DFMGroup_updatecomplete.notify()     
+                    end=time.time()
+                    print("DFM time: "+str(end-start))     
+                    ##                                              
                 time.sleep(0.010)  
-                ##end=time.time()
-                ##print("All DFM time: "+str(end-start))     
-                ## abpit 0.3 seconds for 6 DFM.  May be able to get 10 in before needs a separate process.
+              
             if(self.isWriting):
                 if(self.stopRecordingSignal):                    
                     ## Need to clear out the DFM buffers:
