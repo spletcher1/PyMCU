@@ -222,7 +222,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.StopCurrentProgram()
             while self.theDFMGroup.currentProgram.isActive:
                 pass
-            self.RunProgramButton.setText("Run")
+            self.RunProgramButton.setText("Run Program")
             self.toggleOutputsState=False
             self.RunProgramButton.setEnabled(True)
         else:
@@ -231,7 +231,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             QApplication.processEvents()            
             self.theDFMGroup.StageCurrentProgram()            
             self.toggleOutputsState=False
-            self.RunProgramButton.setText("Stop")      
+            self.RunProgramButton.setText("Stop Program")      
             self.RunProgramButton.setEnabled(True)
         self.UpdateDFMButtonTextColors()
 
