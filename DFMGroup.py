@@ -296,16 +296,19 @@ class DFMGroup:
             for d in self.theDFMs:         
                 diffTime = tt-d.lastReadTime   
                 if(diffTime.total_seconds()>d.programReadInterval):  
-                    start=time.time()
-                    if(diffTime.total_seconds()>5):
+                    ##start=time.time()
+                    if(diffTime.total_seconds()>10):
                         s="Missed five seconds"                        
                         self.NewMessage(d.ID,tt,0,s,Enums.MESSAGETYPE.ERROR)                                                     
                     d.ReadValues(self.isWriting)    
-                    DFMGroup.DFMGroup_updatecomplete.notify()     
-                    end=time.time()
-                    print("DFM time: "+str(end-start))     
+                    DFMGroup.DFMGroup_updatecomplete.notify()    
+                    ## Tests show that it takes about 250ms to complete a read when
+                    ## the read interval is 3 sec. 
+                    ## 300ms for 5 sec. 5 seconds seems good assuming max 12 DFM.
+                    ##end=time.time()
+                    ##print("DFM time: "+str(end-start))     
                     ##                                              
-                time.sleep(0.010)  
+                time.sleep(0.100)  
               
             if(self.isWriting):
                 if(self.stopRecordingSignal):                    
@@ -357,7 +360,7 @@ class DFMGroup:
                     return
                 else:
                     self.StartRecording()
-                    self.SetProgramReadInterval(3)
+                    self.SetProgramReadInterval(5)
             elif(self.currentProgram.IsAfterExperiment() and self.currentProgram.isActive):
                 self.StopCurrentProgram()
 

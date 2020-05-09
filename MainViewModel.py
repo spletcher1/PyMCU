@@ -107,6 +107,15 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.observer.deviceEvent.connect(self.device_connected)
         self.monitor.start()
 
+        ## Check for USB upon startup
+        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+        if len(subfolders)>0:
+            self.isUSBAttached=True
+            self.StatusBar.showMessage("USB connected...",2000)
+            self.saveDataAction.setEnabled(True)
+            self.MoveProgramButton.setEnabled(True)
+            QApplication.processEvents()
+
     def device_connected(self,device):
         print(device.action)
         if(device.action=="add"):
@@ -617,7 +626,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)      
 
-
+    ## This function is not used anymore.
     def LoadFilesListWidgetDEPRICATED(self):
         self.FilesListWidget.clear()   
         try:    
@@ -674,8 +683,26 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.LoadFilesListWidget()
         self.GotoProgramLoadPage()
         return
-      
+
     def ChooseDataSaveLocation( self ):
+        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+        if len(subfolders)==0:
+            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
+            return
+        else:         
+            self.GoToMessagesPage()                
+            
+            command = 'cp -r FLICData/ "' + subfolders[0] +'"'            
+            self.StatusBar.showMessage("Copying data files...",120000)      
+            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.NOTICE)          
+            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
+            QApplication.processEvents()
+            os.system(command)
+            self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
+            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)  
+
+    ## This function is not used anymore.
+    def ChooseDataSaveLocationDEPRECATED( self ):
         subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
         if len(subfolders)==0:
             self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  

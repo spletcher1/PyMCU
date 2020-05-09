@@ -343,7 +343,7 @@
                </sizepolicy>
               </property>
               <property name="text">
-               <string>Run</string>
+               <string>Run Program</string>
               </property>
              </widget>
             </item>
