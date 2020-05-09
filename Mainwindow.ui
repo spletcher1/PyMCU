@@ -1614,6 +1614,12 @@
      <height>22</height>
     </size>
    </property>
+   <property name="maximumSize">
+    <size>
+     <width>790</width>
+     <height>16777215</height>
+    </size>
+   </property>
    <property name="font">
     <font>
      <family>Ubuntu</family>
