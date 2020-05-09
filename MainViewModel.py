@@ -574,7 +574,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.DisableButtons()
         else:
             self.EnableButtons()           
-        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S    "))                    
+        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
             self.UpdateDFMPageGUI() 
         self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                           
