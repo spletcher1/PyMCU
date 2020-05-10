@@ -36,6 +36,7 @@ class DFM:
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
+        self.isSetNormalProgramIntervalNeeded=False
         self.isLinkageSetNeeded=False
         self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
@@ -49,8 +50,7 @@ class DFM:
         self.reportedVoltsIn=1.0      
         self.bufferResetTime = datetime.datetime.today()
         self.lastReadTime = datetime.datetime.now()
-        self.programReadInterval=5
-        self.SetNormalProgramReadInterval()
+        self.programReadInterval=5        
         
 
     def __str__(self):
@@ -127,12 +127,7 @@ class DFM:
 
     #region Packet processing, reading, writing, file methods.
 
-    def SetNormalProgramReadInterval(self):
-        self.programReadInterval=5
-
-    def SetFastProgramReadInterval(self):
-        self.programReadInterval=0.5
-
+   
     def UpdateReportedValues(self):
         self.reportedHumidity = self.currentStatusPackets[-1].humidity
         self.reportedLUX = self.currentStatusPackets[-1].lux
@@ -267,16 +262,18 @@ class DFM:
             if(useBaseline):
                 self.currentInstruction.SetBaseline(self.signalBaselines)                        
             self.isInstructionUpdateNeeded=True
+            self.SetFastProgramReadInterval()
+            self.isSetNormalProgramIntervalNeeded=True
 
     def CheckStatus(self):        
         ## These are else if groups so that both are not executed on the same pass.
-        ## A 1 sec delay for the latter conditions should not matter much.
+        ## Take care to note potential problems with long read intervals.
         if(self.isBufferResetNeeded):
             if self.theCOMM.RequestBufferReset(self.ID):
                 #print("Buffer reset success!")
                 self.isBufferResetNeeded=False
                 self.bufferResetTime = datetime.datetime.today()
-                self.sampleIndex=1
+                self.sampleIndex=1                                
             else:
                 print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):
@@ -291,6 +288,20 @@ class DFM:
                 #print("Linkage success: " + str(self.currentLinkage))  
             else:
                 print("Linkage failure")
+        elif(self.isSetNormalProgramIntervalNeeded):
+                self.programReadInterval=5
+                self.isSetNormalProgramIntervalNeeded=False   
+
+    def SetFastProgramReadInterval(self):
+        self.programReadInterval=0.5
+    
+    def GetProgramReadInterval(self):
+        if self.programReadInterval==5:
+            return "normal"
+        elif self.programReadInterval==0.5:
+            return "fast"
+        else:
+            return "none"
 
     #endregion     
      

@@ -153,14 +153,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.LoadProgramButton.setEnabled(False)
         self.MoveProgramButton.setEnabled(False)
         self.DeleteProgramButton.setEnabled(False)
-        self.fastUpdateCheckBox.setEnabled(True)
       
 
     def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
         if(self.isUSBAttached==True):            
-                self.saveDataAction.setEnabled(True)        
-                self.MoveProgramButton.setEnabled(True)
+            self.saveDataAction.setEnabled(True)        
+            self.MoveProgramButton.setEnabled(True)
         self.clearMessagesAction.setEnabled(True)
         self.deleteDataAction.setEnabled(True)
         self.powerOffAction.setEnabled(True)
@@ -177,7 +176,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.toggleOutputsAction.setEnabled(True)
         self.LoadProgramButton.setEnabled(True)
         self.DeleteProgramButton.setEnabled(True)
-        self.fastUpdateCheckBox.setEnabled(False)
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)            
@@ -252,8 +250,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.RunProgramButton.setEnabled(True)
             self.fastUpdateCheckBox.setChecked(False)
 
-
         self.UpdateDFMButtonTextColors()
+        self.GotoDFMPage()     
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
@@ -362,6 +360,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.exec_()   
 
     def SetActiveDFM(self,num):
+        if(self.activeDFM is not None):
+            self.activeDFM.isSetNormalProgramIntervalNeeded=True
         self.activeDFMNum=num        
         self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]        
         self.theDFMGroup.activeDFM = self.activeDFM   
@@ -370,10 +370,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if self.theDFMGroup.isReadWorkerRunning: 
             self.activeDFM.isBufferResetNeeded=True
         elif self.theDFMGroup.isWriting:
-            if(self.fastUpdateCheckBox.isChecked):
+            if(self.fastUpdateCheckBox.isChecked()):
                 self.activeDFM.SetFastProgramReadInterval()            
             else:
-                self.activeDFM.SetNormalProgramReadInterval()
+                self.activeDFM.isSetNormalProgramIntervalNeeded=True
 
         self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
         self.UpdateDFMButtonTextColors()
@@ -592,8 +592,19 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if (self.theDFMGroup.currentProgram.isActive):           
             self.theDFMGroup.UpdateProgramStatus()         
             self.DisableButtons()
+            if(self.theDFMGroup.isWriting):
+                self.fastUpdateCheckBox.setEnabled(True)
+            else:
+                self.fastUpdateCheckBox.setEnabled(False)
+
+            ## This is here because sometimes a program update action will turn the
+            ## readinterval back to normal.  So the checkbox has to show that when it happens.
+            if(self.fastUpdateCheckBox.isChecked() and self.activeDFM.GetProgramReadInterval() != "fast"):
+                self.fastUpdateCheckBox.setChecked(False)
+
         else:
             self.EnableButtons()           
+            self.fastUpdateCheckBox.setEnabled(False)
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
             self.UpdateDFMPageGUI() 
@@ -754,10 +765,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("Fast updates are allowed only during recording.",self.statusmessageduration)  
             self.fastUpdateCheckBox.setChecked(False)
             return 
-        if(self.fastUpdateCheckBox.isChecked):
+        if(self.fastUpdateCheckBox.isChecked()):            
             self.activeDFM.SetFastProgramReadInterval()            
-        else:
-            self.activeDFM.SetNormalProgramReadInterval()
+        else:            
+            self.activeDFM.isSetNormalProgramIntervalNeeded=True
 
 
 

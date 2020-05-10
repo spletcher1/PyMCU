@@ -79,10 +79,14 @@ class DFMGroup:
             i.ResetOutputFileStuff()
             i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
             i.isBufferResetNeeded=True   
+            i.isSetNormalProgramIntervalNeeded=True
             i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
             i.isLinkageSetNeeded=True
             i.currentDFMErrors.ClearErrors()
-        time.sleep(1) # To allow everyone to reset
+        # All DFM should be at fast program read interval here.
+        ## So wait enough time to allow everyone to reset, say 2 seconds
+        # To allow everyone to reset and set slow read interval
+        time.sleep(2)         
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
         self.WriteStarter()
@@ -280,9 +284,9 @@ class DFMGroup:
     def SetNormalProgramReadInterval(self, ID):
         for d in self.theDFMs: 
             if(ID==255):
-                d.SetNormalProgramReadInterval()
+                d.isSetNormalProgramIntervalNeeded=True
             elif(d.ID == ID):
-                d.SetNormalProgramReadInterval()
+                d.isSetNormalProgramIntervalNeeded=True
 
     def SetFastProgramReadInterval(self, ID):
         for d in self.theDFMs: 
@@ -363,8 +367,7 @@ class DFMGroup:
                         isBaselineing = True
                 if(isBaselineing): 
                     return
-                else:
-                    self.SetNormalProgramReadInterval(255)
+                else:                   
                     self.StartRecording()                    
             elif(self.currentProgram.IsAfterExperiment() and self.currentProgram.isActive):
                 self.StopCurrentProgram()
