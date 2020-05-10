@@ -209,7 +209,7 @@ class DFM:
                 s="({:d}) Checksum error".format(self.ID)
                 self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.NOANSWER):
-                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                self.SetStatus(Enums.CURRENTSTATUS.MISSING)
                 s="({:d}) No answer".format(self.ID)
                 self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
