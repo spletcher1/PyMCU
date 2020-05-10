@@ -110,13 +110,16 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.fastUpdateCheckBox.setChecked(False)
 
         ## Check for USB upon startup
-        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        if len(subfolders)>0:
-            self.isUSBAttached=True
-            self.StatusBar.showMessage("USB connected...",2000)
-            self.saveDataAction.setEnabled(True)
-            self.MoveProgramButton.setEnabled(True)
-            QApplication.processEvents()
+        try:
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+            if len(subfolders)>0:
+                self.isUSBAttached=True
+                self.StatusBar.showMessage("USB connected...",2000)
+                self.saveDataAction.setEnabled(True)
+                self.MoveProgramButton.setEnabled(True)
+                QApplication.processEvents()
+        except:
+            pass
 
     def device_connected(self,device):
         print(device.action)
