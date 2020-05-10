@@ -16,6 +16,7 @@ import Board
 class DFMGroup:
     DFMGroup_message = Event.Event()
     DFMGroup_updatecomplete = Event.Event()
+    DFMGroup_programEnded = Event.Event()
 
     #region Initialization, Messaging, and DFMlist Management
     def __init__(self,commProtocol):
@@ -402,7 +403,8 @@ class DFMGroup:
         time.sleep(2)
         self.StopProgramWorker()  
         self.currentProgram.isActive=False
-        self.StartReadWorker()        
+        self.StartReadWorker()  
+        DFMGroup.DFMGroup_programEnded.notify()      
         print("Done")
     
     def StageCurrentProgram(self):

@@ -90,6 +90,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.SetProgramStartTime(datetime.datetime.today())
 
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
+        DFMGroup.DFMGroup.DFMGroup_programEnded+=self.ProgramEnded
         self.toggleOutputsState=False
 
         self.MThread = GUIUpdateThread()
@@ -583,6 +584,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.MiscErrorBox.setChecked(True)
 
         self.UpdateDFMButtonTextColors()
+
+    def ProgramEnded(self):
+        self.RunProgramButton.setText("Run Program")
+        self.toggleOutputsState=False
+        self.RunProgramButton.setEnabled(True)                          
+        self.fastUpdateCheckBox.setChecked(False)
 
     def UpdateDFMPlot(self):        
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                     
