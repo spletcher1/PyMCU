@@ -107,6 +107,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.observer.deviceEvent.connect(self.device_connected)
         self.monitor.start()
 
+        self.fastUpdateCheckBox.setChecked(False)
+
         ## Check for USB upon startup
         subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
         if len(subfolders)>0:
@@ -151,6 +153,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.LoadProgramButton.setEnabled(False)
         self.MoveProgramButton.setEnabled(False)
         self.DeleteProgramButton.setEnabled(False)
+        self.fastUpdateCheckBox.setEnabled(True)
+      
 
     def EnableButtons(self):        
         self.clearDFMAction.setEnabled(True)
@@ -173,6 +177,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.toggleOutputsAction.setEnabled(True)
         self.LoadProgramButton.setEnabled(True)
         self.DeleteProgramButton.setEnabled(True)
+        self.fastUpdateCheckBox.setEnabled(False)
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)            
@@ -233,15 +238,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 pass
             self.RunProgramButton.setText("Run Program")
             self.toggleOutputsState=False
-            self.RunProgramButton.setEnabled(True)
+            self.RunProgramButton.setEnabled(True)                          
+            self.fastUpdateCheckBox.setChecked(False)
+
         else:
             self.RunProgramButton.setEnabled(False)
             self.DisableButtons()                        
             QApplication.processEvents()            
-            self.theDFMGroup.StageCurrentProgram()            
+            self.theDFMGroup.StageCurrentProgram()    
+            self.StatusBar.showMessage("Staging program.",self.statusmessageduration)           
             self.toggleOutputsState=False
             self.RunProgramButton.setText("Stop Program")      
             self.RunProgramButton.setEnabled(True)
+            self.fastUpdateCheckBox.setChecked(False)
+
+
         self.UpdateDFMButtonTextColors()
 
     def LoadSimpleProgram(self):
@@ -294,6 +305,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
         self.MoveProgramButton.clicked.connect(self.MoveProgramFilesToLocal)
         self.DeleteProgramButton.clicked.connect(self.DeleteProgramFile)
+
+        self.fastUpdateCheckBox.stateChanged.connect(self.FastUpdatesChanged)
+
   
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -355,6 +369,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
         ## Should only do it if NOT recording
         if self.theDFMGroup.isReadWorkerRunning: 
             self.activeDFM.isBufferResetNeeded=True
+        elif self.theDFMGroup.isWriting:
+            if(self.fastUpdateCheckBox.isChecked):
+                self.activeDFM.SetFastProgramReadInterval()            
+            else:
+                self.activeDFM.SetNormalProgramReadInterval()
+
         self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
         self.UpdateDFMButtonTextColors()
 
@@ -451,7 +471,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             if(retval==QMessageBox.Yes):
                 print("Shutting down")                                   
                 #QCoreApplication.instance().quit()
-                subprocess.call("sudo nohup shutdown -h now", shell=True)
+                #subprocess.call("sudo nohup shutdown -h now", shell=True)
 
     def AssureClearMessages(self):
         msg = QMessageBox()
@@ -727,7 +747,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 os.system(command)
                 self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
                 self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)          
-        
+
+    def FastUpdatesChanged(self):
+        if(self.theDFMGroup.isWriting==False):
+            ## This shouldn't happen.  Just here to catch strange event.
+            self.StatusBar.showMessage("Fast updates are allowed only during recording.",self.statusmessageduration)  
+            self.fastUpdateCheckBox.setChecked(False)
+            return 
+        if(self.fastUpdateCheckBox.isChecked):
+            self.activeDFM.SetFastProgramReadInterval()            
+        else:
+            self.activeDFM.SetNormalProgramReadInterval()
+
 
 
 def main():

@@ -49,8 +49,9 @@ class DFM:
         self.reportedVoltsIn=1.0      
         self.bufferResetTime = datetime.datetime.today()
         self.lastReadTime = datetime.datetime.now()
-        self.programReadInterval=3
-
+        self.programReadInterval=5
+        self.SetNormalProgramReadInterval()
+        
 
     def __str__(self):
         return "DFM " + str(self.ID)
@@ -125,6 +126,12 @@ class DFM:
     #endregion
 
     #region Packet processing, reading, writing, file methods.
+
+    def SetNormalProgramReadInterval(self):
+        self.programReadInterval=5
+
+    def SetFastProgramReadInterval(self):
+        self.programReadInterval=0.5
 
     def UpdateReportedValues(self):
         self.reportedHumidity = self.currentStatusPackets[-1].humidity

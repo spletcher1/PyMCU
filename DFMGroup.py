@@ -276,15 +276,20 @@ class DFMGroup:
         self.stopProgramWorkerSignal = True
         while(self.isProgramWorkerRunning):
             time.sleep(0.10)                
-
-    def SetProgramReadInterval(self, sec):
+    
+    def SetNormalProgramReadInterval(self, ID):
         for d in self.theDFMs: 
-            d.programReadInterval = sec
+            if(ID==255):
+                d.SetNormalProgramReadInterval()
+            elif(d.ID == ID):
+                d.SetNormalProgramReadInterval()
 
-    def SetDFMProgramReadInterval(self, ID, sec):
+    def SetFastProgramReadInterval(self, ID):
         for d in self.theDFMs: 
-            if(d.ID == ID):
-                d.programReadInterval = sec
+            if(ID==255):
+                d.SetFastProgramReadInterval()
+            elif(d.ID == ID):
+                d.SetFastProgramReadInterval()
 
     def ProgramWorker(self):
         self.isProgramWorkerRunning=True                        
@@ -298,7 +303,7 @@ class DFMGroup:
                 if(diffTime.total_seconds()>d.programReadInterval):  
                     ##start=time.time()
                     if(diffTime.total_seconds()>10):
-                        s="Missed five seconds"                        
+                        s="Missed 10 seconds"                        
                         self.NewMessage(d.ID,tt,0,s,Enums.MESSAGETYPE.ERROR)                                                     
                     d.ReadValues(self.isWriting)    
                     DFMGroup.DFMGroup_updatecomplete.notify()    
@@ -359,8 +364,8 @@ class DFMGroup:
                 if(isBaselineing): 
                     return
                 else:
-                    self.StartRecording()
-                    self.SetProgramReadInterval(5)
+                    self.SetNormalProgramReadInterval(255)
+                    self.StartRecording()                    
             elif(self.currentProgram.IsAfterExperiment() and self.currentProgram.isActive):
                 self.StopCurrentProgram()
 
@@ -408,7 +413,7 @@ class DFMGroup:
                 d.BaselineDFM()
             else:
                 d.ResetBaseline()   
-        self.SetProgramReadInterval(1)
+        self.SetFastProgramReadInterval(255)
         self.StartProgramWorker()
         print("Staging program.")                           
     #endregion
