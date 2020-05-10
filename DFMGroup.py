@@ -154,7 +154,7 @@ class DFMGroup:
             tmp2.write(header)
             self.theFiles[self.currentDFMIndex]=tmp2
             self.writeStartTimes[self.currentDFMIndex]=datetime.datetime.today()
-        elif(currentDFM.theData.ActualSize()>(900 +(self.currentDFMIndex*300))):
+        elif(currentDFM.theData.ActualSize()>(1000 +(self.currentDFMIndex*10))):
             ss=currentDFM.theData.PullAllRecordsAsString()
             if(ss!=""):                    
                 self.theFiles[self.currentDFMIndex].write(ss)                   
