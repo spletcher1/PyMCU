@@ -444,7 +444,7 @@
                 <x>0</x>
                 <y>0</y>
                 <width>112</width>
-                <height>354</height>
+                <height>355</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -469,6 +469,11 @@
            </item>
            <item>
             <widget class="QCheckBox" name="fastUpdateCheckBox">
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="text">
               <string>Fast updates</string>
              </property>
