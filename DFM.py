@@ -26,7 +26,6 @@ class DFM:
         self.status = Enums.CURRENTSTATUS.UNDEFINED
         self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
         self.beforeErrorStatus = Enums.CURRENTSTATUS.UNDEFINED
-        self.callLimit=2
         self.theData = DataBuffer.DataBuffer()             
         self.sampleIndex=1
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))      
@@ -191,19 +190,18 @@ class DFM:
              self.UpdateReportedValues()            
         return results
   
-    def ReadValues(self,saveDataToQueue):           
+    def ReadValues(self,saveDataToQueue): 
+
+        if(self.CheckStatus()):
+            return 
+
         self.lastReadTime = datetime.datetime.now()
         theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
-        currentTime = datetime.datetime.today()
-        for _ in range(0,self.callLimit) :                        
-            tmp=self.theCOMM.GetStatusPacket(self.ID)                    
-            theResults = self.ProcessPackets(tmp,self.bufferResetTime)            
-            if(Enums.PROCESSEDPACKETRESULT.OKAY in theResults):
-                    break                            
-            #s="Calling again: {:s}".format(str(theResults[-1]))
-            #self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
-            time.sleep(0.005)       
-       
+        currentTime = datetime.datetime.today()            
+        
+        tmp=self.theCOMM.GetStatusPacket(self.ID)                    
+        theResults = self.ProcessPackets(tmp,self.bufferResetTime)            
+        
         for j in range(0,len(theResults)):    
             isSuccess=False            
             if(theResults[j] == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
@@ -238,8 +236,7 @@ class DFM:
                     s="({:d}) Empty packet received".format(self.ID)
                     print(self.currentStatusPackets[j].GetDataBufferPrintPacket())
                     self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
-        if(isSuccess):
-            self.CheckStatus()   
+        
       
 
     def ResetOutputFileStuff(self):
@@ -273,24 +270,29 @@ class DFM:
                 #print("Buffer reset success!")
                 self.isBufferResetNeeded=False
                 self.bufferResetTime = datetime.datetime.today()
-                self.sampleIndex=1                                
+                self.sampleIndex=1       
+                return True                         
             else:
                 print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):
             if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
                 #print("Instruction success: " + str(self.currentInstruction))                
                 self.isInstructionUpdateNeeded=False
+                return True
             else:
                 print("Instruction failure")
         elif(self.isLinkageSetNeeded):
             if self.theCOMM.SendLinkage(self.ID,self.currentLinkage):                          
                 self.isLinkageSetNeeded=False
+                return True
                 #print("Linkage success: " + str(self.currentLinkage))  
             else:
                 print("Linkage failure")
         elif(self.isSetNormalProgramIntervalNeeded):
                 self.programReadInterval=5
                 self.isSetNormalProgramIntervalNeeded=False   
+                return False
+        return False
 
     def SetFastProgramReadInterval(self):
         self.programReadInterval=0.5

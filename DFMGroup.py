@@ -86,7 +86,7 @@ class DFMGroup:
         # All DFM should be at fast program read interval here.
         ## So wait enough time to allow everyone to reset, say 2 seconds
         # To allow everyone to reset and set slow read interval
-        time.sleep(2)         
+        time.sleep(0.5)         
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
         self.WriteStarter()
