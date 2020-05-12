@@ -3,7 +3,7 @@ from collections import deque
 
 class DataBuffer:
     def __init__(self):
-        self.maxSize=500
+        self.maxSize=2000
         self.theData = deque(maxlen=self.maxSize)
         self.lastDataPoint = StatusPacket.StatusPacket(0)
     def GetLastDataPoint(self):
@@ -15,13 +15,13 @@ class DataBuffer:
     def NewData(self,newStatusPacket,addToQueue=True):
         if(self.IsFull()):
             return False       
-        self.lastDataPoint = newStatusPacket
+        self.lastDataPoint = newStatusPacket       
         if(addToQueue):
-            self.theData.append(newStatusPacket)
+            self.theData.append(newStatusPacket)           
         return True
     def PullAllRecordsAsString(self):
         s=""
         while self.theData:
-            sdr = self.theData.popleft()            
+            sdr = self.theData.popleft()                   
             s+=sdr.GetDataBufferPrintPacket()
         return s

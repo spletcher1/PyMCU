@@ -16,6 +16,7 @@ import Board
 class DFMGroup:
     DFMGroup_message = Event.Event()
     DFMGroup_updatecomplete = Event.Event()
+    DFMGroup_programEnded = Event.Event()
 
     #region Initialization, Messaging, and DFMlist Management
     def __init__(self,commProtocol):
@@ -38,7 +39,7 @@ class DFMGroup:
         ## New members added when the write worker was disbanded
         self.theFiles = []
         self.writeStartTimes=[]
-        self.currentDFMIndex=0
+        self.currentDFMIndex=0        
 
 
     def NewMessageDirect(self,newMessage):        
@@ -62,7 +63,7 @@ class DFMGroup:
                 self.theDFMs.append(DFM.DFM(i,self.theCOMM))
                 s = "DFM "+str(i)+" found"
                 self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
-            time.sleep(0.100)  
+            time.sleep(0.010)  
         if(len(self.theDFMs)>0):               
             self.activeDFM = self.theDFMs[0]
         if(startReading):
@@ -79,9 +80,14 @@ class DFMGroup:
             i.ResetOutputFileStuff()
             i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
             i.isBufferResetNeeded=True   
+            i.isSetNormalProgramIntervalNeeded=True
             i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
             i.isLinkageSetNeeded=True
-        time.sleep(1) # To allow everyone to reset
+            i.currentDFMErrors.ClearErrors()
+        # All DFM should be at fast program read interval here.
+        ## So wait enough time to allow everyone to reset, say 2 seconds
+        # To allow everyone to reset and set slow read interval
+        time.sleep(0.5)         
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
         self.WriteStarter()
@@ -140,7 +146,7 @@ class DFMGroup:
     def WriteStep(self):
         currentDFM = self.theDFMs[self.currentDFMIndex]
         currentDuration=datetime.datetime.today()-self.writeStartTimes[self.currentDFMIndex]
-        if(currentDuration.total_seconds()>=86400):
+        if(currentDuration.total_seconds()>=43200):
             self.theFiles[self.currentDFMIndex].close()   
             currentDFM.IncrementOutputFile()                
             tmp=self.currentOutputDirectory+"/"+currentDFM.outputFile
@@ -149,7 +155,7 @@ class DFMGroup:
             tmp2.write(header)
             self.theFiles[self.currentDFMIndex]=tmp2
             self.writeStartTimes[self.currentDFMIndex]=datetime.datetime.today()
-        elif(currentDFM.theData.ActualSize()>(200 +(self.currentDFMIndex*2))):
+        elif(currentDFM.theData.ActualSize()>(1000 +(self.currentDFMIndex*10))):
             ss=currentDFM.theData.PullAllRecordsAsString()
             if(ss!=""):                    
                 self.theFiles[self.currentDFMIndex].write(ss)                   
@@ -275,42 +281,62 @@ class DFMGroup:
         self.stopProgramWorkerSignal = True
         while(self.isProgramWorkerRunning):
             time.sleep(0.10)                
+    
+    def SetNormalProgramReadInterval(self, ID):
+        for d in self.theDFMs: 
+            if(ID==255):
+                d.isSetNormalProgramIntervalNeeded=True
+            elif(d.ID == ID):
+                d.isSetNormalProgramIntervalNeeded=True
+
+    def SetFastProgramReadInterval(self, ID):
+        for d in self.theDFMs: 
+            if(ID==255):
+                d.SetFastProgramReadInterval()
+            elif(d.ID == ID):
+                d.SetFastProgramReadInterval()
 
     def ProgramWorker(self):
-        self.isProgramWorkerRunning=True        
-        tt = datetime.datetime.today()        
-        lastTime = time.time()    
-        lastSecond = tt.second      
+        self.isProgramWorkerRunning=True                        
+        for d in self.theDFMs:         
+            d.lastReadTime = datetime.datetime.now()
+        
         while True:   
-            tt = datetime.datetime.today()
-            if(tt.microsecond>0 and tt.second != lastSecond):   
-                if(time.time()-lastTime)>1:
-                    s="Missed one second"                        
-                    self.NewMessage(0,tt,0,s,Enums.MESSAGETYPE.ERROR)   
-                ##start = time.time()                    
-                for d in self.theDFMs:
-                    ## It takes a little over 30ms to call and
-                    ## receive the data from one DFM, given a baud
-                    ## rate of 115200                     
-                    d.ReadValues(self.isWriting)                                                      
-                    time.sleep(0.005)  
-                ##end=time.time()
-                ##print("All DFM time: "+str(end-start))     
-                ## abpit 0.3 seconds for 6 DFM.  May be able to get 10 in before needs a separate process.
-                if(self.isWriting):
-                    if(self.stopRecordingSignal):
-                        self.WriteEnder()                            
-                    else:
-                        self.WriteStep()                                                                           
-                DFMGroup.DFMGroup_updatecomplete.notify()                                                                               
-                lastSecond=tt.second    
-                lastTime=time.time()                                      
+            tt = datetime.datetime.now()            
+            for d in self.theDFMs:         
+                diffTime = tt-d.lastReadTime   
+                if(diffTime.total_seconds()>d.programReadInterval):  
+                    ##start=time.time()
+                    if(diffTime.total_seconds()>10):
+                        s="Missed 10 seconds"                        
+                        self.NewMessage(d.ID,tt,0,s,Enums.MESSAGETYPE.ERROR)                                                     
+                    d.ReadValues(self.isWriting)    
+                    DFMGroup.DFMGroup_updatecomplete.notify()    
+                    ## Tests show that it takes about 250ms to complete a read when
+                    ## the read interval is 3 sec. 
+                    ## 300ms for 5 sec. 5 seconds seems good assuming max 12 DFM.
+                    ##end=time.time()
+                    ##print("DFM time: "+str(end-start))     
+                    ##                                              
+                time.sleep(0.100)  
+              
+            if(self.isWriting):
+                if(self.stopRecordingSignal):                    
+                    ## Need to clear out the DFM buffers:
+                    for d in self.theDFMs: 
+                        d.ReadValues(True)
+                        time.sleep(0.010)
+                    self.WriteEnder()                            
+                else:
+                    self.WriteStep()                                                                           
+                                                                                                       
+            
             if(self.stopProgramWorkerSignal):
                 for d in self.theDFMs:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
                 self.isProgramWorkerRunning = False                
                 return                
-            time.sleep( 0.020 ) # Yeild to other threads for a bit
+            time.sleep(0.200) # Yeild to other threads for a bit
 
     def ReadWorker(self):    
         self.isReadWorkerRunning=True    
@@ -342,8 +368,8 @@ class DFMGroup:
                         isBaselineing = True
                 if(isBaselineing): 
                     return
-                else:
-                    self.StartRecording()
+                else:                   
+                    self.StartRecording()                    
             elif(self.currentProgram.IsAfterExperiment() and self.currentProgram.isActive):
                 self.StopCurrentProgram()
 
@@ -377,7 +403,8 @@ class DFMGroup:
         time.sleep(2)
         self.StopProgramWorker()  
         self.currentProgram.isActive=False
-        self.StartReadWorker()        
+        self.StartReadWorker()  
+        DFMGroup.DFMGroup_programEnded.notify()      
         print("Done")
     
     def StageCurrentProgram(self):
@@ -391,6 +418,7 @@ class DFMGroup:
                 d.BaselineDFM()
             else:
                 d.ResetBaseline()   
+        self.SetFastProgramReadInterval(255)
         self.StartProgramWorker()
         print("Staging program.")                           
     #endregion
