@@ -42,3 +42,8 @@ class MESSAGETYPE(Enum):
 class OPTOTYPE(Enum):
     ALLON=1,
     ADAPTIVE=2
+
+class DFMTYPE(Enum):
+    PLETCHERV2=1,
+    SABLEV2=2,
+    PLETCHERV3=3

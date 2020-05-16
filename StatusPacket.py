@@ -1,10 +1,10 @@
 from enum import Enum
 import array
 import datetime
-from Enums import PROCESSEDPACKETRESULT
+from Enums import PROCESSEDPACKETRESULT,DFMTYPE
 
 class StatusPacket:
-    def __init__(self,sampleIndex):
+    def __init__(self,sampleIndex,DFMType):
         self.analogValues=array.array("i",(0 for i in range(0,12)))
         self.packetTime = datetime.datetime.today() 
         self.voltsIn = 0.0
@@ -19,7 +19,105 @@ class StatusPacket:
         self.optoPulseWidth=0
         self.errorFlags=0
         self.recordIndex=0
-    def ProcessStatusPacket(self,bytesData,startTime,packetNum):        
+        self.DFMType = DFMType
+
+    def ProcessStatusPacketSableV2(self,bytesData,startTime,packetNum):        
+        if(len(bytesData)!=52):
+            return PROCESSEDPACKETRESULT.WRONGNUMBYTES   
+
+        self.errorFlags = 0        
+        calculatedCheckSum=0
+
+        for i in range(0,12):
+            baseindex=(i*4)
+            currentValue = bytesData[baseindex]
+            currentValue += bytesData[baseindex+1]<<8
+            currentValue += bytesData[baseindex+2]<<16
+            currentValue += bytesData[baseindex+3]<<24
+            calculatedCheckSum+=currentValue
+            self.analogValues[i] = currentValue >> 7
+           
+        self.voltsIn = 0
+        self.optoState1 = 0
+        self.optoState2 = 0        
+
+        self.optoFrequency = 0
+        self.optoPulseWidth = 0
+        self.darkStatus = 0        
+
+        self.temp = 0
+        self.humidity = 0       
+        self.lux = 0
+        self.recordIndex = 0        
+        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)
+
+        expectedCheckSum = bytesData[48]
+        expectedCheckSum += bytesData[49]<<8
+        expectedCheckSum += bytesData[50]<<16
+        expectedCheckSum += bytesData[51]<<24
+       
+        if(calculatedCheckSum != expectedCheckSum):            
+            print("Checksum error")
+            return PROCESSEDPACKETRESULT.CHECKSUMERROR
+
+        return PROCESSEDPACKETRESULT.OKAY   
+
+    def ProcessStatusPacketPletcherV2(self,bytesData,startTime,packetNum):        
+        if(len(bytesData)!=64):
+            return PROCESSEDPACKETRESULT.WRONGNUMBYTES   
+
+        self.errorFlags = 0        
+        calculatedCheckSum=0
+
+        for i in range(0,12):
+            baseindex=(i*4)
+            currentValue = bytesData[baseindex]
+            currentValue += bytesData[baseindex+1]<<8
+            currentValue += bytesData[baseindex+2]<<16
+            currentValue += bytesData[baseindex+3]<<24
+            calculatedCheckSum+=currentValue
+            self.analogValues[i] = currentValue >> 7
+           
+        self.voltsIn = 0
+
+        currentValue = bytesData[52]
+        currentValue += bytesData[53]<<8
+        currentValue += bytesData[54]<<16
+        currentValue += bytesData[55]<<24
+        self.optoState1 = currentValue
+        calculatedCheckSum +=currentValue
+
+        currentValue = bytesData[56]
+        currentValue += bytesData[57]<<8
+        currentValue += bytesData[58]<<16
+        currentValue += bytesData[59]<<24
+        self.optoState2 = currentValue
+        calculatedCheckSum +=currentValue
+
+        self.optoFrequency = bytesData[50]
+        self.optoPulseWidth = bytesData[49]
+        self.darkStatus = bytesData[48]
+        
+        calculatedCheckSum += bytesData[48]+(bytesData[49]<<8)+(bytesData[50]<<16)
+
+        self.temp = 0
+        self.humidity = 0       
+        self.lux = 0
+        self.recordIndex = 0        
+        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)
+
+        expectedCheckSum = bytesData[60]
+        expectedCheckSum += bytesData[61]<<8
+        expectedCheckSum += bytesData[62]<<16
+        expectedCheckSum += bytesData[63]<<24
+       
+        if(calculatedCheckSum != expectedCheckSum):            
+            print("Checksum error")
+            #return PROCESSEDPACKETRESULT.CHECKSUMERROR
+
+        return PROCESSEDPACKETRESULT.OKAY   
+
+    def ProcessStatusPacketPletcherV3(self,bytesData,startTime,packetNum):        
         ## This function should receive packetnumbers 0-4        
         indexer = (packetNum*66)
         # Calculate the checksum
@@ -88,7 +186,17 @@ class StatusPacket:
         
         self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)
 
-        return PROCESSEDPACKETRESULT.OKAY   
+        return PROCESSEDPACKETRESULT.OKAY 
+
+    def ProcessStatusPacket(self,bytesData,startTime,packetNum):        
+        if self.DFMType == DFMTYPE.PLETCHERV2:
+            self.ProcessStatusPacketPletcherV2(bytesData,startTime,packetNum)
+        elif self.DFMType == DFMTYPE.SABLEV2:
+            self.ProcessStatusPacketSableV2(bytesData,startTime,packetNum)
+        elif self.DFMType == DFMTYPE.PLETCHERV3:
+            self.ProcessStatusPacketSableV2(bytesData,startTime,packetNum)
+
+
     def GetConsolePrintPacket(self):
         tmp = self.packetTime.microsecond/1000
         ss = self.packetTime.strftime("%m/%d/%Y %H:%M:%S")

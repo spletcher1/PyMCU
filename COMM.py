@@ -14,6 +14,7 @@ import Instruction
 import Enums
 import Board
 from cobs import cobs
+import smbus2
 
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
@@ -120,6 +121,78 @@ class TESTCOMM():
         tmp = self._CreateFakeStatusPacket(ID) 
         return tmp
 #endregion
+
+class I2CCOMM():
+    I2C_message = Event.Event()
+    def __init__(self):
+        self.bus = smbus2.SMBus(1)
+
+    def PollSlave(self,ID):       
+        tmp = 0x50+ID
+        b = self.bus.read_byte_data(tmp,1)
+        #b = self.bus.read_i2c_block_data(tmp,1,16)
+        #print(msg)
+        print(b)
+
+    def GetStatusPacket(self,ID,dfmType):     
+        tmp = 0x50+ID
+        if dfmType == Enums.DFMTYPE.PLETCHERV2:
+            bytestoget = 64
+        elif dfmType == Enums.DFMTYPE.SABLEV2:
+            bytestoget = 52
+        try:
+            msg = smbus2.i2c_msg.read(tmp,bytestoget)     
+            self.bus.i2c_rdwr(msg)
+            print(list(msg))
+            return list(msg)        
+        except:
+            return ''   
+
+    def GoDark(self, ID):
+        try:
+            tmp = 0x50+ID
+            buffer = [1]
+            self.bus.write_i2c_block_data(tmp,1,buffer)
+            return True
+        except:
+            return False
+
+    def ExitDark(self, ID):
+        try:
+            tmp = 0x50+ID
+            buffer = [0x00]
+            self.bus.write_i2c_block_data(tmp,1,buffer)
+            return True
+        except:
+            return False
+    
+    def SendOptoState(self,ID, os1, os2):
+        try:
+            tmp = 0x50+ID
+            buffer=[os1,os2]
+            self.bus.write_i2c_block_data(tmp,2,buffer)
+            return True
+        except:
+            return False
+
+    def SendFrequency(self,ID, freq):
+        try:
+            tmp = 0x50+ID
+            buffer=[freq]
+            self.bus.write_i2c_block_data(tmp,4,buffer)
+            return True
+        except:
+            return False
+
+    def SendPulseWidth(self,ID, pw):
+        try:
+            tmp = 0x50+ID
+            buffer=[pw]
+            self.bus.write_i2c_block_data(tmp,5,buffer)
+            return True
+        except:
+            return False
+
 
 class UARTCOMM():    
     UART_message = Event.Event()
@@ -298,83 +371,17 @@ class UARTCOMM():
     #endregion     
        
 
-
-#region Module Testing
-def ModuleTest3():
+def ModuleTest5(dfmID):
     Board.BoardSetup()
-    p=UARTCOMM()   
-    linkage=array.array("i",[1,1,1,1,1,6,7,8,9,10,11,1])
-    result=p.SendLinkage(5,linkage)
-    print(result)
-    #counter = 0
-    #while counter<1000000:
-    #    counter+=1
+    p=I2CCOMM()
+    #p.PollSlave(dfmID)
+    p.GetStatusPacket(dfmID,Enums.DFMTYPE.PLETCHERV2)
+    #print(p.GoDark(dfmID))
+    #print(p.ExitDark(dfmID))
 
-    #print(result)
-    #while result!=True:
-    #    time.sleep(1)
-    #    result=p.RequestBufferReset(1)
-    #    print(result)
-    
-    
-    #tmp=p.GetStatusPacket(1)            
-    #tmp2 = ((len(tmp)-69)/65)+1
-    #print(tmp2)
-
-def ModuleTest2(dfmID):
-    Board.BoardSetup()
-    p=UARTCOMM()
-    counter=2
-    start = time.time()
-    while counter<12:
-        tmp=p.GetStatusPacket(dfmID)
-        #tmp2 = ((len(tmp)-69)/65)+1
-        #totalpackets+=tmp2
-        print(len(tmp)/66)
-        time.sleep(1)
-        counter+=1
-    end=time.time()
-    print("Time: "+str(end-start))
-
-def ModuleTest():
-    Board.BoardSetup()
-    p=UARTCOMM()
-    inst = Instruction.DFMInstruction()
-    inst.frequency=2
-    inst.pulseWidth=500
-    inst.maxTimeOn=1000
-    inst.decay=2500
-    inst.delay=1234
-    for i in range(0,12):
-        inst.SetOptoValueWell(i,i*3)
-    print(p.SendInstruction(1,inst))    
-    time.sleep(2)
-    return
-    for i in range(0,12):
-        inst.optoValues[i]=-1
-    print(p.SendInstruction(1,inst))    
-    time.sleep(2)
-    for i in range(0,12):
-        inst.optoValues[i]=100
-    inst.frequency=2
-    inst.pulseWidth=500
-    inst.maxTimeOn=1000
-    print(p.SendInstruction(1,inst)        )
-
-def ModuleTest4(dfmID):
-    Board.BoardSetup()
-    p=UARTCOMM()
-    #print(p.RequestBufferReset(1))
-    #
-    print(p.RequestBufferReset(4))
-    time.sleep(1)
-    #tmp=p.GetStatusPacket(4)    
-    #theResults = self.ProcessPackets(tmp,self.bufferResetTime)       
-
-    
 
 if __name__=="__main__" :
-    ModuleTest2(4)   
+    ModuleTest5(1)   
     print("Done!!")     
 
 #endregion
