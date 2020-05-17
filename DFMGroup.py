@@ -31,7 +31,7 @@ class DFMGroup:
         self.isProgramWorkerRunning = False
         self.currentOutputDirectory = "./"
         self.theCOMM = commProtocol
-        COMM.UARTCOMM.UART_message+=self.NewMessageDirect
+        COMM.COMM.COMM_message+=self.NewMessageDirect
         Program.MCUProgram.Program_message+=self.NewMessageDirect
         self.theMessageList = MessagesList.MessageList()
         self.currentProgram=Program.MCUProgram()       
@@ -57,15 +57,25 @@ class DFMGroup:
         self.theDFMs.clear()
         self.activeDFM=None
 
-    def FindDFMs(self,maxNum=16,startReading=True):              
+    def FindDFMs(self,maxNum=12,startReading=True): 
+        dfmType = Enums.DFMTYPE.PLETCHERV3             
         for i in range(1,maxNum+1):
-            if(self.theCOMM.PollSlave(i)):
-                self.theDFMs.append(DFM.DFM(i,self.theCOMM))
+            if(self.theCOMM.PollSlave(i,dfmType)):
+                self.theDFMs.append(DFM.DFM(i,self.theCOMM,dfmType))
                 s = "DFM "+str(i)+" found"
                 self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
             time.sleep(0.010)  
         if(len(self.theDFMs)>0):               
             self.activeDFM = self.theDFMs[0]
+        else:
+            dfmType = Enums.DFMTYPE.PLETCHERV2             
+            for i in range(1,maxNum+1):
+                if(self.theCOMM.PollSlave(i,dfmType)):
+                    self.theDFMs.append(DFM.DFM(i,self.theCOMM,dfmType))
+                    s = "DFM "+str(i)+" found"
+                    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
+                time.sleep(0.010)  
+        
         if(startReading):
             time.sleep(0.500) # This is to avoid an empty packet being sent given the buffer reset upon polling.             
             self.StartReadWorker()
@@ -306,10 +316,7 @@ class DFMGroup:
             for d in self.theDFMs:         
                 diffTime = tt-d.lastReadTime   
                 if(diffTime.total_seconds()>d.programReadInterval):  
-                    ##start=time.time()
-                    if(diffTime.total_seconds()>10):
-                        s="Missed 10 seconds"                        
-                        self.NewMessage(d.ID,tt,0,s,Enums.MESSAGETYPE.ERROR)                                                     
+                    ##start=time.time()                                               
                     d.ReadValues(self.isWriting)    
                     DFMGroup.DFMGroup_updatecomplete.notify()    
                     ## Tests show that it takes about 250ms to complete a read when
@@ -317,8 +324,10 @@ class DFMGroup:
                     ## 300ms for 5 sec. 5 seconds seems good assuming max 12 DFM.
                     ##end=time.time()
                     ##print("DFM time: "+str(end-start))     
-                    ##                                              
-                time.sleep(0.100)  
+                    ##print(diffTime.total_seconds())
+                    ##print(d.programReadInterval)
+                    ##                
+                time.sleep(d.programReadInterval/50)  
               
             if(self.isWriting):
                 if(self.stopRecordingSignal):                    
@@ -336,7 +345,9 @@ class DFMGroup:
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
                 self.isProgramWorkerRunning = False                
                 return                
-            time.sleep(0.200) # Yeild to other threads for a bit
+
+            time.sleep(self.theDFMs[0].programReadInterval/20) # Yeild to other threads for a bit
+            #time.sleep(0.200) # Yeild to other threads for a bit
 
     def ReadWorker(self):    
         self.isReadWorkerRunning=True    
@@ -427,19 +438,16 @@ class DFMGroup:
 def ModuleTest():
     Board.BoardSetup()
     #tmp = DFMGroup(COMM.TESTCOMM())
-    tmp = DFMGroup(COMM.UARTCOMM())
-    tmp.FindDFMs(1,False)
+    tmp = DFMGroup(COMM.COMM())
+    tmp.FindDFMs(maxNum=12,startReading=False)
     print("DFMs Found:" + str(len(tmp.theDFMs)))
-    tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=3))
-    print(tmp.currentProgram)
-    #tmp.ActivateCurrentProgram()  
-    while(1):
-        tt = datetime.datetime.today()
-        if(tt.microsecond>0 and tt.second != lastSecond): 
-            tmp.theDFMs[0].ReadValues(False)
-            lastSecond=tt.second
-            for i in range(0,5):
-                print(tmp.theDFMs[0].currentStatusPackets[i].GetConsolePrintPacket())         
+    #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=3))
+    #print(tmp.currentProgram)
+    #tmp.ActivateCurrentProgram()      
+    while(1):        
+        tmp.theDFMs[0].ReadValues(True)
+        print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())   
+        time.sleep(1)      
     #    tmp.UpdateDFMStatus()     
     #    print(tmp.longestQueue)
     #    time.sleep(1)

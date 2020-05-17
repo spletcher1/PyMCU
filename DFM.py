@@ -17,9 +17,10 @@ import math
 class DFM:
     DFM_message = Event.Event()
     #region Initialization, etc.
-    def __init__(self,id,commProtocol):
+    def __init__(self,id,commProtocol,dfmType):
         self.ID=id     
         self.theCOMM = commProtocol
+        self.DFMType = dfmType   
         self.currentStatusPackets = []
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
@@ -49,8 +50,11 @@ class DFM:
         self.reportedVoltsIn=1.0      
         self.bufferResetTime = datetime.datetime.today()
         self.lastReadTime = datetime.datetime.now()
-        self.programReadInterval=5        
-        
+        if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            self.programReadInterval=5   
+        else:
+            self.programReadInterval=0.2
+                 
 
     def __str__(self):
         return "DFM " + str(self.ID)
@@ -86,12 +90,12 @@ class DFM:
     def SetOutputsOn(self):
         self.currentInstruction = Instruction.DFMInstruction()
         self.currentInstruction.SetOptoValues([0]*12)
-        self.isInstructionUpdateNeeded=True
+        self.isInstructionUpdateNeeded=True        
 
-    def SetOutputsOff(self):
+    def SetOutputsOff(self):       
         self.currentInstruction = Instruction.DFMInstruction()        
         self.isInstructionUpdateNeeded=True
-    
+        
     def SetStatus(self, newStatus):
         if(newStatus != self.status):
             if(newStatus == Enums.CURRENTSTATUS.ERROR):
@@ -167,11 +171,18 @@ class DFM:
             a=Enums.PROCESSEDPACKETRESULT.NOANSWER
             return [a]         
         
-        if(bytesData[0]!=self.ID):            
+        if(self.DFMType == Enums.DFMTYPE.PLETCHERV2):
+            bytestoget = 64
+        elif(self.DFMType == Enums.DFMTYPE.SABLEV2):
+            bytestoget = 52
+        else:
+            bytestoget = 66
+
+        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3 and bytesData[0]!=self.ID):            
             a=Enums.PROCESSEDPACKETRESULT.WRONGID
             return [a]
         
-        numPacketsReceived = len(bytesData)/66                
+        numPacketsReceived = len(bytesData)/bytestoget                
         if (math.floor(numPacketsReceived)!=numPacketsReceived):
             # TODO: Need to figure out how to possibly recover some of the packets.
             # TODO: for now, however, no.            
@@ -183,27 +194,26 @@ class DFM:
         results=[]
         for i in range(0,numPacketsReceived):
             ## sampleIndex is set to -1 here because it is only added to the packet if it is a success.
-            tmpPacket = StatusPacket.StatusPacket(-1)
-            results.append(tmpPacket.ProcessStatusPacket(bytesData,startTime,i))           
-            self.currentStatusPackets.append(tmpPacket)            
+            tmpPacket = StatusPacket.StatusPacket(-1,self.DFMType)
+            results.append(tmpPacket.ProcessStatusPacket(bytesData,startTime,i))        
+            self.currentStatusPackets.append(tmpPacket)           
         if(results[-1] == Enums.PROCESSEDPACKETRESULT.OKAY):
              self.UpdateReportedValues()            
         return results
   
     def ReadValues(self,saveDataToQueue): 
-
+        
         if(self.CheckStatus()):
             return 
-
         self.lastReadTime = datetime.datetime.now()
         theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
         currentTime = datetime.datetime.today()            
-        
-        tmp=self.theCOMM.GetStatusPacket(self.ID)                    
-        theResults = self.ProcessPackets(tmp,self.bufferResetTime)            
-        
+                
+        tmp=self.theCOMM.GetStatusPacket(self)                            
+        theResults = self.ProcessPackets(tmp,self.bufferResetTime)
+                
         for j in range(0,len(theResults)):    
-            isSuccess=False            
+            isSuccess=False       
             if(theResults[j] == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Checksum error".format(self.ID)
@@ -218,8 +228,8 @@ class DFM:
                 self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.OKAY):
                 isSuccess=True
-            if isSuccess:            
-                if (self.currentStatusPackets[j].recordIndex>0):
+            if isSuccess:                            
+                if (self.currentStatusPackets[j].recordIndex>0):                   
                     self.currentStatusPackets[j].sample = self.sampleIndex                    
                     if(self.theData.NewData(self.currentStatusPackets[j],saveDataToQueue)==False):
                         s="({:d}) Data queue error".format(self.ID)
@@ -262,11 +272,15 @@ class DFM:
             self.SetFastProgramReadInterval()
             self.isSetNormalProgramIntervalNeeded=True
 
+    def ExecuteInstructionV2(self):
+        ## This function will eventually need to execute an instruction
+        return True
+
     def CheckStatus(self):        
         ## These are else if groups so that both are not executed on the same pass.
         ## Take care to note potential problems with long read intervals.
         if(self.isBufferResetNeeded):
-            if self.theCOMM.RequestBufferReset(self.ID):
+            if self.theCOMM.RequestBufferReset(self):
                 #print("Buffer reset success!")
                 self.isBufferResetNeeded=False
                 self.bufferResetTime = datetime.datetime.today()
@@ -275,35 +289,52 @@ class DFM:
             else:
                 print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):
-            if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
-                #print("Instruction success: " + str(self.currentInstruction))                
+            if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
+                if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
+                    #print("Instruction success: " + str(self.currentInstruction))                
+                    self.isInstructionUpdateNeeded=False
+                    return True
+                else:
+                    print("Instruction failure")
+            elif(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
                 self.isInstructionUpdateNeeded=False
+                return self.ExecuteInstructionV2()
+            else: # Sable DFM returns true.
                 return True
-            else:
-                print("Instruction failure")
+
         elif(self.isLinkageSetNeeded):
-            if self.theCOMM.SendLinkage(self.ID,self.currentLinkage):                          
+            if self.theCOMM.SendLinkage(self):                          
                 self.isLinkageSetNeeded=False
                 return True
                 #print("Linkage success: " + str(self.currentLinkage))  
             else:
                 print("Linkage failure")
         elif(self.isSetNormalProgramIntervalNeeded):
+            if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
                 self.programReadInterval=5
-                self.isSetNormalProgramIntervalNeeded=False   
-                return False
+            else:
+                self.programReadInterval=0.2            
+            self.isSetNormalProgramIntervalNeeded=False   
+            return False
         return False
 
     def SetFastProgramReadInterval(self):
-        self.programReadInterval=0.5
+        if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            self.programReadInterval=0.5
+        else:
+            self.programReadInterval=0.2
     
     def GetProgramReadInterval(self):
-        if self.programReadInterval==5:
-            return "normal"
-        elif self.programReadInterval==0.5:
-            return "fast"
+        if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            if self.programReadInterval==5:
+                return "normal"
+            elif self.programReadInterval==0.5:
+                return "fast"
+            else:
+                return "none"
         else:
-            return "none"
+            return "normal"
+
 
     #endregion     
      
@@ -314,8 +345,9 @@ class DFM:
 def ModuleTest():
     Board.BoardSetup()
     #tmp = DFMGroup(COMM.TESTCOMM())
-    port = COMM.UARTCOMM()
-    dfm = DFM(1,port)
+    #port = COMM.UARTCOMM()
+    port=COMM.COMM()
+    dfm = DFM(6,port,Enums.DFMTYPE.PLETCHERV2)
     dfm.ReadValues(False)  
     for sp in dfm.currentStatusPackets:
         print(sp.GetDataBufferPrintPacket())          

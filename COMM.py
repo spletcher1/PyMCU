@@ -122,80 +122,8 @@ class TESTCOMM():
         return tmp
 #endregion
 
-class I2CCOMM():
-    I2C_message = Event.Event()
-    def __init__(self):
-        self.bus = smbus2.SMBus(1)
-
-    def PollSlave(self,ID):       
-        tmp = 0x50+ID
-        b = self.bus.read_byte_data(tmp,1)
-        #b = self.bus.read_i2c_block_data(tmp,1,16)
-        #print(msg)
-        print(b)
-
-    def GetStatusPacket(self,ID,dfmType):     
-        tmp = 0x50+ID
-        if dfmType == Enums.DFMTYPE.PLETCHERV2:
-            bytestoget = 64
-        elif dfmType == Enums.DFMTYPE.SABLEV2:
-            bytestoget = 52
-        try:
-            msg = smbus2.i2c_msg.read(tmp,bytestoget)     
-            self.bus.i2c_rdwr(msg)
-            print(list(msg))
-            return list(msg)        
-        except:
-            return ''   
-
-    def GoDark(self, ID):
-        try:
-            tmp = 0x50+ID
-            buffer = [1]
-            self.bus.write_i2c_block_data(tmp,1,buffer)
-            return True
-        except:
-            return False
-
-    def ExitDark(self, ID):
-        try:
-            tmp = 0x50+ID
-            buffer = [0x00]
-            self.bus.write_i2c_block_data(tmp,1,buffer)
-            return True
-        except:
-            return False
-    
-    def SendOptoState(self,ID, os1, os2):
-        try:
-            tmp = 0x50+ID
-            buffer=[os1,os2]
-            self.bus.write_i2c_block_data(tmp,2,buffer)
-            return True
-        except:
-            return False
-
-    def SendFrequency(self,ID, freq):
-        try:
-            tmp = 0x50+ID
-            buffer=[freq]
-            self.bus.write_i2c_block_data(tmp,4,buffer)
-            return True
-        except:
-            return False
-
-    def SendPulseWidth(self,ID, pw):
-        try:
-            tmp = 0x50+ID
-            buffer=[pw]
-            self.bus.write_i2c_block_data(tmp,5,buffer)
-            return True
-        except:
-            return False
-
-
-class UARTCOMM():    
-    UART_message = Event.Event()
+class COMM():    
+    COMM_message = Event.Event()    
     #region Core read/write functions
     def __init__(self):
         ## The timeout here is tricky.  For 15 packets to be sent, it seems to
@@ -205,9 +133,10 @@ class UARTCOMM():
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
+        self.i2cbus = smbus2.SMBus(1)
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        UARTCOMM.UART_message.notify(tmp)   
+        COMM.COMM_message.notify(tmp)   
     def _Write(self,s,delay=0.005):
         GPIO.output(self.sendPIN,GPIO.HIGH)       
         time.sleep(delay)    
@@ -272,12 +201,15 @@ class UARTCOMM():
         barray.append(0x00)                 
         self._WriteByteArray(barray,0.001)
     
-    def RequestBufferReset(self,ID):        
+    def RequestBufferReset(self,dfm):       
+        if(dfm.DFMType!=Enums.DFMTYPE.PLETCHERV3):
+            return True
+
         self.thePort.reset_input_buffer()
         ba = bytearray(3)
-        ba[0]=ID
+        ba[0]=dfm.ID
         ba[1]=0xFE # Indicates buffer reset        
-        ba[2]=ID
+        ba[2]=dfm.ID
     
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
@@ -287,16 +219,18 @@ class UARTCOMM():
         tmp=self._Read(2)         
         if(len(tmp)!=2):            
             return False
-        if(tmp[0]==ID):
+        if(tmp[0]==dfm.ID):
             return True
         else:
             return False    
-    def SendLinkage(self,ID,linkage):
+    def SendLinkage(self,dfm):
+        if(dfm.DFMType!=Enums.DFMTYPE.PLETCHERV3):
+            return True
         ba = bytearray(18)
-        ba[0]=ID
+        ba[0]=dfm.ID
         ba[1]=0xFB
         for i in range(0,12):
-            ba[i+2]=linkage[i]
+            ba[i+2]=dfm.currentLinkage[i]
         self._AddChecksumFourBytes(0,ba)
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
@@ -305,7 +239,7 @@ class UARTCOMM():
         tmp=self._Read(2)
         if(len(tmp)!=2):            
             return False
-        if(tmp[0]==ID):
+        if(tmp[0]==dfm.ID):
             return True 
         else:            
             return False    
@@ -355,9 +289,9 @@ class UARTCOMM():
         else:            
             return False    
 
-    def GetStatusPacket(self,ID):                      
+    def GetStatusPacketUART(self,dfm):                      
         start = time.time()
-        self.RequestStatus(ID)
+        self.RequestStatus(dfm.ID)
         end=time.time()
         if ((end-start)>0.030) :
             print("Request time: "+str(end-start))        
@@ -366,22 +300,124 @@ class UARTCOMM():
             return cobs.decode(self._ReadCOBSPacket(4000))
         except:
             return ''
-    def PollSlave(self,ID):                     
-        return self.RequestBufferReset(ID)   
-    #endregion     
+    
+    def PollSlaveUART(self,ID):          
+        self.thePort.reset_input_buffer()
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xFE # Indicates buffer reset        
+        ba[2]=ID
+    
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)            
+        self._WriteByteArray(barray,0.001)
+       
+        tmp=self._Read(2)         
+        if(len(tmp)!=2):            
+            return False
+        if(tmp[0]==ID):
+            return True
+        else:
+            return False                               
+    #endregion    
+    # 
+
+    def PollSlave(self,ID,dfmtype):
+        if(dfmtype==Enums.DFMTYPE.PLETCHERV3):
+            return self.PollSlaveUART(ID)
+        else:
+            return self.PollSlaveI2C(ID)
+
+    def GetStatusPacket(self,dfm):   
+        if(dfm.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            return self.GetStatusPacketUART(dfm)
+        else:
+            return self.GetStatusPacketI2C(dfm)
+
+    #region I2C
+    def PollSlaveI2C(self,ID):     
+        try:  
+            tmp = 0x50+ID
+            b = self.i2cbus.read_byte_data(tmp,1)            
+            return ID            
+        except:
+            return ''
+        #b = self.bus.read_i2c_block_data(tmp,1,16)
+        #print(msg)
+        
+
+    def GetStatusPacketI2C(self,dfm):     
+        tmp = 0x50+dfm.ID
+        if dfm.DFMType == Enums.DFMTYPE.PLETCHERV2:
+            bytestoget = 64
+        elif dfm.DFMType == Enums.DFMTYPE.SABLEV2:
+            bytestoget = 52
+        try:
+            msg = smbus2.i2c_msg.read(tmp,bytestoget)     
+            self.i2cbus.i2c_rdwr(msg)            
+            return list(msg)        
+        except:
+            return ''   
+
+    def GoDarkI2C(self, dfm):
+        try:
+            tmp = 0x50+dfm.ID
+            buffer = [1]
+            self.i2cbus.write_i2c_block_data(tmp,1,buffer)
+            return True
+        except:
+            return False
+
+    def ExitDarkI2C(self, dfm):
+        try:
+            tmp = 0x50+dfm.ID
+            buffer = [0x00]
+            self.i2cbus.write_i2c_block_data(tmp,1,buffer)
+            return True
+        except:
+            return False
+    
+    def SendOptoStateI2C(self,dfm, os1, os2):
+        try:
+            tmp = 0x50+dfm.ID
+            buffer=[os1,os2]
+            self.i2cbus.write_i2c_block_data(tmp,2,buffer)
+            return True
+        except:
+            return False
+
+    def SendFrequencyI2C(self,dfm, freq):
+        try:
+            tmp = 0x50+dfm.ID
+            buffer=[freq]
+            self.i2cbus.write_i2c_block_data(tmp,4,buffer)
+            return True
+        except:
+            return False
+
+    def SendPulseWidthI2C(self,dfm, pw):
+        try:
+            tmp = 0x50+dfm.ID
+            buffer=[pw]
+            self.i2cbus.write_i2c_block_data(tmp,5,buffer)            
+            return True
+        except:
+            return False
+    #endregion  
        
 
 def ModuleTest5(dfmID):
     Board.BoardSetup()
-    p=I2CCOMM()
-    #p.PollSlave(dfmID)
-    p.GetStatusPacket(dfmID,Enums.DFMTYPE.PLETCHERV2)
+    p=COMM()
+    print(p.PollSlave(dfmID,Enums.DFMTYPE.PLETCHERV2))
+    #p.GetStatusPacket(dfmID,Enums.DFMTYPE.PLETCHERV2)
     #print(p.GoDark(dfmID))
     #print(p.ExitDark(dfmID))
 
 
 if __name__=="__main__" :
-    ModuleTest5(1)   
+    ModuleTest5(6)   
     print("Done!!")     
 
 #endregion

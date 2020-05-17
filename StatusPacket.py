@@ -48,8 +48,8 @@ class StatusPacket:
         self.temp = 0
         self.humidity = 0       
         self.lux = 0
-        self.recordIndex = 0        
-        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)
+        self.recordIndex = 1        
+        self.packetTime = datetime.datetime.now()
 
         expectedCheckSum = bytesData[48]
         expectedCheckSum += bytesData[49]<<8
@@ -62,7 +62,7 @@ class StatusPacket:
 
         return PROCESSEDPACKETRESULT.OKAY   
 
-    def ProcessStatusPacketPletcherV2(self,bytesData,startTime,packetNum):        
+    def ProcessStatusPacketPletcherV2(self,bytesData,startTime,packetNum):              
         if(len(bytesData)!=64):
             return PROCESSEDPACKETRESULT.WRONGNUMBYTES   
 
@@ -103,17 +103,16 @@ class StatusPacket:
         self.temp = 0
         self.humidity = 0       
         self.lux = 0
-        self.recordIndex = 0        
-        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)
+        self.recordIndex = 1        
+        self.packetTime = datetime.datetime.now()
 
         expectedCheckSum = bytesData[60]
         expectedCheckSum += bytesData[61]<<8
         expectedCheckSum += bytesData[62]<<16
         expectedCheckSum += bytesData[63]<<24
        
-        if(calculatedCheckSum != expectedCheckSum):            
-            print("Checksum error")
-            #return PROCESSEDPACKETRESULT.CHECKSUMERROR
+        if(calculatedCheckSum != expectedCheckSum):                        
+            return PROCESSEDPACKETRESULT.CHECKSUMERROR        
 
         return PROCESSEDPACKETRESULT.OKAY   
 
@@ -190,11 +189,11 @@ class StatusPacket:
 
     def ProcessStatusPacket(self,bytesData,startTime,packetNum):        
         if self.DFMType == DFMTYPE.PLETCHERV2:
-            self.ProcessStatusPacketPletcherV2(bytesData,startTime,packetNum)
+            return self.ProcessStatusPacketPletcherV2(bytesData,startTime,packetNum)
         elif self.DFMType == DFMTYPE.SABLEV2:
-            self.ProcessStatusPacketSableV2(bytesData,startTime,packetNum)
+            return self.ProcessStatusPacketSableV2(bytesData,startTime,packetNum)
         elif self.DFMType == DFMTYPE.PLETCHERV3:
-            self.ProcessStatusPacketSableV2(bytesData,startTime,packetNum)
+            return self.ProcessStatusPacketSableV2(bytesData,startTime,packetNum)
 
 
     def GetConsolePrintPacket(self):

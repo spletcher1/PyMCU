@@ -56,7 +56,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ProgramPreviewTextBox.setStyleSheet(tmp2)       
         self.FilesListWidget.setStyleSheet(tmp3)        
         if("MCU" in platform.node()):
-            self.theDFMGroup = DFMGroup.DFMGroup(COMM.UARTCOMM())
+            self.theDFMGroup = DFMGroup.DFMGroup(COMM.COMM())
         else:
             self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
         self.statusmessageduration=5000
