@@ -1,5 +1,16 @@
 from enum import Enum
 
+class COMMANDTYPE(Enum):
+    FINDDFM=1
+    BUFFER_RESET=2
+    LINKAGE=3
+    INSTRUCTION=4
+    STOP_READING=5
+    SEND_DARK=6
+    SEND_FREQ=7
+    SEND_PW=8
+    SEND_OPTOSTATE=9
+
 class CURRENTSTATUS(Enum):
     READING=1
     RECORDING=2

@@ -17,11 +17,9 @@ import math
 class DFM:
     DFM_message = Event.Event()
     #region Initialization, etc.
-    def __init__(self,id,commProtocol,dfmType):
-        self.ID=id     
-        self.theCOMM = commProtocol
+    def __init__(self,id,dfmType):
+        self.ID=id             
         self.DFMType = dfmType   
-        self.currentStatusPackets = []
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
@@ -131,23 +129,23 @@ class DFM:
     #region Packet processing, reading, writing, file methods.
 
    
-    def UpdateReportedValues(self):
-        self.reportedHumidity = self.currentStatusPackets[-1].humidity
-        self.reportedLUX = self.currentStatusPackets[-1].lux
-        self.reportedTemperature = self.currentStatusPackets[-1].temp
-        self.reportedOptoFrequency = self.currentStatusPackets[-1].optoFrequency
-        self.reportedOptoPulsewidth = self.currentStatusPackets[-1].optoPulseWidth
-        self.reportedOptoStateCol1  = self.currentStatusPackets[-1].optoState1
-        self.reportedOptoStateCol2 = self.currentStatusPackets[-1].optoState2
-        self.reportedVoltsIn = self.currentStatusPackets[-1].voltsIn
-        self.currentDFMErrors.UpdateErrors(self.currentStatusPackets[-1].errorFlags)
+    def UpdateReportedValues(self, currentStatusPackets):
+        self.reportedHumidity = currentStatusPackets[-1].humidity
+        self.reportedLUX = currentStatusPackets[-1].lux
+        self.reportedTemperature = currentStatusPackets[-1].temp
+        self.reportedOptoFrequency = currentStatusPackets[-1].optoFrequency
+        self.reportedOptoPulsewidth = currentStatusPackets[-1].optoPulseWidth
+        self.reportedOptoStateCol1  = currentStatusPackets[-1].optoState1
+        self.reportedOptoStateCol2 = currentStatusPackets[-1].optoState2
+        self.reportedVoltsIn = currentStatusPackets[-1].voltsIn
+        self.currentDFMErrors.UpdateErrors(currentStatusPackets[-1].errorFlags)
         
-        if(self.currentStatusPackets[-1].darkStatus==0):
+        if(currentStatusPackets[-1].darkStatus==0):
             self.reportedDarkState = Enums.DARKSTATE.OFF
         else:
             self.reportedDarkState = Enums.DARKSTATE.ON
 
-        for sp in self.currentStatusPackets:
+        for sp in currentStatusPackets:
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero DFM error code: {:02X}".format(self.ID,sp.errorFlags)
                 self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)
@@ -166,88 +164,45 @@ class DFM:
         ##if(tmpisInstructionUpdateNeeded):
         ##   self.isInstructionUpdateNeeded=True
 
-    def ProcessPackets(self,bytesData,startTime):  
-        if(len(bytesData)==0):
-            a=Enums.PROCESSEDPACKETRESULT.NOANSWER
-            return [a]         
-        
-        if(self.DFMType == Enums.DFMTYPE.PLETCHERV2):
-            bytestoget = 64
-        elif(self.DFMType == Enums.DFMTYPE.SABLEV2):
-            bytestoget = 52
-        else:
-            bytestoget = 66
-
-        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3 and bytesData[0]!=self.ID):            
-            a=Enums.PROCESSEDPACKETRESULT.WRONGID
-            return [a]
-        
-        numPacketsReceived = len(bytesData)/bytestoget                
-        if (math.floor(numPacketsReceived)!=numPacketsReceived):
-            # TODO: Need to figure out how to possibly recover some of the packets.
-            # TODO: for now, however, no.            
-            a=Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES
-            return [a]
-        else :
-            numPacketsReceived = int(numPacketsReceived)                
-        self.currentStatusPackets.clear()
-        results=[]
-        for i in range(0,numPacketsReceived):
-            ## sampleIndex is set to -1 here because it is only added to the packet if it is a success.
-            tmpPacket = StatusPacket.StatusPacket(-1,self.DFMType)
-            results.append(tmpPacket.ProcessStatusPacket(bytesData,startTime,i))        
-            self.currentStatusPackets.append(tmpPacket)           
-        if(results[-1] == Enums.PROCESSEDPACKETRESULT.OKAY):
-             self.UpdateReportedValues()            
-        return results
-  
-    def ReadValues(self,saveDataToQueue): 
-        
-        if(self.CheckStatus()):
-            return 
-        self.lastReadTime = datetime.datetime.now()
-        theResults = [Enums.PROCESSEDPACKETRESULT.OKAY]
-        currentTime = datetime.datetime.today()            
-                
-        tmp=self.theCOMM.GetStatusPacket(self)                            
-        theResults = self.ProcessPackets(tmp,self.bufferResetTime)
-                
-        for j in range(0,len(theResults)):    
+    def ProcessPackets(self,currentStatusPackets,saveDataToQueue):    
+                        
+        for j in range(0,len(currentStatusPackets)):    
             isSuccess=False       
-            if(theResults[j] == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
+            if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Checksum error".format(self.ID)
-                self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
-            elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.NOANSWER):
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
                 self.SetStatus(Enums.CURRENTSTATUS.MISSING)
                 s="({:d}) No answer".format(self.ID)
-                self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
-            elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Wrong number of bytes".format(self.ID)
-                self.NewMessage(self.ID,currentTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
-            elif(theResults[j] == Enums.PROCESSEDPACKETRESULT.OKAY):
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
                 isSuccess=True
-            if isSuccess:                            
-                if (self.currentStatusPackets[j].recordIndex>0):                   
-                    self.currentStatusPackets[j].sample = self.sampleIndex                    
-                    if(self.theData.NewData(self.currentStatusPackets[j],saveDataToQueue)==False):
+                lastBest = currentStatusPackets[j]
+            if isSuccess:                                        
+                if (currentStatusPackets[j].recordIndex>0):                                                                       
+                    if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue error".format(self.ID)
-                        self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
+                        self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                         isSuccess = False
-                    else:
-                        self.sampleIndex = self.sampleIndex+1
+                    else:                        
                         if(self.status == Enums.CURRENTSTATUS.ERROR):
-                            self.SetStatus(self.beforeErrorStatus)                  
-                    if(self.isCalculatingBaseline):
+                            self.SetStatus(self.beforeErrorStatus)                                     
+                    if(self.isCalculatingBaseline):                        
                         self.UpdateBaseline()
                 else :
                     s="({:d}) Empty packet received".format(self.ID)
-                    print(self.currentStatusPackets[j].GetDataBufferPrintPacket())
-                    self.NewMessage(self.ID,self.currentStatusPackets[j].packetTime,self.currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
-        
-      
+                    print(currentStatusPackets[j].GetDataBufferPrintPacket())
+                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
+  
+        self.UpdateReportedValues(currentStatusPackets) 
+                           
+        #self.CheckStatus()
 
     def ResetOutputFileStuff(self):
         self.outputFileIncrementor=0

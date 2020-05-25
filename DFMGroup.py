@@ -1,5 +1,4 @@
 import DFM
-import COMM
 import time
 import Enums
 import datetime
@@ -12,6 +11,7 @@ import os
 import Program
 import Event
 import Board
+import MultiProcessing
 
 class DFMGroup:
     DFMGroup_message = Event.Event()
@@ -19,8 +19,8 @@ class DFMGroup:
     DFMGroup_programEnded = Event.Event()
 
     #region Initialization, Messaging, and DFMlist Management
-    def __init__(self,commProtocol):
-        self.theDFMs = []
+    def __init__(self):
+        self.theDFMs = {}
         DFM.DFM.DFM_message+=self.NewMessageDirect
         self.stopReadWorkerSignal = False        
         self.stopProgramWorkerSignal = False    
@@ -29,9 +29,7 @@ class DFMGroup:
         self.isWriting = False
         self.isReadWorkerRunning = False
         self.isProgramWorkerRunning = False
-        self.currentOutputDirectory = "./"
-        self.theCOMM = commProtocol
-        COMM.COMM.COMM_message+=self.NewMessageDirect
+        self.currentOutputDirectory = "./"                
         Program.MCUProgram.Program_message+=self.NewMessageDirect
         self.theMessageList = MessagesList.MessageList()
         self.currentProgram=Program.MCUProgram()       
@@ -40,6 +38,7 @@ class DFMGroup:
         self.theFiles = []
         self.writeStartTimes=[]
         self.currentDFMIndex=0        
+        self.MP = '' 
 
 
     def NewMessageDirect(self,newMessage):        
@@ -57,27 +56,28 @@ class DFMGroup:
         self.theDFMs.clear()
         self.activeDFM=None
 
-    def FindDFMs(self,maxNum=12,startReading=True): 
+    def FindDFMs(self,maxNum=12): 
+        self.theDFMs.clear()
         dfmType = Enums.DFMTYPE.PLETCHERV3             
-        for i in range(1,maxNum+1):
-            if(self.theCOMM.PollSlave(i,dfmType)):
-                self.theDFMs.append(DFM.DFM(i,self.theCOMM,dfmType))
-                s = "DFM "+str(i)+" found"
-                self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
-            time.sleep(0.010)  
+        #for i in range(1,maxNum+1):
+            #if(self.theCOMM.PollSlave(i,dfmType)):
+            #    self.theDFMs.append(DFM.DFM(i,self.theCOMM,dfmType))
+            #    s = "DFM "+str(i)+" found"
+            #    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
+        #    time.sleep(0.010)  
         if(len(self.theDFMs)>0):               
-            self.activeDFM = self.theDFMs[0]
+            self.activeDFM = self.theDFMs[self.theDFMs.keys()[0]]
         else:
-            dfmType = Enums.DFMTYPE.PLETCHERV2             
-            for i in range(1,maxNum+1):
-                if(self.theCOMM.PollSlave(i,dfmType)):
-                    self.theDFMs.append(DFM.DFM(i,self.theCOMM,dfmType))
+            dfmType = Enums.DFMTYPE.PLETCHERV2                     
+            self.MP = MultiProcessing.DataGetterI2C()
+            tmpDMFList = self.MP.FindDFM(maxNum)
+            if(len(tmpDMFList)>0):
+                for i in tmpDMFList:                
+                    self.theDFMs[i]=DFM.DFM(i,dfmType)
                     s = "DFM "+str(i)+" found"
-                    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
-                time.sleep(0.010)  
-        
-        if(startReading):
-            time.sleep(0.500) # This is to avoid an empty packet being sent given the buffer reset upon polling.             
+                    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)
+                self.activeDFM = self.theDFMs[list(self.theDFMs.keys())[0]]
+            time.sleep(0.010)  
             self.StartReadWorker()
     #endregion
 
@@ -192,73 +192,7 @@ class DFMGroup:
         self.isWriting=False      
         for d in self.theDFMs:
             d.SetStatus(Enums.CURRENTSTATUS.READING)         
-    
-    #This function is no longer used.
-    def WriteWorker(self):        
-        dt=datetime.datetime.today()
-        self.currentOutputDirectory="./FLICData/"+platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
-        try:
-            os.mkdir("./FLICData")
-        except FileExistsError:
-            pass
-        try:
-            os.mkdir(self.currentOutputDirectory)
-        except OSError:
-            self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed", Enums.MESSAGETYPE.ERROR)                    
-        self.WriteProgram()
-
-        header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error,Index\n"
-        theFiles = []
-        writeStartTimes=[]
-        for d in self.theDFMs:
-            writeStartTimes.append(datetime.datetime.today())
-            tmp=self.currentOutputDirectory+"/"+d.outputFile
-            tmp2=open(tmp,"w+")            
-            tmp2.write(header)
-            theFiles.append(tmp2)
-
-        self.isWriting=True
-        currentDFMIndex=0
-        while self.stopRecordingSignal==False:
-            currentDFM = self.theDFMs[currentDFMIndex]
-            currentDuration=datetime.datetime.today()-writeStartTimes[currentDFMIndex]
-            if(currentDuration.total_seconds()>=86400):
-                theFiles[currentDFMIndex].close()   
-                currentDFM.IncrementOutputFile()                
-                tmp=self.currentOutputDirectory+"/"+currentDFM.outputFile
-                tmp2=open(tmp,"w+")            
-                tmp2.write(header)
-                theFiles[currentDFMIndex]=tmp2
-                writeStartTimes[currentDFMIndex]=datetime.datetime.today()
-            elif(currentDFM.theData.ActualSize()>(200 +(currentDFMIndex*2))):
-                ss=currentDFM.theData.PullAllRecordsAsString()
-                if(ss!=""):                    
-                    theFiles[currentDFMIndex].write(ss)                   
-                self.WriteMessages()
-           
-            tmpLQ=0
-            for d in self.theDFMs:
-                if(d.theData.ActualSize()>tmpLQ):
-                    tmpLQ = d.theData.ActualSize()
-            self.longestQueue = tmpLQ
-           
-            currentDFMIndex+=1
-            if(currentDFMIndex==len(self.theDFMs)):
-                currentDFMIndex=0
-            
-            time.sleep(0.1) # sleep awhile to let others take over
-        
-        # Make sure all data are actually written
-        for i in range(0,len(self.theDFMs)):
-            ss=self.theDFMs[i].theData.PullAllRecordsAsString()
-            if(ss!=""):               
-                theFiles[i].write(ss)
-                theFiles[i].close()                
-        self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.NOTICE)        
-        self.WriteMessages()
-        self.isWriting=False      
-        for d in self.theDFMs:
-            d.SetStatus(Enums.CURRENTSTATUS.READING)      
+     
 
     def StopReadWorker(self):
         if len(self.theDFMs)==0:
@@ -270,7 +204,7 @@ class DFMGroup:
     def StartReadWorker(self):
         if(len(self.theDFMs)==0): 
             return
-        for d in self.theDFMs:
+        for d in self.theDFMs.values():
             d.SetStatus(Enums.CURRENTSTATUS.READING)      
         self.stopReadWorkerSignal=False
         readThread = threading.Thread(target=self.ReadWorker)        
@@ -350,17 +284,21 @@ class DFMGroup:
             #time.sleep(0.200) # Yeild to other threads for a bit
 
     def ReadWorker(self):    
-        self.isReadWorkerRunning=True    
-        lastTime = time.time()    
-        while True:           
-            if(time.time()-lastTime>.2):                                   
-                if self.activeDFM != None:
-                    self.activeDFM.ReadValues(False)                
-                lastTime = time.time()                    
-                DFMGroup.DFMGroup_updatecomplete.notify()                                                                         
+        self.isReadWorkerRunning=True            
+        while True:   
+            try:
+                tmp = self.MP.data_q.get(block=True)                                  
+                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)
+                if(tmp[0].DFMID == self.activeDFM.ID):
+                    DFMGroup.DFMGroup_updatecomplete.notify()         
+            except:
+                pass         
+                                                                                       
             if(self.stopReadWorkerSignal):
-                for d in self.theDFMs:
+                self.MP.StopReading(True)
+                for d in self.theDFMs.values():
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
+                
                 self.isReadWorkerRunning = False                
                 return 
                
@@ -437,17 +375,23 @@ class DFMGroup:
 #region Module Testing    
 def ModuleTest():
     Board.BoardSetup()
-    #tmp = DFMGroup(COMM.TESTCOMM())
-    tmp = DFMGroup(COMM.COMM())
-    tmp.FindDFMs(maxNum=12,startReading=False)
-    print("DFMs Found:" + str(len(tmp.theDFMs)))
+    tmp = DFMGroup()
+    tmp.FindDFMs(maxNum=7)
+    time.sleep(10)
+    tmp.StopReadWorker()
+    time.sleep(1)
+    while tmp.MP.message_q.empty() != True:
+        tmp2 = tmp.MP.message_q.get()
+        print(tmp2.message)
+
+    #print("DFMs Found:" + str(len(tmp.theDFMs)))
     #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=3))
     #print(tmp.currentProgram)
     #tmp.ActivateCurrentProgram()      
-    while(1):        
-        tmp.theDFMs[0].ReadValues(True)
-        print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())   
-        time.sleep(1)      
+    #while(1):        
+    #    tmp.theDFMs[0].ReadValues(True)
+    #    print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())   
+    #    time.sleep(1)      
     #    tmp.UpdateDFMStatus()     
     #    print(tmp.longestQueue)
     #    time.sleep(1)
