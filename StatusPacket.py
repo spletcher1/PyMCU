@@ -66,7 +66,8 @@ class StatusPacket:
         self.processResult = PROCESSEDPACKETRESULT.OKAY   
         return
 
-    def ProcessStatusPacket(self,bytesData,currentTime):              
+    def ProcessStatusPacket(self,bytesData,currentTime):   
+        wellIndexer=[0,2,1,3,10,7,11,4,8,5,9,6]           
         if(len(bytesData)!=64):
             self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES   
             return
@@ -81,7 +82,7 @@ class StatusPacket:
             currentValue += bytesData[baseindex+2]<<16
             currentValue += bytesData[baseindex+3]<<24
             calculatedCheckSum+=currentValue
-            self.analogValues[i] = currentValue >> 7
+            self.analogValues[wellIndexer[i]] = currentValue >> 7
            
         self.voltsIn = 0
 

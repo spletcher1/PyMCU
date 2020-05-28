@@ -54,11 +54,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MessagesTextEdit.setStyleSheet(tmp2)        
         self.ProgramTextEdit.setStyleSheet(tmp2)     
         self.ProgramPreviewTextBox.setStyleSheet(tmp2)       
-        self.FilesListWidget.setStyleSheet(tmp3)        
-        if("MCU" in platform.node()):
-            self.theDFMGroup = DFMGroup.DFMGroup(COMM.COMM())
-        else:
-            self.theDFMGroup = DFMGroup.DFMGroup(COMM.TESTCOMM())          
+        self.FilesListWidget.setStyleSheet(tmp3)            
+        self.theDFMGroup = DFMGroup.DFMGroup()
         self.statusmessageduration=5000
         self.activeDFMNum=-1
         self.activeDFM=None                        
@@ -77,7 +74,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StatusBar.setStyleSheet('border: 0')
         self.StatusBar.setStyleSheet("QStatusBar::item {border: none;}")    
        
-        self.DFMButtons = []
+        self.DFMButtons = {}
         self.UpdateProgramGUI()
         self.DisableButtons()
         self.isUSBAttached=False
@@ -366,9 +363,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def SetActiveDFM(self,num):
         if(self.activeDFM is not None):
             self.activeDFM.isSetNormalProgramIntervalNeeded=True
-        self.activeDFMNum=num        
-        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]        
-        self.theDFMGroup.activeDFM = self.activeDFM   
+        self.activeDFMNum=num              
+        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]  
+
+        self.theDFMGroup.activeDFM = self.activeDFM           
         ## This is here to ensure that current data is shown quickly regardless of the DFM buffer.   
         ## Should only do it if NOT recording
         if self.theDFMGroup.isReadWorkerRunning: 
@@ -377,68 +375,73 @@ class MyMainWindow(QtWidgets.QMainWindow):
             if(self.fastUpdateCheckBox.isChecked()):
                 self.activeDFM.SetFastProgramReadInterval()            
             else:
-                self.activeDFM.isSetNormalProgramIntervalNeeded=True
-
+                self.activeDFM.isSetNormalProgramIntervalNeeded=True        
         self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
         self.UpdateDFMButtonTextColors()
 
     def UpdateDFMButtonTextColors(self):        
-        for i in range(0,len(self.theDFMGroup.theDFMs)):
-            if(self.activeDFMNum==i):
+        for key, value in self.theDFMGroup.theDFMs.items():
+            if(self.activeDFMNum==key):
                 ss = 'QPushButton {font-weight:bold;'
             else:
                 ss = 'QPushButton {'
-            if(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.READING):               
+            if(value.status==Enums.CURRENTSTATUS.READING):               
                 ss+= 'color: black}' 
-                self.DFMButtons[i].setStyleSheet(ss)                                
-            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.RECORDING):
+                self.DFMButtons[key].setStyleSheet(ss)                                
+            elif(value.status==Enums.CURRENTSTATUS.RECORDING):
                 ss+= 'color: green}' 
-                self.DFMButtons[i].setStyleSheet(ss)
-            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.ERROR):
+                self.DFMButtons[key].setStyleSheet(ss)
+            elif(value.status==Enums.CURRENTSTATUS.ERROR):
                 ss+= 'color: red}' 
-                self.DFMButtons[i].setStyleSheet(ss)
-            elif(self.theDFMGroup.theDFMs[i].status==Enums.CURRENTSTATUS.MISSING):
+                self.DFMButtons[key].setStyleSheet(ss)
+            elif(value.status==Enums.CURRENTSTATUS.MISSING):
                 ss+= 'color: blue}' 
-                self.DFMButtons[i].setStyleSheet(ss)
+                self.DFMButtons[key].setStyleSheet(ss)
             else:
                 ss+= 'color: orange}' 
-                self.DFMButtons[i].setStyleSheet(ss)                
+                self.DFMButtons[key].setStyleSheet(ss)                
 
 
     def DFMButtonClicked(self):
         sender = self.sender()
-        for i in range(0,len(self.DFMButtons)):
-            if sender is self.DFMButtons[i]:
-                self.SetActiveDFM(i)   
+        for key, value in self.DFMButtons.items():
+            if sender is value:
+                self.SetActiveDFM(key)   
                 self.UpdateDFMPageGUI()                    
 
     def FindDFMs(self):   
         self.ClearDFM()
         self.StatusBar.showMessage("Searching for DFMs...",self.statusmessageduration)     
         self.ClearMessages()
-        self.theDFMGroup.FindDFMs(10)            
+        self.theDFMGroup.FindDFMs(10)                      
         if(len(self.theDFMGroup.theDFMs)==0):
             self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
             return
         self.findDFMAction.setEnabled(False)
-        for d in self.theDFMGroup.theDFMs:
-            s = str(d)
+        for key, value in self.theDFMGroup.theDFMs.items():
+            s = str(value)
             tmp = QPushButton(s)
             tmp.setFlat(False)            
             tmp.setMinimumHeight(45)
             #tmp.setMaximumWidth(88)
             self.DFMListLayout2.setAlignment(Qt.AlignTop)
             self.DFMListLayout2.addWidget(tmp)            
-            self.DFMButtons.append(tmp)             
+            self.DFMButtons[key]=tmp
+        
+        
         self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                        
-        for b in self.DFMButtons:
+        for b in self.DFMButtons.values():
             b.clicked.connect(self.DFMButtonClicked)             
         self.programStartTime = datetime.datetime.today()
-        self.programDuration = datetime.timedelta(minutes=180)
+        self.programDuration = datetime.timedelta(minutes=180)        
+        
+
         self.LoadSimpleProgram()        
-        self.SetActiveDFM(0)  
+        self.SetActiveDFM(self.theDFMGroup.currentDFMKeysList[0])    
+
         self.UpdateDFMPageGUI()
         self.GotoDFMPage()     
+     
 
     def DeleteDataFolder(self):
         msg = QMessageBox()
@@ -518,7 +521,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def GotoProgramLoadPage(self):  
         self.StackedPages.setCurrentIndex(3)
 
-    def UpdateDFMPageGUI(self):
+    def UpdateDFMPageGUI(self):                
         self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
         self.HumidLabel.setText("{:.1f}%".format(self.activeDFM.reportedHumidity))
         self.LUXLabel.setText("{:d}".format(self.activeDFM.reportedLUX))
@@ -591,8 +594,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.RunProgramButton.setEnabled(True)                          
         self.fastUpdateCheckBox.setChecked(False)
 
-    def UpdateDFMPlot(self):        
-        if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                     
+    def UpdateDFMPlot(self):   
+        if self.activeDFMNum>0 and self.StackedPages.currentIndex()==1:                     
             #start = time.time()   
             self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
             #end=time.time()        
@@ -618,7 +621,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
             self.UpdateDFMPageGUI() 
-        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                           
+        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                       
         
             
     def closeEvent(self,event):
@@ -781,6 +784,36 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.activeDFM.isSetNormalProgramIntervalNeeded=True
 
 
+    
+
+def ModuleTest():
+    Board.BoardSetup()
+    tmp = DFMGroup.DFMGroup()
+    tmp.FindDFMs(maxNum=7)
+    counter=0
+    while counter<10800:
+        while tmp.MP.message_q.empty() != True:
+            tmp2 = tmp.MP.message_q.get()
+            print(tmp2.message)      
+        QApplication.processEvents()
+        time.sleep(1)
+
+    tmp.StopReadWorker()
+    time.sleep(1)
+    
+    #print("DFMs Found:" + str(len(tmp.theDFMs)))
+    #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=3))
+    #print(tmp.currentProgram)
+    #tmp.ActivateCurrentProgram()      
+    #while(1):        
+    #    tmp.theDFMs[0].ReadValues(True)
+    #    print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())   
+    #    time.sleep(1)      
+    #    tmp.UpdateDFMStatus()     
+    #    print(tmp.longestQueue)
+    #    time.sleep(1)
+    
+
 
 def main():
     if("MCU" in platform.node()):
@@ -789,10 +822,8 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     #app.setStyleSheet("QStatusBar.item {border : 0px black}")
     myapp = MyMainWindow()
-    if("MCU" in platform.node()):
-        myapp.showFullScreen()
-    else:
-        myapp.show()
+    #ModuleTest()    
+    myapp.showFullScreen()
     sys.exit(app.exec_()) 
     print("Done")
     

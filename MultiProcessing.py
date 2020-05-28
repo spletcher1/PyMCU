@@ -59,8 +59,8 @@ class DataGetterI2C:
             tmp=self.theCOMM.GetStatusPacket(id)                                    
             self.ProcessPacket(id,tmp,currentTime)
             #print(self.currentStatusPackets[-1].GetConsolePrintPacket())    
-            packList=[self.currentStatusPacket]                  
-            self.data_q.put(packList)            
+            packList=[self.currentStatusPacket]                              
+            self.data_q.put(packList)               
             time.sleep(0.002)
         self.currentReadIndex+=1
 

@@ -164,8 +164,7 @@ class DFM:
         ##if(tmpisInstructionUpdateNeeded):
         ##   self.isInstructionUpdateNeeded=True
 
-    def ProcessPackets(self,currentStatusPackets,saveDataToQueue):    
-                        
+    def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                            
         for j in range(0,len(currentStatusPackets)):    
             isSuccess=False       
             if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
@@ -182,7 +181,6 @@ class DFM:
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
                 isSuccess=True
-                lastBest = currentStatusPackets[j]
             if isSuccess:                                        
                 if (currentStatusPackets[j].recordIndex>0):                                                                       
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
@@ -231,7 +229,7 @@ class DFM:
         ## This function will eventually need to execute an instruction
         return True
 
-    def CheckStatus(self):        
+    def CheckStatus(self):                
         ## These are else if groups so that both are not executed on the same pass.
         ## Take care to note potential problems with long read intervals.
         if(self.isBufferResetNeeded):

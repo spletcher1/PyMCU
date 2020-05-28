@@ -35,10 +35,11 @@ class DFMGroup:
         self.currentProgram=Program.MCUProgram()       
         self.activeDFM=None 
         ## New members added when the write worker was disbanded
-        self.theFiles = []
-        self.writeStartTimes=[]
+        self.theFiles = {}
+        self.writeStartTimes={}
         self.currentDFMIndex=0        
         self.MP = '' 
+        self.currentDFMKeysList=[]
 
 
     def NewMessageDirect(self,newMessage):        
@@ -66,7 +67,7 @@ class DFMGroup:
             #    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
         #    time.sleep(0.010)  
         if(len(self.theDFMs)>0):               
-            self.activeDFM = self.theDFMs[self.theDFMs.keys()[0]]
+            self.activeDFM = self.theDFMs[list(self.theDFMs.keys())[0]]
         else:
             dfmType = Enums.DFMTYPE.PLETCHERV2                     
             self.MP = MultiProcessing.DataGetterI2C()
@@ -75,10 +76,11 @@ class DFMGroup:
                 for i in tmpDMFList:                
                     self.theDFMs[i]=DFM.DFM(i,dfmType)
                     s = "DFM "+str(i)+" found"
-                    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)
-                self.activeDFM = self.theDFMs[list(self.theDFMs.keys())[0]]
+                    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                self.currentDFMKeysList = list(self.theDFMs.keys())
+                self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
+                self.StartReadWorker()
             time.sleep(0.010)  
-            self.StartReadWorker()
     #endregion
 
     #region Reading and Recording
@@ -86,7 +88,7 @@ class DFMGroup:
         if len(self.theDFMs)==0:
             return False    
         self.theMessageList.ClearMessages()
-        for i in self.theDFMs:            
+        for i in self.theDFMs.values():            
             i.ResetOutputFileStuff()
             i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
             i.isBufferResetNeeded=True   
@@ -123,7 +125,7 @@ class DFMGroup:
         f.close()
 
     def SetDFMIdleStatus(self):
-        for d in self.theDFMs:
+        for d in self.theDFMs.values():
             d.SetIdleStatus()                        
 
     def WriteStarter(self):
@@ -140,35 +142,35 @@ class DFMGroup:
         self.WriteProgram()
 
         header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error,Index\n"
-        self.theFiles = []
-        self.writeStartTimes=[]
-        for d in self.theDFMs:
-            self.writeStartTimes.append(datetime.datetime.today())
-            tmp=self.currentOutputDirectory+"/"+d.outputFile
+        self.theFiles.clear()
+        self.writeStartTimes.clear()
+        for key, value in self.theDFMs.items():
+            self.writeStartTimes[key]= datetime.datetime.today()
+            tmp=self.currentOutputDirectory+"/"+value.outputFile
             tmp2=open(tmp,"w+")            
             tmp2.write(header)
-            self.theFiles.append(tmp2)
+            self.theFiles[key]=tmp2
 
         self.stopRecordingSignal=False
         self.isWriting=True
-        self.currentDFMIndex=0 
-
+        self.currentDFMIndex=0
+       
     def WriteStep(self):
-        currentDFM = self.theDFMs[self.currentDFMIndex]
-        currentDuration=datetime.datetime.today()-self.writeStartTimes[self.currentDFMIndex]
+        currentDFM = self.theDFMs[self.currentDFMKeysList[self.currentDFMIndex]]
+        currentDuration=datetime.datetime.today()-self.writeStartTimes[currentDFM.ID]
         if(currentDuration.total_seconds()>=43200):
-            self.theFiles[self.currentDFMIndex].close()   
+            self.theFiles[currentDFM.ID].close()   
             currentDFM.IncrementOutputFile()                
             tmp=self.currentOutputDirectory+"/"+currentDFM.outputFile
             tmp2=open(tmp,"w+") 
             header="Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error,Index\n"           
             tmp2.write(header)
-            self.theFiles[self.currentDFMIndex]=tmp2
-            self.writeStartTimes[self.currentDFMIndex]=datetime.datetime.today()
+            self.theFiles[currentDFM.ID]=tmp2
+            self.writeStartTimes[currentDFM.ID]=datetime.datetime.today()
         elif(currentDFM.theData.ActualSize()>(1000 +(self.currentDFMIndex*10))):
             ss=currentDFM.theData.PullAllRecordsAsString()
             if(ss!=""):                    
-                self.theFiles[self.currentDFMIndex].write(ss)                   
+                self.theFiles[currentDFM.ID].write(ss)                   
             self.WriteMessages()
         
         tmpLQ=0
@@ -182,15 +184,15 @@ class DFMGroup:
             self.currentDFMIndex=0 
 
     def WriteEnder(self):
-        for i in range(0,len(self.theDFMs)):
-            ss=self.theDFMs[i].theData.PullAllRecordsAsString()
+        for key, value in self.theDFMs.items():
+            ss=value.theData.PullAllRecordsAsString()
             if(ss!=""):               
-                self.theFiles[i].write(ss)
-                self.theFiles[i].close()                
+                self.theFiles[key].write(ss)
+                self.theFiles[key].close()                
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.NOTICE)        
         self.WriteMessages()
         self.isWriting=False      
-        for d in self.theDFMs:
+        for d in self.theDFMs.values():
             d.SetStatus(Enums.CURRENTSTATUS.READING)         
      
 
@@ -213,7 +215,7 @@ class DFMGroup:
     def StartProgramWorker(self):
         if(len(self.theDFMs)==0): 
             return     
-        for d in self.theDFMs:
+        for d in self.theDFMs.values():
             d.SetStatus(Enums.CURRENTSTATUS.READING)              
         self.stopProgramWorkerSignal=False
         readThread = threading.Thread(target=self.ProgramWorker)        
@@ -227,14 +229,14 @@ class DFMGroup:
             time.sleep(0.10)                
     
     def SetNormalProgramReadInterval(self, ID):
-        for d in self.theDFMs: 
+        for d in self.theDFMs.values(): 
             if(ID==255):
                 d.isSetNormalProgramIntervalNeeded=True
             elif(d.ID == ID):
                 d.isSetNormalProgramIntervalNeeded=True
 
     def SetFastProgramReadInterval(self, ID):
-        for d in self.theDFMs: 
+        for d in self.theDFMs.values(): 
             if(ID==255):
                 d.SetFastProgramReadInterval()
             elif(d.ID == ID):
@@ -284,11 +286,14 @@ class DFMGroup:
             #time.sleep(0.200) # Yeild to other threads for a bit
 
     def ReadWorker(self):    
-        self.isReadWorkerRunning=True            
+        self.isReadWorkerRunning=True                    
         while True:   
             try:
-                tmp = self.MP.data_q.get(block=True)                                  
-                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)
+                tmp = self.MP.data_q.get(block=True)                                                  
+                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)    
+                if(tmp[0].processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
+                    print(tmp[0].GetConsolePrintPacket())
+
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:
@@ -312,7 +317,7 @@ class DFMGroup:
         if(self.currentProgram.isActive):
             if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):
                 isBaselineing=False
-                for d in self.theDFMs:
+                for d in self.theDFMs.values():
                     if d.isCalculatingBaseline:
                         isBaselineing = True
                 if(isBaselineing): 
@@ -326,7 +331,7 @@ class DFMGroup:
                 self.UpdateDFMInstructions()
 
     def UpdateDFMInstructions(self):
-        for d in self.theDFMs:            
+        for d in self.theDFMs.values():            
             d.UpdateInstruction(self.currentProgram.GetCurrentInstruction(d.ID),self.currentProgram.autoBaseline)    
     #endregion
     
@@ -362,7 +367,7 @@ class DFMGroup:
         self.StopReadWorker()
         print("Baselining")
         self.currentProgram.isActive=True
-        for d in self.theDFMs:
+        for d in self.theDFMs.values():
             if(self.currentProgram.autoBaseline==True):
                 d.BaselineDFM()
             else:
@@ -377,7 +382,7 @@ def ModuleTest():
     Board.BoardSetup()
     tmp = DFMGroup()
     tmp.FindDFMs(maxNum=7)
-    time.sleep(10)
+    time.sleep(10800)
     tmp.StopReadWorker()
     time.sleep(1)
     while tmp.MP.message_q.empty() != True:
