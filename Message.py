@@ -10,8 +10,8 @@ class Message():
         self.messageNumber=number
     
     def __str__(self):
-        ss="(" + str(self.messageNumber)+")  "+self.timeOfError.strftime("%m/%d/%Y %H:%M:%S  ")
-        ss+="-> "+str(self.DFMId)+" <-  "+self.message 
+        ss="(" + str(self.messageNumber)+")  "+self.timeOfError.strftime("%m/%d/%Y %H:%M:%S ")
+        ss+="-> "+str(self.DFMId)+" <- "+self.message 
         if(self.messageType==Enums.MESSAGETYPE.ERROR):
             ss+=" (Error)"
         elif(self.messageType==Enums.MESSAGETYPE.NOTICE):

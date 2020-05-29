@@ -18,7 +18,7 @@ Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,1
 Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,1
 
 [DFM]
-ID: 3
+ID: 1
 ProgramType: Repeating
 Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,10
 
