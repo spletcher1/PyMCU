@@ -1,5 +1,4 @@
 import datetime
-import COMM
 import StatusPacket
 import Enums
 import time
@@ -13,6 +12,7 @@ import Event
 import Instruction
 import Board
 import math
+import OptoLid
 from DataGetter import MP_Command
 
 class DFM:
@@ -53,7 +53,8 @@ class DFM:
             self.programReadInterval=5   
         else:
             self.programReadInterval=0.2
-                 
+        if(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
+            self.theOptoLid = OptoLid.OptoLid()       
 
     def __str__(self):
         return "DFM " + str(self.ID)
@@ -223,23 +224,15 @@ class DFM:
     def UpdateInstruction(self,instruct,useBaseline):                      
         if(instruct is self.currentInstruction):            
             return 
-        else:                      
-            
+        else:                                  
             self.currentInstruction = instruct                        
             if(useBaseline):
                 self.currentInstruction.SetBaseline(self.signalBaselines)                        
             self.isInstructionUpdateNeeded=True
             self.SetFastProgramReadInterval()
             self.isSetNormalProgramIntervalNeeded=True
-
-    def DetermineCurrentOptoState(self):
-        currentValues = self.theData.GetLastDataPoint()
-        return [0x00,0x00]
     
-    def CheckStatusV2(self):
-        # Here we have to (1) Calculate current optostate based on program thresholds and current signal
-        ## check, based on last data point, whether optostate, darkstate, pulsewideth or freq need to be 
-        # updated.    
+    def CheckStatusV2(self):        
         lsp = self.theData.GetLastDataPoint()   
         
         if(lsp.optoFrequency!=self.currentInstruction.frequency):            
@@ -253,11 +246,17 @@ class DFM:
         if(self.currentInstruction.theDarkState!=Enums.DARKSTATE.UNCONTROLLED):                 
             if(lsp.darkStatus!=self.currentInstruction.theDarkState.value[0]):           
                 tmpcommand3=MP_Command(Enums.COMMANDTYPE.SEND_DARK,[self.ID,self.currentInstruction.theDarkState.value[0]])
-                DFM.DFM_command.notify(tmpcommand3)                        
-        
-        tmpOptostates=self.DetermineCurrentOptoState()        
-        if(lsp.optoState1!=tmpOptostates[0] or lsp.optoState2!=tmpOptostates[1]):
-            pass #Cue up command message        
+                DFM.DFM_command.notify(tmpcommand3) 
+
+
+        if(self.isInstructionUpdateNeeded):                
+            self.theOptoLid.UpdateWithInstruction(self.currentInstruction)                   
+            self.isInstructionUpdateNeeded=False
+
+        self.theOptoLid.SetOptoState(lsp.analogValues)              
+        if(lsp.optoState1!=self.theOptoLid.optoStateCol1 or lsp.optoState2!=self.theOptoLid.optoStateCol2):            
+            tmpcommand4 = MP_Command(Enums.COMMANDTYPE.SEND_OPTOSTATE,[self.ID,self.theOptoLid.optoStateCol1,self.theOptoLid.optoStateCol2])
+            DFM.DFM_command.notify(tmpcommand4)   
         
 
     # This needs major update

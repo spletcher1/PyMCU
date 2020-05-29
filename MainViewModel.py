@@ -310,12 +310,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
   
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
-            for d in self.theDFMGroup.theDFMs:
+            for d in self.theDFMGroup.theDFMs.values():
                 d.SetOutputsOff()
             self.toggleOutputsState = False
             self.StatusBar.showMessage("Outputs toggled off.",self.statusmessageduration)  
         else:
-            for d in self.theDFMGroup.theDFMs:
+            for d in self.theDFMGroup.theDFMs.values():
                 d.SetOutputsOn()
             self.toggleOutputsState = True
             self.StatusBar.showMessage("Outputs toggled on.",self.statusmessageduration)  

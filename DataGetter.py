@@ -147,9 +147,9 @@ class DataGetterI2C:
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.     
                 elif(tmp.commandType==Enums.COMMANDTYPE.SEND_OPTOSTATE):                   
-                    # Dark arguments 1=ID, 2=Dark state
+                    # Dark arguments 1=ID, 2=Dark state                    
                     self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
-                    ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."
+                    ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                    
                     self.QueueMessage(ss)    
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.       
@@ -157,7 +157,7 @@ class DataGetterI2C:
                 if(time.time()-lastTime>.2):                                                               
                     lastTime = time.time() 
                     self.ReadValues()                                                                        
-            time.sleep(0.005)
+            time.sleep(0.002)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
         self.QueueMessage("Read worker ended.")        
