@@ -1,6 +1,7 @@
 import os
 import glob
 import shutil
+import time
 
 def DetectUSB():
     try:
@@ -21,6 +22,7 @@ def DetectUpdateFile():
         files=(glob.glob(sourceDirectory+"*.tgz"))                
         if(len(files)==1):                      
             shutil.copy(files[0],targetDirectory)
+            time.sleep(2)
         else:            
             return False
     except:
@@ -33,4 +35,7 @@ def main():
         print(DetectUpdateFile())
 
 if __name__ == "__main__":
+    print("Updating...")
     main()
+    print("Done! Rebooting...")
+    time.sleep(2)
