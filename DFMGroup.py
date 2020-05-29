@@ -11,7 +11,7 @@ import os
 import Program
 import Event
 import Board
-import MultiProcessing
+import DataGetter
 
 class DFMGroup:
     DFMGroup_message = Event.Event()
@@ -22,6 +22,7 @@ class DFMGroup:
     def __init__(self):
         self.theDFMs = {}
         DFM.DFM.DFM_message+=self.NewMessageDirect
+        DFM.DFM.DFM_command+=self.DFMCommandReceive
         self.stopReadWorkerSignal = False        
         self.stopProgramWorkerSignal = False    
         self.stopRecordingSignal = False
@@ -59,24 +60,27 @@ class DFMGroup:
 
     def FindDFMs(self,maxNum=12): 
         self.theDFMs.clear()
-        dfmType = Enums.DFMTYPE.PLETCHERV3             
-        #for i in range(1,maxNum+1):
-            #if(self.theCOMM.PollSlave(i,dfmType)):
-            #    self.theDFMs.append(DFM.DFM(i,self.theCOMM,dfmType))
-            #    s = "DFM "+str(i)+" found"
-            #    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)        
-        #    time.sleep(0.010)  
-        if(len(self.theDFMs)>0):               
-            self.activeDFM = self.theDFMs[list(self.theDFMs.keys())[0]]
+        # First search UART for V3 DFMs
+        self.MP = DataGetter.DataGetterUART()
+        tmpDMFList = self.MP.FindDFM(maxNum)       
+        if(len(tmpDMFList)>0):           
+            for i in tmpDMFList:                
+                self.theDFMs[i]=DFM.DFM(i,Enums.DFMTYPE.PLETCHERV3)
+                s = "DFM "+str(i)+" found"
+                self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+            self.currentDFMKeysList = list(self.theDFMs.keys())
+            self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
+            self.StartReadWorker()
+            time.sleep(0.010)  
         else:
-            dfmType = Enums.DFMTYPE.PLETCHERV2                     
-            self.MP = MultiProcessing.DataGetterI2C()
+            # Now search I2C for V2 DFM             
+            self.MP = DataGetter.DataGetterI2C()
             tmpDMFList = self.MP.FindDFM(maxNum)
             if(len(tmpDMFList)>0):
-                for i in tmpDMFList:                
-                    self.theDFMs[i]=DFM.DFM(i,dfmType)
-                    s = "DFM "+str(i)+" found"
-                    self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                for i in tmpDMFList:                                   
+                    self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType)
+                    s = "DFM "+str(i.ID)+" found"
+                    self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
                 self.currentDFMKeysList = list(self.theDFMs.keys())
                 self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
                 self.StartReadWorker()
@@ -174,7 +178,7 @@ class DFMGroup:
             self.WriteMessages()
         
         tmpLQ=0
-        for d in self.theDFMs:
+        for d in self.theDFMs.values():
             if(d.theData.ActualSize()>tmpLQ):
                 tmpLQ = d.theData.ActualSize()
         self.longestQueue = tmpLQ
@@ -243,47 +247,31 @@ class DFMGroup:
                 d.SetFastProgramReadInterval()
 
     def ProgramWorker(self):
-        self.isProgramWorkerRunning=True                        
-        for d in self.theDFMs:         
-            d.lastReadTime = datetime.datetime.now()
-        
+        self.isProgramWorkerRunning=True    
+        self.MP.StartReading()                    
         while True:   
-            tt = datetime.datetime.now()            
-            for d in self.theDFMs:         
-                diffTime = tt-d.lastReadTime   
-                if(diffTime.total_seconds()>d.programReadInterval):  
-                    ##start=time.time()                                               
-                    d.ReadValues(self.isWriting)    
-                    DFMGroup.DFMGroup_updatecomplete.notify()    
-                    ## Tests show that it takes about 250ms to complete a read when
-                    ## the read interval is 3 sec. 
-                    ## 300ms for 5 sec. 5 seconds seems good assuming max 12 DFM.
-                    ##end=time.time()
-                    ##print("DFM time: "+str(end-start))     
-                    ##print(diffTime.total_seconds())
-                    ##print(d.programReadInterval)
-                    ##                
-                time.sleep(d.programReadInterval/50)  
+            try:
+                tmp = self.MP.data_q.get(block=True)                                                  
+                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,True)    
+                if(tmp[0].DFMID == self.activeDFM.ID):
+                    DFMGroup.DFMGroup_updatecomplete.notify()         
+            except:
+                pass
               
             if(self.isWriting):
-                if(self.stopRecordingSignal):                    
-                    ## Need to clear out the DFM buffers:
-                    for d in self.theDFMs: 
-                        d.ReadValues(True)
-                        time.sleep(0.010)
+                if(self.stopRecordingSignal):                                     
                     self.WriteEnder()                            
                 else:
                     self.WriteStep()                                                                           
                                                                                                        
-            
             if(self.stopProgramWorkerSignal):
-                for d in self.theDFMs:
+                for d in self.theDFMs.values():
                     d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
                 self.isProgramWorkerRunning = False                
                 return                
 
-            time.sleep(self.theDFMs[0].programReadInterval/20) # Yeild to other threads for a bit
-            #time.sleep(0.200) # Yeild to other threads for a bit
+            time.sleep(0.020)
+         
 
     def ReadWorker(self):    
         self.isReadWorkerRunning=True                    
@@ -291,9 +279,6 @@ class DFMGroup:
             try:
                 tmp = self.MP.data_q.get(block=True)                                                  
                 self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)    
-                if(tmp[0].processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
-                    print(tmp[0].GetConsolePrintPacket())
-
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:

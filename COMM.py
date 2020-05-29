@@ -22,13 +22,22 @@ class I2CCOMM():
         try:
             tmpAddr = 0x50+ID         
             msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
-            self.i2cbus.i2c_rdwr(msg)            
-            return ID                
+            self.i2cbus.i2c_rdwr(msg)       
+            tmp=list(msg)
+            if((tmp[60]+tmp[61]+tmp[62]+tmp[63])==0):
+                return Enums.DFMTYPE.SABLEV2
+            else:
+                return Enums.DFMTYPE.PLETCHERV2
         except:
             return ''
         
-    def GetStatusPacket(self,ID):             
-        bytestoget = 64               
+    def GetStatusPacket(self,ID,DFMType):
+        if(DFMType == Enums.DFMTYPE.PLETCHERV2):             
+            bytestoget = 64               
+        elif(DFMType == Enums.DFMTYPE.SABLEV2):             
+            bytestoget = 52               
+        else:
+            bytestoget = 64               
         try:                     
             tmpAddr = 0x50+ID         
             msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
@@ -38,7 +47,7 @@ class I2CCOMM():
             print("Get Status I2C Error")
             return ''   
 
-    def SetDark(self,ID,darkstate):
+    def SendDark(self,ID,darkstate):
         try:
             tmpAddr = 0x50+ID   
             buffer = [darkstate]

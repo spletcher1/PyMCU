@@ -1,10 +1,9 @@
-from enum import Enum
 import array
 import datetime
 from Enums import PROCESSEDPACKETRESULT,DFMTYPE
 
 class StatusPacket:
-    def __init__(self,sampleIndex,DFMID):
+    def __init__(self,sampleIndex,DFMID,DFMType):
         self.analogValues=array.array("i",(0 for i in range(0,12)))
         self.packetTime = datetime.datetime.today() 
         self.voltsIn = 0.0
@@ -21,6 +20,13 @@ class StatusPacket:
         self.recordIndex=1
         self.DFMID=DFMID
         self.processResult=''
+        self.DFMType=DFMType
+
+    def ProcessStatusPacket(self,bytesData,startTime):          
+        if(self.DFMType==DFMTYPE.SABLEV2):           
+            self.ProcessStatusPacketSableV2(bytesData,startTime)
+        elif(self.DFMType==DFMTYPE.PLETCHERV2):            
+            return self.ProcessStatusPacketPletcherV2(bytesData,startTime)
 
     def ProcessStatusPacketSableV2(self,bytesData,startTime):        
         if(len(bytesData)!=52):
@@ -66,7 +72,7 @@ class StatusPacket:
         self.processResult = PROCESSEDPACKETRESULT.OKAY   
         return
 
-    def ProcessStatusPacket(self,bytesData,currentTime):   
+    def ProcessStatusPacketPletcherV2(self,bytesData,currentTime):   
         wellIndexer=[0,2,1,3,10,7,11,4,8,5,9,6]           
         if(len(bytesData)!=64):
             self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES   

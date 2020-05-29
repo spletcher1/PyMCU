@@ -13,9 +13,11 @@ import Event
 import Instruction
 import Board
 import math
+from DataGetter import MP_Command
 
 class DFM:
     DFM_message = Event.Event()
+    DFM_command = Event.Event()
     #region Initialization, etc.
     def __init__(self,id,dfmType):
         self.ID=id             
@@ -47,7 +49,6 @@ class DFM:
         self.reportedLUX=0
         self.reportedVoltsIn=1.0      
         self.bufferResetTime = datetime.datetime.today()
-        self.lastReadTime = datetime.datetime.now()
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
             self.programReadInterval=5   
         else:
@@ -78,6 +79,7 @@ class DFM:
                 if(resultArray[i]<0):
                     resultArray[i]=0
             return resultArray        
+
     def SetIdleStatus(self):
         ## Idle is opto off, dark running as its has been, and default other parameters.
         self.currentInstruction = Instruction.DFMInstruction()
@@ -119,7 +121,7 @@ class DFM:
             tmp = self.signalBaselines[i] * self.baselineSamples
             self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
-        if(self.baselineSamples>=10):
+        if (self.baselineSamples>=10):
             self.isCalculatingBaseline=False              
     def BaselineDFM(self):
         self.ResetBaseline()
@@ -195,12 +197,16 @@ class DFM:
                         self.UpdateBaseline()
                 else :
                     s="({:d}) Empty packet received".format(self.ID)
-                    print(currentStatusPackets[j].GetDataBufferPrintPacket())
                     self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
   
         self.UpdateReportedValues(currentStatusPackets) 
-                           
-        #self.CheckStatus()
+
+        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3)               
+            self.CheckStatusV3()
+        elif(self.DFMType == Enums.DFMTYPE.PLETCHERV2):
+            self.CheckStatusV2()
+        else:
+            pass #Sable V2 doesn't need anything here.
 
     def ResetOutputFileStuff(self):
         self.outputFileIncrementor=0
@@ -225,11 +231,33 @@ class DFM:
             self.SetFastProgramReadInterval()
             self.isSetNormalProgramIntervalNeeded=True
 
-    def ExecuteInstructionV2(self):
-        ## This function will eventually need to execute an instruction
-        return True
+    def DetermineCurrentOptoState():
+        currentValues = self.theData.GetLastDataPoint().analogValues
+        return [0x00,0x00]
+    
+    def CheckStatusV2(self):
+        # Here we have to (1) Calculate current optostate based on program thresholds and current signal
+        ## check, based on last data point, whether optostate, darkstate, pulsewideth or freq need to be 
+        # updated.         
+        
+        if(self.currentStatusPackets[-1].optoFrequency!=self.currentInstruction.frequency):
+            tmpcommand1=MP_Command(Enums.COMMANDTYPE.SEND_FREQ,[self.ID,self.currentInstruction.frequency])
+            DFM.DFM_command.notify(tmpcommand1)
+        if(self.currentStatusPackets[-1].optoPulseWidth!=self.currentInstruction.pulseWidth):
+            tmpcommand2=MP_Command(Enums.COMMANDTYPE.SEND_PW,[self.ID,self.currentInstruction.pulseWidth])
+            DFM.DFM_command.notify(tmpcommand2)
+        if(self.currentStatusPackets[-1].darkStatus!=self.currentInstruction.theDarkState):
+            tmpcommand3=MP_Command(Enums.COMMANDTYPE.SEND_DARK,[self.ID,self.currentInstruction.theDarkState])
+            DFM.DFM_command.notify(tmpcommand3)            
+            
+        tmpOptostates=self.DetermineCurrentOptostate()
+        if(self.currentStatusPackets[-1].optoState1!=tmpOptostates[0] or self.currentStatusPackets[-1].optoState2!=tmpOptostates[1]):
+            pass #Cue up command message
 
-    def CheckStatus(self):                
+        
+
+    # This needs major update
+    def CheckStatusV3(self):                
         ## These are else if groups so that both are not executed on the same pass.
         ## Take care to note potential problems with long read intervals.
         if(self.isBufferResetNeeded):
@@ -238,38 +266,28 @@ class DFM:
                 self.isBufferResetNeeded=False
                 self.bufferResetTime = datetime.datetime.today()
                 self.sampleIndex=1       
-                return True                         
+                return                          
             else:
                 print("Buffer reset failure")
         elif(self.isInstructionUpdateNeeded):
-            if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
-                if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
-                    #print("Instruction success: " + str(self.currentInstruction))                
-                    self.isInstructionUpdateNeeded=False
-                    return True
-                else:
-                    print("Instruction failure")
-            elif(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
+            if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
+                #print("Instruction success: " + str(self.currentInstruction))                
                 self.isInstructionUpdateNeeded=False
-                return self.ExecuteInstructionV2()
-            else: # Sable DFM returns true.
-                return True
-
+                return 
+            else:
+                print("Instruction failure")
         elif(self.isLinkageSetNeeded):
             if self.theCOMM.SendLinkage(self):                          
                 self.isLinkageSetNeeded=False
-                return True
+                return 
                 #print("Linkage success: " + str(self.currentLinkage))  
             else:
                 print("Linkage failure")
         elif(self.isSetNormalProgramIntervalNeeded):
-            if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
-                self.programReadInterval=5
-            else:
-                self.programReadInterval=0.2            
+            self.programReadInterval=5
             self.isSetNormalProgramIntervalNeeded=False   
-            return False
-        return False
+            return 
+        return 
 
     def SetFastProgramReadInterval(self):
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):

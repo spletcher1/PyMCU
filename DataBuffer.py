@@ -6,7 +6,7 @@ class DataBuffer:
     def __init__(self):
         self.maxSize=2000
         self.theData = deque(maxlen=self.maxSize)
-        self.lastDataPoint = StatusPacket.StatusPacket(0,Enums.DFMTYPE.PLETCHERV3)
+        self.lastDataPoint = StatusPacket.StatusPacket(0,0,Enums.DFMTYPE.PLETCHERV3)
     def GetLastDataPoint(self):
         return self.lastDataPoint
     def IsFull(self):
