@@ -201,7 +201,7 @@ class DFM:
   
         self.UpdateReportedValues(currentStatusPackets) 
 
-        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3)               
+        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3):               
             self.CheckStatusV3()
         elif(self.DFMType == Enums.DFMTYPE.PLETCHERV2):
             self.CheckStatusV2()
@@ -220,40 +220,44 @@ class DFM:
 
     #region Updating                
  
-    def UpdateInstruction(self,instruct,useBaseline):                    
+    def UpdateInstruction(self,instruct,useBaseline):                      
         if(instruct is self.currentInstruction):            
             return 
         else:                      
-            self.currentInstruction = instruct            
+            
+            self.currentInstruction = instruct                        
             if(useBaseline):
                 self.currentInstruction.SetBaseline(self.signalBaselines)                        
             self.isInstructionUpdateNeeded=True
             self.SetFastProgramReadInterval()
             self.isSetNormalProgramIntervalNeeded=True
 
-    def DetermineCurrentOptoState():
-        currentValues = self.theData.GetLastDataPoint().analogValues
+    def DetermineCurrentOptoState(self):
+        currentValues = self.theData.GetLastDataPoint()
         return [0x00,0x00]
     
     def CheckStatusV2(self):
         # Here we have to (1) Calculate current optostate based on program thresholds and current signal
         ## check, based on last data point, whether optostate, darkstate, pulsewideth or freq need to be 
-        # updated.         
+        # updated.    
+        lsp = self.theData.GetLastDataPoint()   
         
-        if(self.currentStatusPackets[-1].optoFrequency!=self.currentInstruction.frequency):
+        if(lsp.optoFrequency!=self.currentInstruction.frequency):            
             tmpcommand1=MP_Command(Enums.COMMANDTYPE.SEND_FREQ,[self.ID,self.currentInstruction.frequency])
             DFM.DFM_command.notify(tmpcommand1)
-        if(self.currentStatusPackets[-1].optoPulseWidth!=self.currentInstruction.pulseWidth):
+        
+        if(lsp.optoPulseWidth!=self.currentInstruction.pulseWidth):               
             tmpcommand2=MP_Command(Enums.COMMANDTYPE.SEND_PW,[self.ID,self.currentInstruction.pulseWidth])
             DFM.DFM_command.notify(tmpcommand2)
-        if(self.currentStatusPackets[-1].darkStatus!=self.currentInstruction.theDarkState):
-            tmpcommand3=MP_Command(Enums.COMMANDTYPE.SEND_DARK,[self.ID,self.currentInstruction.theDarkState])
-            DFM.DFM_command.notify(tmpcommand3)            
-            
-        tmpOptostates=self.DetermineCurrentOptostate()
-        if(self.currentStatusPackets[-1].optoState1!=tmpOptostates[0] or self.currentStatusPackets[-1].optoState2!=tmpOptostates[1]):
-            pass #Cue up command message
-
+                
+        if(self.currentInstruction.theDarkState!=Enums.DARKSTATE.UNCONTROLLED):                 
+            if(lsp.darkStatus!=self.currentInstruction.theDarkState.value[0]):           
+                tmpcommand3=MP_Command(Enums.COMMANDTYPE.SEND_DARK,[self.ID,self.currentInstruction.theDarkState.value[0]])
+                DFM.DFM_command.notify(tmpcommand3)                        
+        
+        tmpOptostates=self.DetermineCurrentOptoState()        
+        if(lsp.optoState1!=tmpOptostates[0] or lsp.optoState2!=tmpOptostates[1]):
+            pass #Cue up command message        
         
 
     # This needs major update

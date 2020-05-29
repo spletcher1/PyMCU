@@ -41,9 +41,9 @@ class INSTRUCTIONSETTYPE(Enum):
     CONSTANT=4
 
 class DARKSTATE(Enum):
-    OFF=1,
-    ON=2,
-    UNCONTROLLED=3
+    OFF=0,
+    ON=1,
+    UNCONTROLLED=2
 
 class MESSAGETYPE(Enum):
     NOTICE=1,

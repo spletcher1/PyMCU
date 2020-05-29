@@ -46,6 +46,7 @@ class DataGetterI2C:
         self.theCOMM = COMM.I2CCOMM()
         self.DFMInfos = []        
         self.currentReadIndex=0
+        self.verbose=False
 
     def FindDFM(self, maxNum):      
         self.DFMInfos.clear()
@@ -58,8 +59,8 @@ class DataGetterI2C:
             self.StartReading()
         return self.DFMInfos
 
-    def StopReading(self,block=True):        
-        self.message_q.put(MP_Message("Reader termination requested."))        
+    def StopReading(self,block=True):   
+        self.QueueMessage("Reader termination requested.")         
         self.command_q.put(MP_Command(Enums.COMMANDTYPE.STOP_READING,''))
         if(block):
             while self.isRunning==True:
@@ -89,7 +90,7 @@ class DataGetterI2C:
             return
         self.theReader = Process(target=self.ReadWorker)                 
         self.theReader.start()
-        self.message_q.put(MP_Message("Reader started."))        
+        self.QueueMessage("Reader started.")      
         
     def ReadValues(self): 
         currentTime = datetime.datetime.today()        
@@ -101,24 +102,25 @@ class DataGetterI2C:
                 self.data_q.put(packList)               
             except:
                 ss = "Get status exception " + str(id) +"."
-                self.message_q.put(MP_Message(ss)) 
+                self.QueueMessage(ss)
             time.sleep(0.002)
         self.currentReadIndex+=1
 
-    def SetDark(self,id,darkstate):
-        args=[id,darkstate]
-        if(darkstate==1):
-            ss = "Dark state active request to DFM " + str(id) +"queued."
-        else:
-            ss = "Dark state inactive request to DFM " + str(id) +"queued."
-        self.message_q.put(MP_Message(ss))        
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.SEND_DARK,args))
+    def QueueMessage(self,message):
+        if(self.verbose):
+            self.message_q.put(MP_Message(message))
+
+    def QueueCommand(self,command):        
+        self.command_q.put(command)
+        if(self.verbose):
+            ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
+            self.QueueMessage(ss)
 
     def ReadWorker(self):
         continueRunning=True
         self.isRunning=True
         self.counter=0
-        self.message_q.put(MP_Message("Read worker started."))
+        self.QueueMessage("Read worker started.")        
         lastTime = time.time()   
         while(continueRunning):
             try:
@@ -128,29 +130,27 @@ class DataGetterI2C:
                 elif(tmp.commandType==Enums.COMMANDTYPE.SEND_DARK):                   
                     # Dark arguments 1=ID, 2=Dark state
                     self.theCOMM.SendDark(tmp.arguments[0],tmp.arguments[1])
-                    ss = "Dark state sent to DFM " + str(id) +"."
-                    self.message_q.put(MP_Message(ss)) 
+                    ss = "Dark state sent to DFM " + str(tmp.arguments[0]) +"."                    
+                    self.QueueMessage(ss) 
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.   
-                elif(tmp.commandType==Enums.COMMANDTYPE.SEND_FREQ):                   
-                    # Dark arguments 1=ID, 2=Dark state
+                elif(tmp.commandType==Enums.COMMANDTYPE.SEND_FREQ):                                       
                     self.theCOMM.SendFrequency(tmp.arguments[0],tmp.arguments[1])  
-                    ss = "Freqeuncy sent to DFM " + str(id) +"."
-                    self.message_q.put(MP_Message(ss))     
+                    ss = "Freqeuncy sent to DFM " + str(tmp.arguments[0]) +"."                   
+                    self.QueueMessage(ss)     
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.      
-                elif(tmp.commandType==Enums.COMMANDTYPE.SEND_PW):                   
-                    # Dark arguments 1=ID, 2=Dark state
+                elif(tmp.commandType==Enums.COMMANDTYPE.SEND_PW):                                                           
                     self.theCOMM.SendPulseWidth(tmp.arguments[0],tmp.arguments[1])  
-                    ss = "Pulsewidth sent to DFM " + str(id) +"."
-                    self.message_q.put(MP_Message(ss))     
+                    ss = "Pulsewidth sent to DFM " + str(tmp.arguments[0]) +"."                    
+                    self.QueueMessage(ss)     
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.     
                 elif(tmp.commandType==Enums.COMMANDTYPE.SEND_OPTOSTATE):                   
                     # Dark arguments 1=ID, 2=Dark state
                     self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
-                    ss = "Optostate sent to DFM " + str(id) +"."
-                    self.message_q.put(MP_Message(ss))     
+                    ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."
+                    self.QueueMessage(ss)    
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.       
             except:
@@ -160,7 +160,7 @@ class DataGetterI2C:
             time.sleep(0.005)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
-        self.message_q.put(MP_Message("Read worker ended."))
+        self.QueueMessage("Read worker ended.")        
         self.isRunning=False
         return
 

@@ -32,7 +32,8 @@ class StatusPacket:
         if(len(bytesData)!=52):
             self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES   
             return 
-
+        
+        wellIndexer=[0,2,1,3,10,7,11,4,8,5,9,6]   
         self.errorFlags = 0        
         calculatedCheckSum=0
 
@@ -43,7 +44,7 @@ class StatusPacket:
             currentValue += bytesData[baseindex+2]<<16
             currentValue += bytesData[baseindex+3]<<24
             calculatedCheckSum+=currentValue
-            self.analogValues[i] = currentValue >> 7
+            self.analogValues[wellIndexer[i]] = currentValue >> 7
            
         self.voltsIn = 0
         self.optoState1 = 0
@@ -72,12 +73,12 @@ class StatusPacket:
         self.processResult = PROCESSEDPACKETRESULT.OKAY   
         return
 
-    def ProcessStatusPacketPletcherV2(self,bytesData,currentTime):   
-        wellIndexer=[0,2,1,3,10,7,11,4,8,5,9,6]           
+    def ProcessStatusPacketPletcherV2(self,bytesData,currentTime):           
         if(len(bytesData)!=64):
             self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES   
             return
 
+        wellIndexer=[0,2,1,3,10,7,11,4,8,5,9,6]           
         self.errorFlags = 0        
         calculatedCheckSum=0
 
@@ -106,8 +107,8 @@ class StatusPacket:
         self.optoState2 = currentValue
         calculatedCheckSum +=currentValue
 
-        self.optoFrequency = bytesData[50]
-        self.optoPulseWidth = bytesData[49]
+        self.optoFrequency = bytesData[49]
+        self.optoPulseWidth = bytesData[50]
         self.darkStatus = bytesData[48]
         
         calculatedCheckSum += bytesData[48]+(bytesData[49]<<8)+(bytesData[50]<<16)

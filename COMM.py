@@ -74,7 +74,7 @@ class I2CCOMM():
         except:
             return False
 
-    def SendPulseWidth(self,pw):
+    def SendPulseWidth(self,ID,pw):
         try:
             tmpAddr = 0x50+ID         
             buffer = [pw]

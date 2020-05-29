@@ -46,11 +46,15 @@ class DFMGroup:
     def NewMessageDirect(self,newMessage):        
         self.theMessageList.AddMessage(newMessage)     
         DFMGroup.DFMGroup_message.notify(newMessage)
+        
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
     
+    def DFMCommandReceive(self,newCommand):       
+        self.MP.QueueCommand(newCommand)
+
     def ClearDFMList(self):        
         self.StopRecording()
         self.StopProgramWorker()
@@ -277,9 +281,10 @@ class DFMGroup:
         self.isReadWorkerRunning=True                    
         while True:   
             try:
-                tmp = self.MP.data_q.get(block=True)                                                  
-                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)    
-                if(tmp[0].DFMID == self.activeDFM.ID):
+                
+                tmp = self.MP.data_q.get(block=True)                                    
+                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                    
+                if(tmp[0].DFMID == self.activeDFM.ID):                  
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:
                 pass         
