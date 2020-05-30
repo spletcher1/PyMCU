@@ -13,7 +13,7 @@ class DataBuffer:
         return (len(self.theData)>=self.maxSize)
     def ActualSize(self):
         return len(self.theData)
-    def NewData(self,newStatusPacket,addToQueue=True):       
+    def NewData(self,newStatusPacket,addToQueue=True):          
         if(self.IsFull()):
             return False                     
         self.lastDataPoint = newStatusPacket               

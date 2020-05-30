@@ -67,6 +67,7 @@ class DFM:
     #region Property-like getters and setters
     def GetDFMName(self):
         return "DFM "+str(self.ID)
+        
     def GetLastAnalogData(self,adjustForBaseline):
         tmp = self.theData.GetLastDataPoint()
         if(tmp.sample==0):
@@ -184,14 +185,13 @@ class DFM:
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
                 isSuccess=True
-            if isSuccess:                                        
+            if isSuccess:                                                 
                 if (currentStatusPackets[j].recordIndex>0):                                                                       
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue error".format(self.ID)
                         self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
-                        self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                        isSuccess = False
-                    else:                        
+                        self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
+                    else:                                                    
                         if(self.status == Enums.CURRENTSTATUS.ERROR):
                             self.SetStatus(self.beforeErrorStatus)                                     
                     if(self.isCalculatingBaseline):                        

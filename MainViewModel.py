@@ -107,6 +107,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         self.fastUpdateCheckBox.setChecked(False)
 
+        self.currentDFMType = Enums.DFMTYPE.PLETCHERV3
+
         ## Check for USB upon startup
         try:
             subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
@@ -409,6 +411,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.SetActiveDFM(key)   
                 self.UpdateDFMPageGUI()                    
 
+    def SetDFMTypeGUI(self):
+        if(self.currentDFMType==Enums.DFMTYPE.PLETCHERV3):
+            return
+        self.DFMErrorGroupBox.setEnabled(False)
+
+
     def FindDFMs(self):   
         self.ClearDFM()
         self.StatusBar.showMessage("Searching for DFMs...",self.statusmessageduration)     
@@ -434,7 +442,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
             b.clicked.connect(self.DFMButtonClicked)             
         self.programStartTime = datetime.datetime.today()
         self.programDuration = datetime.timedelta(minutes=180)        
-        
+
+
+        tmp = list(self.theDFMGroup.theDFMs.keys())[0]
+        self.currentDFMType = self.theDFMGroup.theDFMs[tmp].DFMType
+        self.SetDFMTypeGUI()        
 
         self.LoadSimpleProgram()        
         self.SetActiveDFM(self.theDFMGroup.currentDFMKeysList[0])    
@@ -476,9 +488,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
-                print("Shutting down")                                   
-                #QCoreApplication.instance().quit()
-                #subprocess.call("sudo nohup shutdown -h now", shell=True)
+                print("Shutting down")  
+                self.theDFMGroup.MP.StopReading(True)                                 
+                QCoreApplication.instance().quit()
+                subprocess.call("sudo nohup shutdown -h now", shell=True)
 
     def AssureClearMessages(self):
         msg = QMessageBox()
@@ -594,9 +607,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.RunProgramButton.setEnabled(True)                          
         self.fastUpdateCheckBox.setChecked(False)
 
-    def UpdateDFMPlot(self):   
+    def UpdateDFMPlot(self):           
         if self.activeDFMNum>0 and self.StackedPages.currentIndex()==1:                     
-            #start = time.time()   
+            #start = time.time()                          
             self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
             #end=time.time()        
             #print("Plotting time: "+str(end-start))    

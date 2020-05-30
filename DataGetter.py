@@ -7,7 +7,7 @@ import Enums
 import math
 import Board
 import time
-
+import sys
 
 class MP_Message:
     def __init__(self,message):
@@ -39,15 +39,14 @@ class DataGetterI2C:
         self.data_q=Queue()
         self.message_q=Queue()
         self.command_q=Queue()       
-        self.currentStatusPacket = StatusPacket.StatusPacket(0,0,Enums.DFMTYPE.SABLEV2)
-        self.isRunning = False   
-        self.terminationRequest = False      
-        self.counter=0
+        self.currentStatusPacket = StatusPacket.StatusPacket(0,0,Enums.DFMTYPE.SABLEV2)                          
         self.theCOMM = COMM.I2CCOMM()
-        self.DFMInfos = []        
-        self.currentReadIndex=0
+        self.DFMInfos = []                
         self.verbose=False
+        self.theReader=None
 
+    # Remember that any variables set at the time of process forking can not be changed except
+    # Through a queue.
     def FindDFM(self, maxNum):      
         self.DFMInfos.clear()
         for i in range(1,maxNum+1):
@@ -61,12 +60,12 @@ class DataGetterI2C:
 
     def StopReading(self,block=True):   
         self.QueueMessage("Reader termination requested.")         
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.STOP_READING,''))
-        if(block):
-            while self.isRunning==True:
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.STOP_READING,''))        
+        if(self.theReader is not None):
+            while self.theReader.is_alive():
                 pass
-
-    def ClearQueues(self):
+    
+    def ClearQueuesInternal(self):
         try:
             while True:
                 self.message_q.get_nowait()
@@ -83,31 +82,39 @@ class DataGetterI2C:
         except queue.Empty:
             pass
         
-    def StartReading(self):
-        self.currentReadIndex=0            
-        self.ClearQueues()
-        if(self.isRunning):
-            return
+    def ClearQueues(self):
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.CLEAR_ALLQ,''))
+    def PauseReading(self):
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.PAUSE_READING,''))
+    def ResumeReading(self):
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.RESUME_READING,''))
+    def StartReading(self):        
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.PAUSE_READING,''))
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.CLEAR_ALLQ,''))
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.RESET_COUNTER,''))
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.RESUME_READING,''))   
+        if(self.theReader is not None):         
+            if(self.theReader.is_alive()):
+                return
         self.theReader = Process(target=self.ReadWorker)                 
         self.theReader.start()
         self.QueueMessage("Reader started.")      
         
-    def ReadValues(self): 
+    def ReadValues(self, currentReadIndex): 
         currentTime = datetime.datetime.today()        
         for info in self.DFMInfos:
             try:
                 tmp=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                    
-                self.ProcessPacket(info,tmp,currentTime)
-                packList=[self.currentStatusPacket]                              
-                self.data_q.put(packList)               
-            except:
+                self.ProcessPacket(info,tmp,currentTime,currentReadIndex)
+                packList=[self.currentStatusPacket]                   
+                self.data_q.put(packList)                       
+            except:                
                 ss = "Get status exception " + str(id) +"."
                 self.QueueMessage(ss)
-            time.sleep(0.002)
-        self.currentReadIndex+=1
+            time.sleep(0.002)        
 
     def QueueMessage(self,message):
-        if(self.verbose):
+        if(self.verbose and self.message_q.qsize()<1000):
             self.message_q.put(MP_Message(message))
 
     def QueueCommand(self,command):        
@@ -117,9 +124,9 @@ class DataGetterI2C:
             self.QueueMessage(ss)
 
     def ReadWorker(self):
-        continueRunning=True
-        self.isRunning=True
-        self.counter=0
+        currentReadIndex=1
+        continueRunning=True  
+        isPaused=False      
         self.QueueMessage("Read worker started.")        
         lastTime = time.time()   
         while(continueRunning):
@@ -127,6 +134,18 @@ class DataGetterI2C:
                 tmp=self.command_q.get(False)
                 if(tmp.commandType==Enums.COMMANDTYPE.STOP_READING):
                     continueRunning = False
+                elif(tmp.commandType==Enums.COMMANDTYPE.PAUSE_READING):
+                    isPaused=True
+                elif(tmp.commandType==Enums.COMMANDTYPE.RESUME_READING):
+                    isPaused=False
+                elif(tmp.commandType==Enums.COMMANDTYPE.RESET_COUNTER):
+                    currentReadIndex=1
+                elif(tmp.commandType==Enums.COMMANDTYPE.CLEARALLQ):
+                    self.ClearQueuesInternal()                    
+                elif(tmp.commandType==Enums.COMMANDTYPE.SET_VERBOSE):
+                    self.verbose=True
+                elif(tmp.commandType==Enums.COMMANDTYPE.CLEAR_VERBOSE):
+                    self.verbose=False
                 elif(tmp.commandType==Enums.COMMANDTYPE.SEND_DARK):                   
                     # Dark arguments 1=ID, 2=Dark state
                     self.theCOMM.SendDark(tmp.arguments[0],tmp.arguments[1])
@@ -154,24 +173,25 @@ class DataGetterI2C:
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.       
             except:
-                if(time.time()-lastTime>.2):                                                               
-                    lastTime = time.time() 
-                    self.ReadValues()                                                                        
+                if(isPaused==False):
+                    if(time.time()-lastTime>.2):                                                               
+                        lastTime = time.time() 
+                        self.ReadValues(currentReadIndex)   
+                        currentReadIndex+=1                                                                                 
             time.sleep(0.002)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
-        self.QueueMessage("Read worker ended.")        
-        self.isRunning=False
+        self.QueueMessage("Read worker ended.")                
         return
 
 
-    def ProcessPacket(self,info,bytesData,currentTime):         
+    def ProcessPacket(self,info,bytesData,currentTime,currentReadIndex):         
         if(len(bytesData)==0):        
             self.currentStatusPacket=StatusPacket.StatusPacket(0,0,info.DFMType)
             self.currentStatusPacket.processResult = Enums.PROCESSEDPACKETRESULT.NOANSWER
             return  
             
-        tmpPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)
+        tmpPacket = StatusPacket.StatusPacket(currentReadIndex,info.ID,info.DFMType)
         tmpPacket.ProcessStatusPacket(bytesData,currentTime)          
         self.currentStatusPacket = tmpPacket        
         return 

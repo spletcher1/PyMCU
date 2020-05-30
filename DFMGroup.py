@@ -93,6 +93,8 @@ class DFMGroup:
 
     #region Reading and Recording
     def StartRecording(self):
+        # THis is here to ensure that the queues are cleared and ready for recording.
+        self.MP.PauseReading()        
         if len(self.theDFMs)==0:
             return False    
         self.theMessageList.ClearMessages()
@@ -104,13 +106,15 @@ class DFMGroup:
             i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
             i.isLinkageSetNeeded=True
             i.currentDFMErrors.ClearErrors()
+        # To clear queue and reset sample counter         
         # All DFM should be at fast program read interval here.
         ## So wait enough time to allow everyone to reset, say 2 seconds
         # To allow everyone to reset and set slow read interval
         time.sleep(0.5)         
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
-        self.WriteStarter()
+        self.WriteStarter()        
+        self.MP.StartReading()     
         return True
 
     def StopRecording(self):
@@ -159,9 +163,9 @@ class DFMGroup:
             tmp2.write(header)
             self.theFiles[key]=tmp2
 
-        self.stopRecordingSignal=False
-        self.isWriting=True
+        self.stopRecordingSignal=False       
         self.currentDFMIndex=0
+        self.isWriting=True
        
     def WriteStep(self):
         currentDFM = self.theDFMs[self.currentDFMKeysList[self.currentDFMIndex]]
@@ -255,8 +259,8 @@ class DFMGroup:
         self.MP.StartReading()                    
         while True:   
             try:
-                tmp = self.MP.data_q.get(block=True)                                                  
-                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,True)    
+                tmp = self.MP.data_q.get(block=True)                    
+                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)    
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:
@@ -282,18 +286,16 @@ class DFMGroup:
         while True:   
             try:
                 
-                tmp = self.MP.data_q.get(block=True)                                    
-                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                    
-                if(tmp[0].DFMID == self.activeDFM.ID):                  
+                tmp = self.MP.data_q.get(block=True)                                                
+                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                                
+                if(tmp[0].DFMID == self.activeDFM.ID):                                 
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:
                 pass         
                                                                                        
-            if(self.stopReadWorkerSignal):
-                self.MP.StopReading(True)
+            if(self.stopReadWorkerSignal):              
                 for d in self.theDFMs.values():
-                    d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)
-                
+                    d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)                
                 self.isReadWorkerRunning = False                
                 return 
                
