@@ -25,6 +25,11 @@ class DataGetterUART:
         self.data_q=Queue()
         self.message_q=Queue()
         self.command_q=Queue()   
+        self.currentStatusPacket = StatusPacket.StatusPacket(0,0,Enums.DFMTYPE.SABLEV2) 
+        self.DFMInfos = []                
+        self.verbose=False
+        self.theReader=None  
+        self.theCOMM = COMM.I2CCOMM()
     def FindDFM(self, maxNum):   
         return []     
 

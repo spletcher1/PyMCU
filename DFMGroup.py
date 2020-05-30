@@ -106,8 +106,7 @@ class DFMGroup:
             i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
             i.isLinkageSetNeeded=True
             i.currentDFMErrors.ClearErrors()
-        # To clear queue and reset sample counter         
-        # All DFM should be at fast program read interval here.
+        # All DFMV3 should be at fast program read interval here.
         ## So wait enough time to allow everyone to reset, say 2 seconds
         # To allow everyone to reset and set slow read interval
         time.sleep(0.5)         
