@@ -20,9 +20,15 @@ def DetectUpdateFile():
             sourceDirectory = subfolders[0]+"/FLICUpdates/"    
         targetDirectory ="../"             
         files=(glob.glob(sourceDirectory+"*.tgz"))                
-        if(len(files)==1):                      
-            shutil.copy(files[0],targetDirectory)
-            time.sleep(2)
+        if(len(files)==1):    
+            print("Updating...")
+            time.sleep(1)
+            command = "/bin/tar -C /home/pi/PyMCU -xvf " + "\""+files[0]+"\""                        
+            os.system(command)            
+            print("Done!")
+            print("Shutting down...Remove USB")    
+            time.sleep(3)
+            os.system("sudo shutdown -h now")
         else:            
             return False
     except:
@@ -32,10 +38,7 @@ def DetectUpdateFile():
       
 def main():
     if(DetectUSB()):
-        print(DetectUpdateFile())
+        DetectUpdateFile()
 
-if __name__ == "__main__":
-    print("Updating...")
-    main()
-    print("Done! Rebooting...")
-    time.sleep(2)
+if __name__ == "__main__":    
+    main()    
