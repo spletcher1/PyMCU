@@ -338,7 +338,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as s:
             s.connect(("google.com",80))    
             hostip=s.getsockname()[0]
-        ss="Version: 0.2 beta\nIP: " + hostip
+        ss="Version: 0.5 beta\nIP: " + hostip
         ss=ss+"\n Available space: " + str(int(availableMegaBytes)) +"MB"
         msg.setInformativeText(ss)    
         msg.exec_()   
