@@ -3,7 +3,7 @@ import queue
 import COMM
 import datetime
 import StatusPacket
-import Enums
+from Enums import COMMTYPE,DFMTYPE,COMMANDTYPE
 import math
 import Board
 import time
@@ -19,36 +19,27 @@ class MP_Command:
         self.commandType = ctype
         self.arguments=arg
 
-
-class DataGetterUART:
-    def __init__(self):
-        self.data_q=Queue()
-        self.message_q=Queue()
-        self.command_q=Queue()   
-        self.currentStatusPacket = StatusPacket.StatusPacket(0,0,Enums.DFMTYPE.SABLEV2) 
-        self.DFMInfos = []                
-        self.verbose=False
-        self.theReader=None  
-        self.theCOMM = COMM.I2CCOMM()
-    def FindDFM(self, maxNum):   
-        return []     
-
 class DFMInfo:
     def __init__(self,id,dfmtype):
         self.ID = id
         self.DFMType=dfmtype
 
-class DataGetterI2C:
-    def __init__(self):
+
+class DataGetter:
+    def __init__(self,mctype):
         #COMM.COMM.COMM_message+=self.NewMessageDirect
         self.data_q=Queue()
         self.message_q=Queue()
-        self.command_q=Queue()       
-        self.currentStatusPacket = StatusPacket.StatusPacket(0,0,Enums.DFMTYPE.SABLEV2)                          
-        self.theCOMM = COMM.I2CCOMM()
+        self.command_q=Queue()               
+        if(mctype==COMMTYPE.I2C):                        
+            self.theCOMM = COMM.I2CCOMM()
+        else:
+            self.theCOMM = COMM.UARTCOMM()
+        self.COMMType = mctype
         self.DFMInfos = []                
         self.verbose=False
         self.theReader=None
+        self.startTime = datetime.datetime.today()
 
     # Remember that any variables set at the time of process forking can not be changed except
     # Through a queue.
@@ -65,7 +56,7 @@ class DataGetterI2C:
 
     def StopReading(self,block=True):   
         self.QueueMessage("Reader termination requested.")         
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.STOP_READING,''))        
+        self.command_q.put(MP_Command(COMMANDTYPE.STOP_READING,''))        
         if(self.theReader is not None):
             while self.theReader.is_alive():
                 pass
@@ -88,47 +79,27 @@ class DataGetterI2C:
             pass
         
     def ClearQueues(self):
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.CLEAR_ALLQ,''))
+        self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_ALLQ,''))
     def PauseReading(self):
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.PAUSE_READING,''))
+        self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
     def ResumeReading(self):
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.RESUME_READING,''))
+        self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))
     def StartReading(self):        
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.PAUSE_READING,''))
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.CLEAR_ALLQ,''))
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.RESET_COUNTER,''))
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.RESUME_READING,''))   
+        self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
+        self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_ALLQ,''))
+        self.command_q.put(MP_Command(COMMANDTYPE.RESET_COUNTER,''))
+        self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))   
         if(self.theReader is not None):         
             if(self.theReader.is_alive()):
                 return
-        self.theReader = Process(target=self.ReadWorker)                 
+        if(self.COMMType == COMMTYPE.I2C):    
+            self.theReader = Process(target=self.ReadWorkerI2C)                 
+        else:
+            self.theReader = Process(target=self.ReadWorkerUART)                 
         self.theReader.start()
         self.QueueMessage("Reader started.")      
-        
-    def ReadValues(self, currentReadIndex): 
-        currentTime = datetime.datetime.today()        
-        for info in self.DFMInfos:
-            try:
-                tmp=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                    
-                self.ProcessPacket(info,tmp,currentTime,currentReadIndex)
-                packList=[self.currentStatusPacket]                   
-                self.data_q.put(packList)                       
-            except:                
-                ss = "Get status exception " + str(id) +"."
-                self.QueueMessage(ss)
-            time.sleep(0.002)        
 
-    def QueueMessage(self,message):
-        if(self.verbose and self.message_q.qsize()<1000):
-            self.message_q.put(MP_Message(message))
-
-    def QueueCommand(self,command):        
-        self.command_q.put(command)
-        if(self.verbose):
-            ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
-            self.QueueMessage(ss)
-
-    def ReadWorker(self):
+    def ReadWorkerUART(self):
         currentReadIndex=1
         continueRunning=True  
         isPaused=False      
@@ -137,40 +108,86 @@ class DataGetterI2C:
         while(continueRunning):
             try:
                 tmp=self.command_q.get(False)
-                if(tmp.commandType==Enums.COMMANDTYPE.STOP_READING):
+                if(tmp.commandType==COMMANDTYPE.STOP_READING):
                     continueRunning = False
-                elif(tmp.commandType==Enums.COMMANDTYPE.PAUSE_READING):
+                elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):
                     isPaused=True
-                elif(tmp.commandType==Enums.COMMANDTYPE.RESUME_READING):
+                elif(tmp.commandType==COMMANDTYPE.RESUME_READING):
                     isPaused=False
-                elif(tmp.commandType==Enums.COMMANDTYPE.RESET_COUNTER):
+                elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):
                     currentReadIndex=1
-                elif(tmp.commandType==Enums.COMMANDTYPE.CLEARALLQ):
+                elif(tmp.commandType==COMMANDTYPE.CLEARALLQ):
                     self.ClearQueuesInternal()                    
-                elif(tmp.commandType==Enums.COMMANDTYPE.SET_VERBOSE):
+                elif(tmp.commandType==COMMANDTYPE.SET_VERBOSE):
                     self.verbose=True
-                elif(tmp.commandType==Enums.COMMANDTYPE.CLEAR_VERBOSE):
+                elif(tmp.commandType==COMMANDTYPE.CLEAR_VERBOSE):
+                    self.verbose=False   
+                elif(tmp.commandType==COMMANDTYPE.SET_STARTTIME):
+                    self.startTime=datetime.datetime.today()
+                elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):
+                    pass
+                elif(tmp.commandType==COMMANDTYPE.SET_REFRESHRATE):
+                    pass
+                elif(tmp.commandType==COMMANDTYPE.LINKAGE):
+                    pass
+                elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):
+                    pass
+            except:
+                if(isPaused==False):
+                    if(time.time()-lastTime>.2):                                                               
+                        lastTime = time.time() 
+                        self.ReadValues(currentReadIndex)   
+                        currentReadIndex+=1                                                                                 
+            time.sleep(0.002)
+            # Note that when reading is stopped it should stop (especially for V3)
+            # after the last DFM in the list, not in the middle somehwere.
+        self.QueueMessage("Read worker ended.")                
+        return
+
+
+    def ReadWorkerI2C(self):
+        currentReadIndex=1
+        continueRunning=True  
+        isPaused=False      
+        self.QueueMessage("Read worker started.")        
+        lastTime = time.time()   
+        while(continueRunning):
+            try:
+                tmp=self.command_q.get(False)
+                if(tmp.commandType==COMMANDTYPE.STOP_READING):
+                    continueRunning = False
+                elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):
+                    isPaused=True
+                elif(tmp.commandType==COMMANDTYPE.RESUME_READING):
+                    isPaused=False
+                elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):
+                    currentReadIndex=1
+                elif(tmp.commandType==COMMANDTYPE.CLEARALLQ):
+                    self.ClearQueuesInternal()                    
+                elif(tmp.commandType==COMMANDTYPE.SET_VERBOSE):
+                    self.verbose=True
+                elif(tmp.commandType==COMMANDTYPE.CLEAR_VERBOSE):
                     self.verbose=False
-                elif(tmp.commandType==Enums.COMMANDTYPE.SEND_DARK):                   
+                elif(tmp.commandType==COMMANDTYPE.SEND_DARK):                   
                     # Dark arguments 1=ID, 2=Dark state
                     self.theCOMM.SendDark(tmp.arguments[0],tmp.arguments[1])
                     ss = "Dark state sent to DFM " + str(tmp.arguments[0]) +"."                    
                     self.QueueMessage(ss) 
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.   
-                elif(tmp.commandType==Enums.COMMANDTYPE.SEND_FREQ):                                       
+                elif(tmp.commandType==COMMANDTYPE.SEND_FREQ):                                       
                     self.theCOMM.SendFrequency(tmp.arguments[0],tmp.arguments[1])  
                     ss = "Freqeuncy sent to DFM " + str(tmp.arguments[0]) +"."                   
                     self.QueueMessage(ss)     
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.      
-                elif(tmp.commandType==Enums.COMMANDTYPE.SEND_PW):                                                           
+                elif(tmp.commandType==COMMANDTYPE.SEND_PW):                                                           
                     self.theCOMM.SendPulseWidth(tmp.arguments[0],tmp.arguments[1])  
                     ss = "Pulsewidth sent to DFM " + str(tmp.arguments[0]) +"."                    
                     self.QueueMessage(ss)     
                     # Maybe think about putting a failed command back in the queue.
                     # For V2 command failure is not detected.     
-                elif(tmp.commandType==Enums.COMMANDTYPE.SEND_OPTOSTATE):                   
+                elif(tmp.commandType==COMMANDTYPE.SEND_OPTOSTATE):                   
                     # Dark arguments 1=ID, 2=Dark state                    
                     self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
                     ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                    
@@ -188,19 +205,56 @@ class DataGetterI2C:
             # after the last DFM in the list, not in the middle somehwere.
         self.QueueMessage("Read worker ended.")                
         return
+    
+    def ReadValues(self, currentReadIndex): 
+        currentTime = datetime.datetime.today()        
+        for info in self.DFMInfos:
+            try:
+                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                    
+                packList=self.ProcessPacket(info,bytesData,currentTime,currentReadIndex)
+                self.data_q.put(packList)                       
+            except:                
+                ss = "Get status exception " + str(id) +"."
+                self.QueueMessage(ss)
+            time.sleep(0.002)        
 
+    def QueueMessage(self,message):
+        if(self.verbose and self.message_q.qsize()<1000):
+            self.message_q.put(MP_Message(message))
 
-    def ProcessPacket(self,info,bytesData,currentTime,currentReadIndex):         
+    def QueueCommand(self,command):        
+        self.command_q.put(command)
+        if(self.verbose):
+            ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
+            self.QueueMessage(ss)
+
+    def ProcessPacket(self,info,bytesData,curretnTime,currentReadIndex):         
         if(len(bytesData)==0):        
-            self.currentStatusPacket=StatusPacket.StatusPacket(0,0,info.DFMType)
-            self.currentStatusPacket.processResult = Enums.PROCESSEDPACKETRESULT.NOANSWER
-            return  
-            
-        tmpPacket = StatusPacket.StatusPacket(currentReadIndex,info.ID,info.DFMType)
-        tmpPacket.ProcessStatusPacket(bytesData,currentTime)          
-        self.currentStatusPacket = tmpPacket        
-        return 
-
+            currentStatusPacket=StatusPacket.StatusPacket(0,0,info.DFMType)
+            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER
+            return [currentStatusPacket] 
+        if(info.DFMType==DFMTYPE.PLETCHERV3):           
+            numPacketsReceived = len(bytesData)/66                                 
+            if (math.floor(numPacketsReceived)!=numPacketsReceived):
+                # TODO: Need to figure out how to possibly recover some of the packets.
+                # TODO: for now, however, no.            
+                currentStatusPacket=StatusPacket.StatusPacket(0,0,info.DFMType)
+                currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
+                return [currentStatusPacket]
+            else:
+                numPacketsReceived = int(numPacketsReceived)                                
+            currentStatusPackets=[]
+            for i in range(0,numPacketsReceived):
+                ## sampleIndex is set to -1 here because it is only added to the packet if it is a success.                
+                tmpPacket = StatusPacket.StatusPacket(currentReadIndex,info.ID,info.DFMType)  
+                # This gets the startTime of the experiment.  The others get the time of the packet                                       
+                tmpPacket.ProcessStatusPacket(bytesData,self.startTime,i)
+                currentStatusPackets.append(tmpPacket)                
+            return currentStatusPackets
+        else:
+            currentStatusPacket = StatusPacket.StatusPacket(currentReadIndex,info.ID,info.DFMType)
+            currentStatusPacket.ProcessStatusPacket(bytesData,curretnTime)                      
+            return [currentStatusPacket]
 
 if __name__=="__main__" :
     Board.BoardSetup()   

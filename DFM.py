@@ -168,8 +168,8 @@ class DFM:
         ##if(tmpisInstructionUpdateNeeded):
         ##   self.isInstructionUpdateNeeded=True
 
-    def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                            
-        for j in range(0,len(currentStatusPackets)):    
+    def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                                  
+        for j in range(0,len(currentStatusPackets)):               
             isSuccess=False       
             if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
@@ -185,13 +185,13 @@ class DFM:
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
                 isSuccess=True
-            if isSuccess:                                                 
-                if (currentStatusPackets[j].recordIndex>0):                                                                       
+            if isSuccess:                                                                                                                        
+                if (currentStatusPackets[j].recordIndex>0):                                                   
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue error".format(self.ID)
                         self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
-                    else:                                                    
+                    else:                         
                         if(self.status == Enums.CURRENTSTATUS.ERROR):
                             self.SetStatus(self.beforeErrorStatus)                                     
                     if(self.isCalculatingBaseline):                        
@@ -260,7 +260,8 @@ class DFM:
         
 
     # This needs major update
-    def CheckStatusV3(self):                
+    def CheckStatusV3(self): 
+        return               
         ## These are else if groups so that both are not executed on the same pass.
         ## Take care to note potential problems with long read intervals.
         if(self.isBufferResetNeeded):

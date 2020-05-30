@@ -65,20 +65,20 @@ class DFMGroup:
     def FindDFMs(self,maxNum=12): 
         self.theDFMs.clear()
         # First search UART for V3 DFMs
-        self.MP = DataGetter.DataGetterUART()
+        self.MP = DataGetter.DataGetter(Enums.COMMTYPE.UART) 
         tmpDMFList = self.MP.FindDFM(maxNum)       
         if(len(tmpDMFList)>0):           
             for i in tmpDMFList:                
-                self.theDFMs[i]=DFM.DFM(i,Enums.DFMTYPE.PLETCHERV3)
-                s = "DFM "+str(i)+" found"
-                self.NewMessage(i, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType)
+                s = "DFM "+str(i.ID)+" found"
+                self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
             self.currentDFMKeysList = list(self.theDFMs.keys())
             self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
             self.StartReadWorker()
             time.sleep(0.010)  
         else:
             # Now search I2C for V2 DFM             
-            self.MP = DataGetter.DataGetterI2C()
+            self.MP = DataGetter.DataGetter(Enums.COMMTYPE.I2C)
             tmpDMFList = self.MP.FindDFM(maxNum)
             if(len(tmpDMFList)>0):
                 for i in tmpDMFList:                                   
