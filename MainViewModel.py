@@ -45,8 +45,8 @@ class GUIUpdateThread(QtCore.QThread):
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
     def __init__( self ):       
+        self.theDFMGroup = DFMGroup.DFMGroup()
         super(MyMainWindow,self).__init__()        
-        #uic.loadUi("/home/pi/Programming/Python/PyMCU/Mainwindow.ui",self)
         uic.loadUi("Mainwindow.ui",self)
         self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
         tmp2 = "QTextEdit {background-color: "+self.defaultBackgroundColor+"}"
@@ -54,8 +54,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MessagesTextEdit.setStyleSheet(tmp2)        
         self.ProgramTextEdit.setStyleSheet(tmp2)     
         self.ProgramPreviewTextBox.setStyleSheet(tmp2)       
-        self.FilesListWidget.setStyleSheet(tmp3)            
-        self.theDFMGroup = DFMGroup.DFMGroup()
+        self.FilesListWidget.setStyleSheet(tmp3)                    
         self.statusmessageduration=5000
         self.activeDFMNum=-1
         self.activeDFM=None                        

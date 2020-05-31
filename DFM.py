@@ -168,7 +168,7 @@ class DFM:
         ##   self.isInstructionUpdateNeeded=True
 
     def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                                  
-        for j in range(0,len(currentStatusPackets)):               
+        for j in range(0,len(currentStatusPackets)):                  
             isSuccess=False       
             if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
@@ -261,23 +261,23 @@ class DFM:
     # NOTE: Currently I lost the ability to make sure the request was received.
     #       need to fix this.
     def CheckStatusV3(self):             
-        if(self.isBufferResetNeeded):            
+        if(self.isBufferResetNeeded):                  
             tmpcommand1=MP_Command(Enums.COMMANDTYPE.BUFFER_RESET,[self.ID])
-            DFM.DFM_command.notify(tmpcommand1)
+            DFM.DFM_command.notify(tmpcommand1)                
             self.isBufferResetNeeded=False
             self.sampleIndex=1       
         
-        if(self.isInstructionUpdateNeeded):
+        if(self.isInstructionUpdateNeeded):            
             tmpcommand2=MP_Command(Enums.COMMANDTYPE.INSTRUCTION,[self.ID,self.currentInstruction])
             DFM.DFM_command.notify(tmpcommand2)
             self.isInstructionUpdateNeeded=False
            
-        if(self.isLinkageSetNeeded):
+        if(self.isLinkageSetNeeded):            
             tmpcommand3=MP_Command(Enums.COMMANDTYPE.LINKAGE,[self.ID,self.currentLinkage])
             DFM.DFM_command.notify(tmpcommand3)
             self.isLinkageSetNeeded=False
             
-        elif(self.isSetNormalProgramIntervalNeeded):
+        elif(self.isSetNormalProgramIntervalNeeded):            
             tmpcommand4=MP_Command(Enums.COMMANDTYPE.SET_REFRESHRATE,[self.ID,5])
             DFM.DFM_command.notify(tmpcommand4)            
             self.programReadInterval=5

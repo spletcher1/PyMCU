@@ -20,6 +20,7 @@ class DFMGroup:
 
     #region Initialization, Messaging, and DFMlist Management
     def __init__(self):
+        self.MP = DataGetter.DataGetter() 
         self.theDFMs = {}
         DFM.DFM.DFM_message+=self.NewMessageDirect
         DFM.DFM.DFM_command+=self.DFMCommandReceive
@@ -38,8 +39,7 @@ class DFMGroup:
         ## New members added when the write worker was disbanded
         self.theFiles = {}
         self.writeStartTimes={}
-        self.currentDFMIndex=0        
-        self.MP = '' 
+        self.currentDFMIndex=0                
         self.currentDFMKeysList=[]
 
 
@@ -53,7 +53,7 @@ class DFMGroup:
         DFMGroup.DFMGroup_message.notify(tmp)      
     
     def DFMCommandReceive(self,newCommand):            
-        self.MP.QueueCommand(newCommand)
+        self.MP.command_q.put(newCommand)
 
     def ClearDFMList(self):        
         self.StopRecording()
@@ -65,8 +65,8 @@ class DFMGroup:
     def FindDFMs(self,maxNum=12): 
         self.theDFMs.clear()
         # First search UART for V3 DFMs
-        self.MP = DataGetter.DataGetter(Enums.COMMTYPE.UART) 
-        tmpDMFList = self.MP.FindDFM(maxNum)       
+        # Set UART and wait for answer
+        tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.UART)          
         if(len(tmpDMFList)>0):           
             for i in tmpDMFList:                
                 self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType)
@@ -78,8 +78,7 @@ class DFMGroup:
             time.sleep(0.010)  
         else:
             # Now search I2C for V2 DFM             
-            self.MP = DataGetter.DataGetter(Enums.COMMTYPE.I2C)
-            tmpDMFList = self.MP.FindDFM(maxNum)
+            tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.I2C)
             if(len(tmpDMFList)>0):
                 for i in tmpDMFList:                                   
                     self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType)
@@ -292,10 +291,9 @@ class DFMGroup:
     def ReadWorker(self):    
         self.isReadWorkerRunning=True                    
         while True:   
-            try:
-                
+            try:             
                 tmp = self.MP.data_q.get(block=True)                                                
-                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                                
+                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                                              
                 if(tmp[0].DFMID == self.activeDFM.ID):                                 
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:

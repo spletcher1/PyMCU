@@ -26,54 +26,45 @@ class DFMInfo:
 
 
 class DataGetter:
-    def __init__(self,mctype):
-        #COMM.COMM.COMM_message+=self.NewMessageDirect
-        self.data_q=Queue()
+    def __init__(self):
         self.message_q=Queue()
         self.command_q=Queue()               
-        if(mctype==COMMTYPE.I2C):                        
-            self.theCOMM = COMM.I2CCOMM()
-        else:
-            self.theCOMM = COMM.UARTCOMM()
-        self.COMMType = mctype
+        self.answer_q=Queue()      
+        self.data_q=Queue()   
+        self.theCOMM = None                
+        self.COMMType = None
         self.DFMInfos = []                
         self.verbose=False
         self.theReader=None
         self.startTime = datetime.datetime.today()
         self.currentReadIndex=1
+        self.continueRunning = False
+        self.isPaused = False
+        self.theReader = Process(target=self.ReadWorker)
+        self.theReader.start()
+        self.QueueMessage("Reader started.")      
 
-    # Remember that any variables set at the time of process forking can not be changed except
-    # Through a queue.
-    def FindDFM(self, maxNum):      
-        self.DFMInfos.clear()
-        for i in range(1,maxNum+1):
-            tmp = self.theCOMM.PollSlave(i)
-            if(tmp != '' ): 
-                self.DFMInfos.append(DFMInfo(i,tmp))                        
-            time.sleep(0.1)
-        if(len(self.DFMInfos) > 0):
-            self.StartReading()
-        return self.DFMInfos
+    #region Functions that can be called from outside the process
 
-    def StopReading(self,block=True):   
+    def StopReading(self):   
         self.QueueMessage("Reader termination requested.")         
-        self.command_q.put(MP_Command(COMMANDTYPE.STOP_READING,''))        
-        if(self.theReader is not None):
-            while self.theReader.is_alive():
-                pass
-    
-    def ClearQueuesInternal(self):
-        try:
-            while True:
-                self.message_q.get_nowait()
-        except queue.Empty:
-            pass
-        try:
-            while True:
-                self.data_q.get_nowait()
-        except queue.Empty:
-            pass        
-        
+        self.command_q.put(MP_Command(COMMANDTYPE.STOP_READING,''))              
+    def GetAnswer(self, blk=True,tout=1):
+        if(blk):
+            try:
+                print("Getting answer")
+                tmp = self.answer_q.get(block=True,timeout=tout)
+                print("Getting Done")
+                return tmp
+            except:
+                print("No Answer")
+                return None
+        else:
+            try:
+                tmp = self.answer_q.get(False)
+                return tmp
+            except:
+                return None 
     def ClearQueues(self):
         self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
     def PauseReading(self):
@@ -84,118 +75,135 @@ class DataGetter:
         self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
         self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
         self.command_q.put(MP_Command(COMMANDTYPE.RESET_COUNTER,''))
-        self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))   
-        if(self.theReader is not None):         
-            if(self.theReader.is_alive()):
-                return
-        if(self.COMMType == COMMTYPE.I2C):    
-            self.theReader = Process(target=self.ReadWorkerI2C)                 
+        self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))    
+    def FindDFM(self,COMMType):
+        self.command_q.put(MP_Command(COMMANDTYPE.FIND_DFM,[COMMType]))
+        return self.GetAnswer(blk=True,tout=10)
+
+  
+    #endregion
+
+
+    # Remember that any variables set at the time of process forking can not be changed except
+    # Through a queue.
+    def FindDFMInternal(self): 
+        if(self.theCOMM is None):
+            print("COMM not defined.")
+            return []            
+        self.DFMInfos.clear()
+        for i in range(1,15+1):
+            tmp = self.theCOMM.PollSlave(i)
+            if(tmp != '' ): 
+                self.DFMInfos.append(DFMInfo(i,tmp))                        
+            time.sleep(0.010)
+        if(len(self.DFMInfos) > 0):
+            self.StartReading()
+            self.isPaused=False
+        return self.DFMInfos
+
+  
+    def ClearQueuesInternal(self):
+        try:
+            while True:
+                self.message_q.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            while True:
+                self.data_q.get_nowait()
+        except queue.Empty:
+            pass       
+        try:
+            while True:
+                self.answer_q.get_nowait()
+        except queue.Empty:
+            pass        
+        
+    def ProcessCommand(self):
+        try:
+            tmp=self.command_q.get(False)  
+        except:
+            return False        
+        if (tmp is not None):  
+            print(tmp.commandType)
+            if(tmp.commandType == COMMANDTYPE.FIND_DFM):
+                if(tmp.arguments[0]==COMMTYPE.UART):                  
+                    self.theCOMM=COMM.UARTCOMM()
+                    self.COMMType = COMMTYPE.UART                    
+                    self.refreshRate=0.5
+                    tmp = self.FindDFMInternal()                                                  
+                    self.answer_q.put(tmp)
+                elif(tmp.arguments[0]==COMMTYPE.I2C):
+                    self.theCOMM=COMM.I2CCOMM()
+                    self.COMMType = COMMTYPE.I2C
+                    self.refreshRate=0.2 
+                    tmp = self.FindDFMInternal()                    
+                    self.answer_q.put(tmp)
+                else:
+                    self.answer_q.put([])           
+            elif(tmp.commandType==COMMANDTYPE.STOP_READING):
+                self.continueRunning = False
+            elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):                    
+                self.isPaused=True
+            elif(tmp.commandType==COMMANDTYPE.RESUME_READING):                    
+                self.isPaused=False             
+            elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):                    
+                self.currentReadIndex=1                
+            elif(tmp.commandType==COMMANDTYPE.CLEAR_DATAMESSQ):
+                self.ClearQueuesInternal()                                        
+            elif(tmp.commandType==COMMANDTYPE.SET_VERBOSE):
+                self.verbose=True
+            elif(tmp.commandType==COMMANDTYPE.CLEAR_VERBOSE):
+                self.verbose=False   
+            elif(tmp.commandType==COMMANDTYPE.SET_STARTTIME):
+                self.startTime=tmp.arguments[0]                                 
+            elif(tmp.commandType==COMMANDTYPE.SET_REFRESHRATE):
+                self.refreshRate = tmp.arguments[0]                                          
+            elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                  
+                answer=self.theCOMM.RequestBufferReset(tmp.arguments[0])                    
+                self.answer_q.put([tmp.arguments[0],answer])
+            elif(tmp.commandType==COMMANDTYPE.LINKAGE):
+                answer=self.theCOMM.SendLinkage(tmp.arguments[0],tmp.arguments[1])
+                self.answer_q.put([tmp.arguments[0],answer])
+            elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):
+                answer=self.theCOMM.SendInstruction(tmp.arguments[0],tmp.arguments[1])
+                self.answer_q.put([tmp.arguments[0],answer])
+            elif(tmp.commandType==COMMANDTYPE.SEND_DARK):                                       
+                self.theCOMM.SendDark(tmp.arguments[0],tmp.arguments[1])
+                ss = "Dark state sent to DFM " + str(tmp.arguments[0]) +"."                    
+                self.QueueMessage(ss) 
+            elif(tmp.commandType==COMMANDTYPE.SEND_FREQ):                                       
+                self.theCOMM.SendFrequency(tmp.arguments[0],tmp.arguments[1])  
+                ss = "Freqeuncy sent to DFM " + str(tmp.arguments[0]) +"."                   
+                self.QueueMessage(ss)                         
+            elif(tmp.commandType==COMMANDTYPE.SEND_PW):                                                           
+                self.theCOMM.SendPulseWidth(tmp.arguments[0],tmp.arguments[1])  
+                ss = "Pulsewidth sent to DFM " + str(tmp.arguments[0]) +"."                    
+                self.QueueMessage(ss)                         
+            elif(tmp.commandType==COMMANDTYPE.SEND_OPTOSTATE):                                       
+                self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
+                ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                    
+                self.QueueMessage(ss)   
+            else:
+                print("Unknown Command")
+                return False 
         else:
-            self.theReader = Process(target=self.ReadWorkerUART)                 
-        self.theReader.start()
-        self.QueueMessage("Reader started.")      
+            return False
+        return True
 
-    def ReadWorkerUART(self):
+    def ReadWorker(self):
         self.currentReadIndex=1
-        refreshRate=0.25
-        continueRunning=True  
-        isPaused=False      
+        self.refreshRate=0.25
+        self.isPaused=True      
         self.QueueMessage("Read worker started.")        
         lastTime = time.time()   
-        while(continueRunning):
-            try:
-                tmp=self.command_q.get(False)                
-                if(tmp.commandType==COMMANDTYPE.STOP_READING):
-                    continueRunning = False
-                elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):                    
-                    isPaused=True
-                elif(tmp.commandType==COMMANDTYPE.RESUME_READING):                    
-                    isPaused=False             
-                elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):                    
-                    self.currentReadIndex=1                
-                elif(tmp.commandType==COMMANDTYPE.CLEAR_DATAMESSQ):
-                    self.ClearQueuesInternal()                                        
-                elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                  
-                    self.theCOMM.RequestBufferReset(tmp.arguments[0])                    
-                elif(tmp.commandType==COMMANDTYPE.SET_VERBOSE):
-                    self.verbose=True
-                elif(tmp.commandType==COMMANDTYPE.CLEAR_VERBOSE):
-                    self.verbose=False   
-                elif(tmp.commandType==COMMANDTYPE.SET_STARTTIME):
-                    self.startTime=tmp.arguments[0]                                 
-                elif(tmp.commandType==COMMANDTYPE.SET_REFRESHRATE):
-                    refreshRate = tmp.arguments[0]                    
-                elif(tmp.commandType==COMMANDTYPE.LINKAGE):
-                    self.theCOMM.SendLinkage(tmp.arguments[0],tmp.arguments[1])
-                elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):
-                    self.theCOMM.SendInstruction(tmp.arguments[0],tmp.arguments[1])
-            except:
-                if(isPaused==False):
-                    if(time.time()-lastTime>refreshRate):                                                               
+        while(True):  
+            if(self.ProcessCommand()==False):         
+                if(self.isPaused==False):
+                    if(time.time()-lastTime>self.refreshRate):                                                               
                         lastTime = time.time() 
-                        self.ReadValues()                                                                                                     
-            time.sleep(0.002)
-            # Note that when reading is stopped it should stop (especially for V3)
-            # after the last DFM in the list, not in the middle somehwere.
-        self.QueueMessage("Read worker ended.")                
-        return
-
-
-    def ReadWorkerI2C(self):
-        self.currentReadIndex=1
-        continueRunning=True  
-        isPaused=False      
-        self.QueueMessage("Read worker started.")        
-        lastTime = time.time()   
-        while(continueRunning):
-            try:
-                tmp=self.command_q.get(False)
-                if(tmp.commandType==COMMANDTYPE.STOP_READING):
-                    continueRunning = False
-                elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):
-                    isPaused=True
-                elif(tmp.commandType==COMMANDTYPE.RESUME_READING):
-                    isPaused=False
-                elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):
-                    self.currentReadIndex=1
-                elif(tmp.commandType==COMMANDTYPE.CLEARALLQ):
-                    self.ClearQueuesInternal()                    
-                elif(tmp.commandType==COMMANDTYPE.SET_VERBOSE):
-                    self.verbose=True
-                elif(tmp.commandType==COMMANDTYPE.CLEAR_VERBOSE):
-                    self.verbose=False
-                elif(tmp.commandType==COMMANDTYPE.SEND_DARK):                   
-                    # Dark arguments 1=ID, 2=Dark state
-                    self.theCOMM.SendDark(tmp.arguments[0],tmp.arguments[1])
-                    ss = "Dark state sent to DFM " + str(tmp.arguments[0]) +"."                    
-                    self.QueueMessage(ss) 
-                    # Maybe think about putting a failed command back in the queue.
-                    # For V2 command failure is not detected.   
-                elif(tmp.commandType==COMMANDTYPE.SEND_FREQ):                                       
-                    self.theCOMM.SendFrequency(tmp.arguments[0],tmp.arguments[1])  
-                    ss = "Freqeuncy sent to DFM " + str(tmp.arguments[0]) +"."                   
-                    self.QueueMessage(ss)     
-                    # Maybe think about putting a failed command back in the queue.
-                    # For V2 command failure is not detected.      
-                elif(tmp.commandType==COMMANDTYPE.SEND_PW):                                                           
-                    self.theCOMM.SendPulseWidth(tmp.arguments[0],tmp.arguments[1])  
-                    ss = "Pulsewidth sent to DFM " + str(tmp.arguments[0]) +"."                    
-                    self.QueueMessage(ss)     
-                    # Maybe think about putting a failed command back in the queue.
-                    # For V2 command failure is not detected.     
-                elif(tmp.commandType==COMMANDTYPE.SEND_OPTOSTATE):                   
-                    # Dark arguments 1=ID, 2=Dark state                    
-                    self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
-                    ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                    
-                    self.QueueMessage(ss)    
-                    # Maybe think about putting a failed command back in the queue.
-                    # For V2 command failure is not detected.       
-            except:
-                if(isPaused==False):
-                    if(time.time()-lastTime>.2):                                                               
-                        lastTime = time.time() 
-                        self.ReadValues()                                                                                                        
-            time.sleep(0.002)
+                        self.ReadValues()                                                                                                                             
+            time.sleep(0.001)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
         self.QueueMessage("Read worker ended.")                
@@ -206,7 +214,7 @@ class DataGetter:
         for info in self.DFMInfos:
             try:
                 bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                    
-                packList=self.ProcessPacket(info,bytesData,currentTime)
+                packList=self.ProcessPacket(info,bytesData,currentTime)               
                 self.data_q.put(packList)                                       
             except:                
                 ss = "Get status exception " + str(id) +"."
@@ -221,7 +229,7 @@ class DataGetter:
         self.command_q.put(command)
         if(self.verbose):
             ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
-            self.QueueMessage(ss)
+            self.QueueMessage(ss)              
 
     def ProcessPacket(self,info,bytesData,currentTime):         
         if(len(bytesData)==0):        
