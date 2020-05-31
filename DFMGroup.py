@@ -61,6 +61,7 @@ class DFMGroup:
         self.StopReadWorker()
         self.theDFMs.clear()
         self.activeDFM=None
+        self.MP.StopReading()
 
     def FindDFMs(self,maxNum=12): 
         self.theDFMs.clear()
@@ -69,11 +70,12 @@ class DFMGroup:
         tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.UART)          
         if(len(tmpDMFList)>0):           
             for i in tmpDMFList:                
-                self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType)
+                self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
                 s = "DFM "+str(i.ID)+" found"
                 self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
             self.currentDFMKeysList = list(self.theDFMs.keys())
             self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
+            self.SetFastProgramReadInterval()
             self.StartReadWorker()
             time.sleep(0.010)  
         else:
@@ -81,11 +83,12 @@ class DFMGroup:
             tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.I2C)
             if(len(tmpDMFList)>0):
                 for i in tmpDMFList:                                   
-                    self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType)
+                    self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
                     s = "DFM "+str(i.ID)+" found"
                     self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
                 self.currentDFMKeysList = list(self.theDFMs.keys())
                 self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
+                self.SetFastProgramReadInterval()
                 self.StartReadWorker()
             time.sleep(0.010)  
     #endregion
@@ -115,7 +118,8 @@ class DFMGroup:
         time.sleep(0.5)         
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
-        self.WriteStarter()        
+        self.WriteStarter()     
+        self.SetNormalProgramReadInterval()
         self.MP.StartReading()     
         return True
 
@@ -242,23 +246,21 @@ class DFMGroup:
         while(self.isProgramWorkerRunning):
             time.sleep(0.10)                
     
-    def SetNormalProgramReadInterval(self, ID):
-        for d in self.theDFMs.values(): 
-            if(ID==255):
-                d.isSetNormalProgramIntervalNeeded=True
-            elif(d.ID == ID):
-                d.isSetNormalProgramIntervalNeeded=True
+    def SetNormalProgramReadInterval(self):
+        if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            self.MP.SetReadInterval(5)
+        else:
+            self.MP.SetReadInterval(0.2)
 
-    def SetFastProgramReadInterval(self, ID):
-        for d in self.theDFMs.values(): 
-            if(ID==255):
-                d.SetFastProgramReadInterval()
-            elif(d.ID == ID):
-                d.SetFastProgramReadInterval()
+
+    def SetFastProgramReadInterval(self):
+        if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            self.MP.SetReadInterval(0.25)        
+        else:
+            self.MP.SetReadInterval(0.2)
 
     def ProgramWorker(self):
-        self.isProgramWorkerRunning=True    
-        self.MP.StartReading()                    
+        self.isProgramWorkerRunning=True                  
         while True:   
             try:
                 tmp = self.MP.data_q.get(block=False)                    
@@ -370,7 +372,7 @@ class DFMGroup:
                 d.BaselineDFM()
             else:
                 d.ResetBaseline()   
-        self.SetFastProgramReadInterval(255)
+        self.SetFastProgramReadInterval()
         self.StartProgramWorker()
         print("Staging program.")                           
     #endregion

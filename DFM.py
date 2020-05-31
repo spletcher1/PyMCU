@@ -19,7 +19,8 @@ class DFM:
     DFM_message = Event.Event()
     DFM_command = Event.Event()
     #region Initialization, etc.
-    def __init__(self,id,dfmType):
+    def __init__(self,id,dfmType,mp):
+        self.MP = mp
         self.ID=id             
         self.DFMType = dfmType   
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
@@ -36,7 +37,6 @@ class DFM:
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
-        self.isSetNormalProgramIntervalNeeded=False
         self.isLinkageSetNeeded=False
         self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
@@ -47,11 +47,7 @@ class DFM:
         self.reportedDarkState = Enums.DARKSTATE.UNCONTROLLED
         self.reportedHumidity=1.0
         self.reportedLUX=0
-        self.reportedVoltsIn=1.0              
-        if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
-            self.programReadInterval=5   
-        else:
-            self.programReadInterval=0.2
+        self.reportedVoltsIn=1.0                   
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
             self.theOptoLid = OptoLid.OptoLid()       
 
@@ -196,6 +192,7 @@ class DFM:
                     if(self.isCalculatingBaseline):                        
                         self.UpdateBaseline()
                 else :
+                    # It's okay now to receive these because of the fast buffer reset and call.
                     s="({:d}) Empty packet received".format(self.ID)
                     self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
   
@@ -227,8 +224,7 @@ class DFM:
             self.currentInstruction = instruct                        
             if(useBaseline):
                 self.currentInstruction.SetBaseline(self.signalBaselines)                        
-            self.isInstructionUpdateNeeded=True
-            self.SetFastProgramReadInterval()
+            self.isInstructionUpdateNeeded=True         
             self.isSetNormalProgramIntervalNeeded=True
     
     def CheckStatusV2(self):        
@@ -263,45 +259,27 @@ class DFM:
     def CheckStatusV3(self):             
         if(self.isBufferResetNeeded):                  
             tmpcommand1=MP_Command(Enums.COMMANDTYPE.BUFFER_RESET,[self.ID])
-            DFM.DFM_command.notify(tmpcommand1)                
-            self.isBufferResetNeeded=False
-            self.sampleIndex=1       
+            DFM.DFM_command.notify(tmpcommand1)      
+            if(self.MP.GetAnswer()):      
+                print("Buffer reset good")                 
+                self.isBufferResetNeeded=False
+                self.sampleIndex=1    
+            else:
+                print("Buffer reset nogood")                 
         
         if(self.isInstructionUpdateNeeded):            
             tmpcommand2=MP_Command(Enums.COMMANDTYPE.INSTRUCTION,[self.ID,self.currentInstruction])
             DFM.DFM_command.notify(tmpcommand2)
-            self.isInstructionUpdateNeeded=False
+            if(self.MP.GetAnswer()):                       
+                self.isInstructionUpdateNeeded=False
            
         if(self.isLinkageSetNeeded):            
             tmpcommand3=MP_Command(Enums.COMMANDTYPE.LINKAGE,[self.ID,self.currentLinkage])
             DFM.DFM_command.notify(tmpcommand3)
-            self.isLinkageSetNeeded=False
-            
-        elif(self.isSetNormalProgramIntervalNeeded):            
-            tmpcommand4=MP_Command(Enums.COMMANDTYPE.SET_REFRESHRATE,[self.ID,5])
-            DFM.DFM_command.notify(tmpcommand4)            
-            self.programReadInterval=5
-            self.isSetNormalProgramIntervalNeeded=False   
-            return 
-        return 
-
-    def SetFastProgramReadInterval(self):
-        if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
-            self.programReadInterval=0.5
-        else:
-            self.programReadInterval=0.2
-    
-    def GetProgramReadInterval(self):
-        if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
-            if self.programReadInterval==5:
-                return "normal"
-            elif self.programReadInterval==0.5:
-                return "fast"
-            else:
-                return "none"
-        else:
-            return "normal"
-
+            if(self.MP.GetAnswer()):                       
+                self.isLinkageSetNeeded=False
+                  
+        return    
 
     #endregion     
      

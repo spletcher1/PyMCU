@@ -36,6 +36,7 @@ class DataGetter:
         self.DFMInfos = []                
         self.verbose=False
         self.theReader=None
+        self.refreshRate=0.25
         self.startTime = datetime.datetime.today()
         self.currentReadIndex=1
         self.continueRunning = False
@@ -51,13 +52,10 @@ class DataGetter:
         self.command_q.put(MP_Command(COMMANDTYPE.STOP_READING,''))              
     def GetAnswer(self, blk=True,tout=1):
         if(blk):
-            try:
-                print("Getting answer")
-                tmp = self.answer_q.get(block=True,timeout=tout)
-                print("Getting Done")
+            try:                
+                tmp = self.answer_q.get(block=True,timeout=tout)                
                 return tmp
-            except:
-                print("No Answer")
+            except:                
                 return None
         else:
             try:
@@ -79,6 +77,8 @@ class DataGetter:
     def FindDFM(self,COMMType):
         self.command_q.put(MP_Command(COMMANDTYPE.FIND_DFM,[COMMType]))
         return self.GetAnswer(blk=True,tout=10)
+    def SetReadInterval(self,interval):
+        self.command_q.put(MP_Command(COMMANDTYPE.SET_REFRESHRATE,[interval]))
 
   
     #endregion
@@ -126,7 +126,7 @@ class DataGetter:
             return False        
         if (tmp is not None):  
             print(tmp.commandType)
-            if(tmp.commandType == COMMANDTYPE.FIND_DFM):
+            if(tmp.commandType == COMMANDTYPE.FIND_DFM):              
                 if(tmp.arguments[0]==COMMTYPE.UART):                  
                     self.theCOMM=COMM.UARTCOMM()
                     self.COMMType = COMMTYPE.UART                    
@@ -142,7 +142,10 @@ class DataGetter:
                 else:
                     self.answer_q.put([])           
             elif(tmp.commandType==COMMANDTYPE.STOP_READING):
-                self.continueRunning = False
+                self.DFMInfos = []  
+                self.theCOMM = None
+                self.refreshRate=0.25
+                self.isPaused=True
             elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):                    
                 self.isPaused=True
             elif(tmp.commandType==COMMANDTYPE.RESUME_READING):                    
@@ -160,8 +163,8 @@ class DataGetter:
             elif(tmp.commandType==COMMANDTYPE.SET_REFRESHRATE):
                 self.refreshRate = tmp.arguments[0]                                          
             elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                  
-                answer=self.theCOMM.RequestBufferReset(tmp.arguments[0])                    
-                self.answer_q.put([tmp.arguments[0],answer])
+                answer=self.theCOMM.RequestBufferReset(tmp.arguments[0])                                    
+                self.answer_q.put([tmp.arguments[0],answer])                
             elif(tmp.commandType==COMMANDTYPE.LINKAGE):
                 answer=self.theCOMM.SendLinkage(tmp.arguments[0],tmp.arguments[1])
                 self.answer_q.put([tmp.arguments[0],answer])
@@ -213,10 +216,10 @@ class DataGetter:
         currentTime = datetime.datetime.today()        
         for info in self.DFMInfos:
             try:
-                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                    
-                packList=self.ProcessPacket(info,bytesData,currentTime)               
+                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                 
+                packList=self.ProcessPacket(info,bytesData,currentTime)                   
                 self.data_q.put(packList)                                       
-            except:                
+            except:                        
                 ss = "Get status exception " + str(id) +"."
                 self.QueueMessage(ss)
             time.sleep(0.002)        
@@ -235,7 +238,7 @@ class DataGetter:
         if(len(bytesData)==0):        
             currentStatusPacket=StatusPacket.StatusPacket(0,0,info.DFMType)
             currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER
-            return [currentStatusPacket] 
+            return [currentStatusPacket]          
         if(info.DFMType==DFMTYPE.PLETCHERV3):           
             numPacketsReceived = len(bytesData)/66                                 
             if (math.floor(numPacketsReceived)!=numPacketsReceived):
