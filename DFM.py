@@ -47,8 +47,7 @@ class DFM:
         self.reportedDarkState = Enums.DARKSTATE.UNCONTROLLED
         self.reportedHumidity=1.0
         self.reportedLUX=0
-        self.reportedVoltsIn=1.0      
-        self.bufferResetTime = datetime.datetime.today()
+        self.reportedVoltsIn=1.0              
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
             self.programReadInterval=5   
         else:
@@ -259,35 +258,28 @@ class DFM:
             DFM.DFM_command.notify(tmpcommand4)   
         
 
-    # This needs major update
-    def CheckStatusV3(self): 
-        return               
-        ## These are else if groups so that both are not executed on the same pass.
-        ## Take care to note potential problems with long read intervals.
-        if(self.isBufferResetNeeded):
-            if self.theCOMM.RequestBufferReset(self):
-                #print("Buffer reset success!")
-                self.isBufferResetNeeded=False
-                self.bufferResetTime = datetime.datetime.today()
-                self.sampleIndex=1       
-                return                          
-            else:
-                print("Buffer reset failure")
-        elif(self.isInstructionUpdateNeeded):
-            if self.theCOMM.SendInstruction(self.ID,self.currentInstruction):
-                #print("Instruction success: " + str(self.currentInstruction))                
-                self.isInstructionUpdateNeeded=False
-                return 
-            else:
-                print("Instruction failure")
-        elif(self.isLinkageSetNeeded):
-            if self.theCOMM.SendLinkage(self):                          
-                self.isLinkageSetNeeded=False
-                return 
-                #print("Linkage success: " + str(self.currentLinkage))  
-            else:
-                print("Linkage failure")
+    # NOTE: Currently I lost the ability to make sure the request was received.
+    #       need to fix this.
+    def CheckStatusV3(self):             
+        if(self.isBufferResetNeeded):            
+            tmpcommand1=MP_Command(Enums.COMMANDTYPE.BUFFER_RESET,[self.ID])
+            DFM.DFM_command.notify(tmpcommand1)
+            self.isBufferResetNeeded=False
+            self.sampleIndex=1       
+        
+        if(self.isInstructionUpdateNeeded):
+            tmpcommand2=MP_Command(Enums.COMMANDTYPE.INSTRUCTION,[self.ID,self.currentInstruction])
+            DFM.DFM_command.notify(tmpcommand2)
+            self.isInstructionUpdateNeeded=False
+           
+        if(self.isLinkageSetNeeded):
+            tmpcommand3=MP_Command(Enums.COMMANDTYPE.LINKAGE,[self.ID,self.currentLinkage])
+            DFM.DFM_command.notify(tmpcommand3)
+            self.isLinkageSetNeeded=False
+            
         elif(self.isSetNormalProgramIntervalNeeded):
+            tmpcommand4=MP_Command(Enums.COMMANDTYPE.SET_REFRESHRATE,[self.ID,5])
+            DFM.DFM_command.notify(tmpcommand4)            
             self.programReadInterval=5
             self.isSetNormalProgramIntervalNeeded=False   
             return 

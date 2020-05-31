@@ -40,6 +40,7 @@ class DataGetter:
         self.verbose=False
         self.theReader=None
         self.startTime = datetime.datetime.today()
+        self.currentReadIndex=1
 
     # Remember that any variables set at the time of process forking can not be changed except
     # Through a queue.
@@ -69,24 +70,19 @@ class DataGetter:
             pass
         try:
             while True:
-                self.command_q.get_nowait()
-        except queue.Empty:
-            pass
-        try:
-            while True:
                 self.data_q.get_nowait()
         except queue.Empty:
-            pass
+            pass        
         
     def ClearQueues(self):
-        self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_ALLQ,''))
+        self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
     def PauseReading(self):
         self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
     def ResumeReading(self):
         self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))
     def StartReading(self):        
         self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
-        self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_ALLQ,''))
+        self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
         self.command_q.put(MP_Command(COMMANDTYPE.RESET_COUNTER,''))
         self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))   
         if(self.theReader is not None):         
@@ -100,44 +96,44 @@ class DataGetter:
         self.QueueMessage("Reader started.")      
 
     def ReadWorkerUART(self):
-        currentReadIndex=1
+        self.currentReadIndex=1
+        refreshRate=0.25
         continueRunning=True  
         isPaused=False      
         self.QueueMessage("Read worker started.")        
         lastTime = time.time()   
         while(continueRunning):
             try:
-                tmp=self.command_q.get(False)
+                tmp=self.command_q.get(False)                
                 if(tmp.commandType==COMMANDTYPE.STOP_READING):
                     continueRunning = False
-                elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):
+                elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):                    
                     isPaused=True
-                elif(tmp.commandType==COMMANDTYPE.RESUME_READING):
-                    isPaused=False
-                elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):
-                    currentReadIndex=1
-                elif(tmp.commandType==COMMANDTYPE.CLEARALLQ):
-                    self.ClearQueuesInternal()                    
+                elif(tmp.commandType==COMMANDTYPE.RESUME_READING):                    
+                    isPaused=False             
+                elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):                    
+                    self.currentReadIndex=1                
+                elif(tmp.commandType==COMMANDTYPE.CLEAR_DATAMESSQ):
+                    self.ClearQueuesInternal()                                        
+                elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                  
+                    self.theCOMM.RequestBufferReset(tmp.arguments[0])                    
                 elif(tmp.commandType==COMMANDTYPE.SET_VERBOSE):
                     self.verbose=True
                 elif(tmp.commandType==COMMANDTYPE.CLEAR_VERBOSE):
                     self.verbose=False   
                 elif(tmp.commandType==COMMANDTYPE.SET_STARTTIME):
-                    self.startTime=datetime.datetime.today()
-                elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):
-                    pass
+                    self.startTime=tmp.arguments[0]                                 
                 elif(tmp.commandType==COMMANDTYPE.SET_REFRESHRATE):
-                    pass
+                    refreshRate = tmp.arguments[0]                    
                 elif(tmp.commandType==COMMANDTYPE.LINKAGE):
-                    pass
+                    self.theCOMM.SendLinkage(tmp.arguments[0],tmp.arguments[1])
                 elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):
-                    pass
+                    self.theCOMM.SendInstruction(tmp.arguments[0],tmp.arguments[1])
             except:
                 if(isPaused==False):
-                    if(time.time()-lastTime>.2):                                                               
+                    if(time.time()-lastTime>refreshRate):                                                               
                         lastTime = time.time() 
-                        self.ReadValues(currentReadIndex)   
-                        currentReadIndex+=1                                                                                 
+                        self.ReadValues()                                                                                                     
             time.sleep(0.002)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
@@ -146,7 +142,7 @@ class DataGetter:
 
 
     def ReadWorkerI2C(self):
-        currentReadIndex=1
+        self.currentReadIndex=1
         continueRunning=True  
         isPaused=False      
         self.QueueMessage("Read worker started.")        
@@ -161,7 +157,7 @@ class DataGetter:
                 elif(tmp.commandType==COMMANDTYPE.RESUME_READING):
                     isPaused=False
                 elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):
-                    currentReadIndex=1
+                    self.currentReadIndex=1
                 elif(tmp.commandType==COMMANDTYPE.CLEARALLQ):
                     self.ClearQueuesInternal()                    
                 elif(tmp.commandType==COMMANDTYPE.SET_VERBOSE):
@@ -198,21 +194,20 @@ class DataGetter:
                 if(isPaused==False):
                     if(time.time()-lastTime>.2):                                                               
                         lastTime = time.time() 
-                        self.ReadValues(currentReadIndex)   
-                        currentReadIndex+=1                                                                                 
+                        self.ReadValues()                                                                                                        
             time.sleep(0.002)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
         self.QueueMessage("Read worker ended.")                
         return
     
-    def ReadValues(self, currentReadIndex): 
+    def ReadValues(self): 
         currentTime = datetime.datetime.today()        
         for info in self.DFMInfos:
             try:
                 bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                    
-                packList=self.ProcessPacket(info,bytesData,currentTime,currentReadIndex)
-                self.data_q.put(packList)                       
+                packList=self.ProcessPacket(info,bytesData,currentTime)
+                self.data_q.put(packList)                                       
             except:                
                 ss = "Get status exception " + str(id) +"."
                 self.QueueMessage(ss)
@@ -228,7 +223,7 @@ class DataGetter:
             ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
             self.QueueMessage(ss)
 
-    def ProcessPacket(self,info,bytesData,curretnTime,currentReadIndex):         
+    def ProcessPacket(self,info,bytesData,currentTime):         
         if(len(bytesData)==0):        
             currentStatusPacket=StatusPacket.StatusPacket(0,0,info.DFMType)
             currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER
@@ -244,16 +239,17 @@ class DataGetter:
             else:
                 numPacketsReceived = int(numPacketsReceived)                                
             currentStatusPackets=[]
-            for i in range(0,numPacketsReceived):
-                ## sampleIndex is set to -1 here because it is only added to the packet if it is a success.                
-                tmpPacket = StatusPacket.StatusPacket(currentReadIndex,info.ID,info.DFMType)  
+            for i in range(0,numPacketsReceived):               
+                tmpPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)  
                 # This gets the startTime of the experiment.  The others get the time of the packet                                       
                 tmpPacket.ProcessStatusPacket(bytesData,self.startTime,i)
-                currentStatusPackets.append(tmpPacket)                
+                currentStatusPackets.append(tmpPacket)        
+                self.currentReadIndex+=1        
             return currentStatusPackets
         else:
-            currentStatusPacket = StatusPacket.StatusPacket(currentReadIndex,info.ID,info.DFMType)
-            currentStatusPacket.ProcessStatusPacket(bytesData,curretnTime)                      
+            currentStatusPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)
+            currentStatusPacket.ProcessStatusPacket(bytesData,currentTime)     
+            self.currentReadIndex+=1                         
             return [currentStatusPacket]
 
 if __name__=="__main__" :

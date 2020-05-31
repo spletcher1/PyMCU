@@ -52,7 +52,7 @@ class DFMGroup:
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
     
-    def DFMCommandReceive(self,newCommand):       
+    def DFMCommandReceive(self,newCommand):            
         self.MP.QueueCommand(newCommand)
 
     def ClearDFMList(self):        
@@ -92,11 +92,11 @@ class DFMGroup:
     #endregion
 
     #region Reading and Recording
-    def StartRecording(self):
-        # THis is here to ensure that the queues are cleared and ready for recording.
-        self.MP.PauseReading()        
+    def StartRecording(self):        
         if len(self.theDFMs)==0:
             return False    
+        # THis is here to ensure that the queues are cleared and ready for recording.       
+        self.MP.PauseReading()        
         self.theMessageList.ClearMessages()
         for i in self.theDFMs.values():            
             i.ResetOutputFileStuff()
@@ -106,6 +106,10 @@ class DFMGroup:
             i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
             i.isLinkageSetNeeded=True
             i.currentDFMErrors.ClearErrors()
+        
+        command=DataGetter.MP_Command(Enums.COMMANDTYPE.SET_STARTTIME,[datetime.datetime.today()])
+        self.MP.QueueCommand(command)
+                  
         # All DFMV3 should be at fast program read interval here.
         ## So wait enough time to allow everyone to reset, say 2 seconds
         # To allow everyone to reset and set slow read interval
@@ -258,12 +262,17 @@ class DFMGroup:
         self.MP.StartReading()                    
         while True:   
             try:
-                tmp = self.MP.data_q.get(block=True)                    
+                tmp = self.MP.data_q.get(block=False)                    
                 self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)    
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:
-                pass
+                # Only do this for V3 because V2 will always be fast enough
+                # following status packets alone.
+                for value in self.theDFMs.values():
+                    if(value.DFMType == Enums.DFMTYPE.PLETCHERV3):               
+                        value.CheckStatusV3()
+                   
               
             if(self.isWriting):
                 if(self.stopRecordingSignal):                                     
