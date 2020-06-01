@@ -791,9 +791,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.fastUpdateCheckBox.setChecked(False)
             return 
         if(self.fastUpdateCheckBox.isChecked()):            
-            self.activeDFM.SetFastProgramReadInterval()            
+            self.theDFMGroup.SetFastProgramReadInterval()            
         else:            
-            self.activeDFM.isSetNormalProgramIntervalNeeded=True
+            self.theDFMGroup.SetNormalProgramReadInterval()
 
 
     
