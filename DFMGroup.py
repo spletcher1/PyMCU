@@ -41,6 +41,7 @@ class DFMGroup:
         self.writeStartTimes={}
         self.currentDFMIndex=0                
         self.currentDFMKeysList=[]
+        self.programReadInterval=""
 
 
     def NewMessageDirect(self,newMessage):        
@@ -248,16 +249,24 @@ class DFMGroup:
     
     def SetNormalProgramReadInterval(self):
         if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            self.programReadInterval = "normal"
             self.MP.SetReadInterval(5)
         else:
+            self.programReadInterval = "normal"
             self.MP.SetReadInterval(0.2)
 
 
     def SetFastProgramReadInterval(self):
         if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):
-            self.MP.SetReadInterval(0.25)        
+            self.programReadInterval = "fast"
+            self.MP.SetReadInterval(0.5)        
         else:
+            self.programReadInterval = "normal"
             self.MP.SetReadInterval(0.2)
+
+    def GetProgramReadInterval(self):
+        return self.programReadInterval
+
 
     def ProgramWorker(self):
         self.isProgramWorkerRunning=True                  

@@ -125,7 +125,7 @@ class DataGetter:
         except:
             return False        
         if (tmp is not None):  
-            print(tmp.commandType)
+            #print(tmp.commandType)
             if(tmp.commandType == COMMANDTYPE.FIND_DFM):              
                 if(tmp.arguments[0]==COMMTYPE.UART):                  
                     self.theCOMM=COMM.UARTCOMM()

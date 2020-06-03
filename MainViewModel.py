@@ -624,7 +624,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
             ## This is here because sometimes a program update action will turn the
             ## readinterval back to normal.  So the checkbox has to show that when it happens.
-            if(self.fastUpdateCheckBox.isChecked() and self.activeDFM.GetProgramReadInterval() != "fast"):
+            if(self.fastUpdateCheckBox.isChecked() and self.theDFMGroup.GetProgramReadInterval() != "fast"):
                 self.fastUpdateCheckBox.setChecked(False)
 
         else:
