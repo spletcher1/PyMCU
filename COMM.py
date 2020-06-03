@@ -95,6 +95,17 @@ class UARTCOMM():
         barray.append(0x00)                 
         self._WriteByteArray(barray,0.001)
     
+    def SendAck(self,ID):        
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xFA # Indicates ACK        
+        ba[2]=ID
+    
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)            
+        self._WriteByteArray(barray,0.001)
+
     def RequestBufferReset(self,ID):        
         self.thePort.reset_input_buffer()
         ba = bytearray(3)
@@ -178,7 +189,8 @@ class UARTCOMM():
         else:            
             return False    
 
-    def GetStatusPacket(self,ID,dummy):                      
+    def GetStatusPacket(self,ID,dummy):    
+        ack = bytearray(2)                  
         start = time.time()
         self.RequestStatus(ID)
         end=time.time()
@@ -186,7 +198,11 @@ class UARTCOMM():
             print("Request time: "+str(end-start))        
         try:      
             ## This is set for maxpackets = 60
-            return cobs.decode(self._ReadCOBSPacket(4000))
+            tmp=cobs.decode(self._ReadCOBSPacket(4000))
+            ## If we make it here we received at least a valid packet
+            ## so send Ack
+            self.SendAck(ID)
+            return tmp
         except:
             return ''
     def PollSlave(self,ID): 
