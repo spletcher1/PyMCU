@@ -296,18 +296,18 @@ class DFMGroup:
                 self.isProgramWorkerRunning = False                
                 return                
 
-            time.sleep(0.020)
+            time.sleep(0.001)
          
 
     def ReadWorker(self):    
         self.isReadWorkerRunning=True                    
         while True:   
             try:             
-                tmp = self.MP.data_q.get(block=True)                                                
-                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                                              
-                if(tmp[0].DFMID == self.activeDFM.ID):                                 
+                tmp = self.MP.data_q.get(block=True)                                                                                                          
+                if(tmp[0].DFMID == self.activeDFM.ID):   
+                    self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                                 
                     DFMGroup.DFMGroup_updatecomplete.notify()         
-            except:
+            except:              
                 pass         
                                                                                        
             if(self.stopReadWorkerSignal):              
@@ -316,7 +316,7 @@ class DFMGroup:
                 self.isReadWorkerRunning = False                
                 return 
                
-            time.sleep( 0.020 ) # Yeild to other threads for a bit
+            time.sleep( 0.001 ) # Yeild to other threads for a bit
     #endregion
 
     #region Updating Functions
