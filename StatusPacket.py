@@ -165,7 +165,7 @@ class StatusPacket:
            
         currentValue = bytesData[(indexer+37)]<<16
         currentValue += bytesData[(indexer+38)]<<8
-        currentValue += bytesData[(indexer+39)]
+        currentValue += bytesData[(indexer+39)]        
         self.voltsIn = ((currentValue>>7)/(1024))*3.3*2
 
         self.optoState1 = bytesData[(indexer+40)]
@@ -202,8 +202,8 @@ class StatusPacket:
         currentValue += bytesData[(indexer+59)]<<8
         currentValue += bytesData[(indexer+60)]
         self.recordIndex = currentValue        
-        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
-        #self.packetTime = datetime.datetime.today()
+        #self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
+        self.packetTime = datetime.datetime.today()
         self.processResult =  PROCESSEDPACKETRESULT.OKAY      
         return
 

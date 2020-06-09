@@ -9,6 +9,7 @@ import smbus2
 import time
 import serial
 from cobs import cobs
+import StatusPacket
 
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
@@ -24,7 +25,7 @@ class UARTCOMM():
         ## The timeout here is tricky.  For 15 packets to be sent, it seems to
         ## take about 0.150 seconds, so the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=.3)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=0.3)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -104,7 +105,7 @@ class UARTCOMM():
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)            
-        self._WriteByteArray(barray,0.001)
+        self._WriteByteArray(barray,0.005)
 
     def RequestBufferReset(self,ID):        
         self.thePort.reset_input_buffer()
@@ -117,9 +118,9 @@ class UARTCOMM():
         barray = bytearray(encodedba)
         barray.append(0x00)            
         self._WriteByteArray(barray,0.001)
-       
-        tmp=self._Read(2)         
-        if(len(tmp)!=2):            
+               
+        tmp=cobs.decode(self._ReadCOBSPacket(5))    
+        if(len(tmp)!=1):            
             return False
         if(tmp[0]==ID):
             return True
@@ -189,6 +190,12 @@ class UARTCOMM():
         else:            
             return False    
 
+    def GetSomething(self,chars):
+        tmp=cobs.decode(self._ReadCOBSPacket(4000))
+        return tmp
+        
+
+
     def GetStatusPacket(self,ID,dummy):    
         ack = bytearray(2)                  
         start = time.time()
@@ -200,7 +207,7 @@ class UARTCOMM():
             ## This is set for maxpackets = 60
             tmp=cobs.decode(self._ReadCOBSPacket(4000))
             ## If we make it here we received at least a valid packet
-            ## so send Ack
+            ## so send Ack                       
             self.SendAck(ID)
             return tmp
         except:
@@ -285,11 +292,31 @@ class I2CCOMM():
             return False
        
 
-def ModuleTest5(dfmID):
+def ModuleTest(dfmID):
     Board.BoardSetup()
-   
+    theCOMM = UARTCOMM()    
+
+    #print(theCOMM.GetStatusPacket(6,0))
+    #return
+    theCOMM.RequestBufferReset(dfmID)    
+    time.sleep(0.5)
+    for i in range(0,2):
+        tmp = theCOMM.GetStatusPacket(6,0)
+        print(len(tmp))
+        sp=StatusPacket.StatusPacket(6,6,Enums.DFMTYPE.PLETCHERV3)
+        sp.ProcessStatusPacket(tmp,datetime.datetime.today(),1)
+        print(sp.GetConsolePrintPacket())
+
+def SimpleTest():
+    Board.BoardSetup()
+    theCOMM = UARTCOMM()  
+    print("Getting...")
+    for i in range(0,10):
+        print(theCOMM.GetSomething(20))
+    print("Done")
+
 
 if __name__=="__main__" :
-    theCOMM = I2CCOMM()    
-    theCOMM.SetDark(0x06,0)
+    ModuleTest(6)
+   
    

@@ -216,8 +216,11 @@ class DataGetter:
         currentTime = datetime.datetime.today()        
         for info in self.DFMInfos:
             try:
-                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                 
-                packList=self.ProcessPacket(info,bytesData,currentTime)                   
+                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                                 
+                #bytesData=self.theCOMM.GetStatusPacket(info.ID,dummy)                                                 
+                packList=self.ProcessPacket(info,bytesData,currentTime)    
+                #for p in packList:
+                #    print(p.GetConsolePrintPacket())                            
                 self.data_q.put(packList)                                       
             except:                        
                 ss = "Get status exception " + str(id) +"."
@@ -263,28 +266,23 @@ class DataGetter:
             self.currentReadIndex+=1                         
             return [currentStatusPacket]
 
-if __name__=="__main__" :
-    Board.BoardSetup()   
-    mp=DataGetterI2C()
-
-    mp.FindDFM()
-    time.sleep(0.2)
-    counter=0
-
-    while counter<200000:
-        tmp = mp.data_q.get(block=True)        
-        counter+=1
-        if(counter % 2000 ==0):
-            print(counter)
-
-    mp.StopReading()
-
-    while mp.isRunning==True:
-        pass
-        
+def ModuleTest():
+    Board.BoardSetup()
+    mp=DataGetter()
+    mp.theCOMM=COMM.UARTCOMM()
+    mp.COMMType = COMMTYPE.UART  
+    print(mp.FindDFMInternal())
+    mp.theCOMM.RequestBufferReset(6)
     time.sleep(1)
-    while mp.message_q.empty() != True:
-        tmp = mp.message_q.get()
-        print(tmp.message)
 
-        
+    for i in range(0,50):
+        mp.ReadValues()
+        print('')
+        print('')
+        time.sleep(1)
+    
+
+
+if __name__=="__main__" :
+    ModuleTest()
+    
