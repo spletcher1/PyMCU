@@ -3,7 +3,7 @@ import queue
 import COMM
 import datetime
 import StatusPacket
-from Enums import COMMTYPE,DFMTYPE,COMMANDTYPE
+from Enums import COMMTYPE,DFMTYPE,COMMANDTYPE,PROCESSEDPACKETRESULT
 import math
 import Board
 import time
@@ -23,6 +23,10 @@ class DFMInfo:
     def __init__(self,id,dfmtype):
         self.ID = id
         self.DFMType=dfmtype
+    def __str__(self):
+        return str(self.ID) + str(self.DFMType)
+    def __repr__(self):
+        return "ID= "+ str(self.ID) + " Type= " + str(self.DFMType)
 
 
 class DataGetter:
@@ -33,7 +37,8 @@ class DataGetter:
         self.data_q=Queue()   
         self.theCOMM = None                
         self.COMMType = None
-        self.DFMInfos = []                
+        self.DFMInfos = []    
+        self.focalDFMs = []            
         self.verbose=False
         self.theReader=None
         self.refreshRate=0.25
@@ -53,7 +58,7 @@ class DataGetter:
     def GetAnswer(self, blk=True,tout=1):
         if(blk):
             try:                
-                tmp = self.answer_q.get(block=True,timeout=tout)                
+                tmp = self.answer_q.get(block=True,timeout=tout)                              
                 return tmp
             except:                
                 return None
@@ -76,9 +81,12 @@ class DataGetter:
         self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))    
     def FindDFM(self,COMMType):
         self.command_q.put(MP_Command(COMMANDTYPE.FIND_DFM,[COMMType]))
-        return self.GetAnswer(blk=True,tout=10)
+        return self.GetAnswer(blk=True,tout=20)
     def SetReadInterval(self,interval):
         self.command_q.put(MP_Command(COMMANDTYPE.SET_REFRESHRATE,[interval]))
+    def SetFocusDFM(self,dfmid):  
+        self.command_q.put(MP_Command(COMMANDTYPE.SET_FOCAL_DFM,[dfmid]))           
+                    
 
   
     #endregion
@@ -93,12 +101,12 @@ class DataGetter:
         self.DFMInfos.clear()
         for i in range(1,15+1):
             tmp = self.theCOMM.PollSlave(i)
-            if(tmp != '' ): 
+            if(tmp != '' ):                
                 self.DFMInfos.append(DFMInfo(i,tmp))                        
             time.sleep(0.010)
         if(len(self.DFMInfos) > 0):
             self.StartReading()
-            self.isPaused=False
+            self.isPaused=False        
         return self.DFMInfos
 
   
@@ -130,14 +138,18 @@ class DataGetter:
                 if(tmp.arguments[0]==COMMTYPE.UART):                  
                     self.theCOMM=COMM.UARTCOMM()
                     self.COMMType = COMMTYPE.UART                    
-                    self.refreshRate=0.5
-                    tmp = self.FindDFMInternal()                                                  
+                    self.refreshRate=0.3
+                    tmp = self.FindDFMInternal()  
+                    if(len(tmp)>0):
+                        self.focalDFMs = [tmp[0]]
                     self.answer_q.put(tmp)
                 elif(tmp.arguments[0]==COMMTYPE.I2C):
                     self.theCOMM=COMM.I2CCOMM()
                     self.COMMType = COMMTYPE.I2C
                     self.refreshRate=0.2 
-                    tmp = self.FindDFMInternal()                    
+                    tmp = self.FindDFMInternal()    
+                    if(len(tmp)>0):
+                        self.focalDFMs = tmp                     
                     self.answer_q.put(tmp)
                 else:
                     self.answer_q.put([])           
@@ -165,6 +177,13 @@ class DataGetter:
             elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                  
                 answer=self.theCOMM.RequestBufferReset(tmp.arguments[0])                                    
                 self.answer_q.put([tmp.arguments[0],answer])                
+            elif(tmp.commandType==COMMANDTYPE.SET_FOCAL_DFM):
+                if(tmp.arguments[0]==0):
+                    self.focalDFMs = self.DFMInfos
+                else:
+                    for i in self.DFMInfos:                        
+                        if i.ID == tmp.arguments[0]:
+                            self.focalDFMs = [i]                                                        
             elif(tmp.commandType==COMMANDTYPE.LINKAGE):
                 answer=self.theCOMM.SendLinkage(tmp.arguments[0],tmp.arguments[1])
                 self.answer_q.put([tmp.arguments[0],answer])
@@ -214,14 +233,14 @@ class DataGetter:
     
     def ReadValues(self): 
         currentTime = datetime.datetime.today()        
-        for info in self.DFMInfos:
+        for info in self.focalDFMs:
             try:
                 bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                                 
                 #bytesData=self.theCOMM.GetStatusPacket(info.ID,dummy)                                                 
                 packList=self.ProcessPacket(info,bytesData,currentTime)    
                 #for p in packList:
-                #    print(p.GetConsolePrintPacket())                            
-                self.data_q.put(packList)                                       
+                #    print(p.GetConsolePrintPacket())                                          
+                self.data_q.put(packList)                                
             except:                        
                 ss = "Get status exception " + str(id) +"."
                 self.QueueMessage(ss)
@@ -237,17 +256,17 @@ class DataGetter:
             ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
             self.QueueMessage(ss)              
 
-    def ProcessPacket(self,info,bytesData,currentTime):         
-        if(len(bytesData)==0):        
-            currentStatusPacket=StatusPacket.StatusPacket(0,0,info.DFMType)
-            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER
+    def ProcessPacket(self,info,bytesData,currentTime):                 
+        if(len(bytesData)==0):                            
+            currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
+            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER                    
             return [currentStatusPacket]          
         if(info.DFMType==DFMTYPE.PLETCHERV3):           
             numPacketsReceived = len(bytesData)/66                                 
             if (math.floor(numPacketsReceived)!=numPacketsReceived):
                 # TODO: Need to figure out how to possibly recover some of the packets.
                 # TODO: for now, however, no.            
-                currentStatusPacket=StatusPacket.StatusPacket(0,0,info.DFMType)
+                currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
                 currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
                 return [currentStatusPacket]
             else:
@@ -272,13 +291,13 @@ def ModuleTest():
     mp.theCOMM=COMM.UARTCOMM()
     mp.COMMType = COMMTYPE.UART  
     print(mp.FindDFMInternal())
+    return
     mp.theCOMM.RequestBufferReset(6)
     time.sleep(1)
 
-    for i in range(0,50):
+    for i in range(0,10):
         mp.ReadValues()
-        print('')
-        print('')
+        print('*')        
         time.sleep(1)
     
 

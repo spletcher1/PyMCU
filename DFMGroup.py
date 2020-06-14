@@ -68,7 +68,7 @@ class DFMGroup:
         self.theDFMs.clear()
         # First search UART for V3 DFMs
         # Set UART and wait for answer
-        tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.UART)          
+        tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.UART)                
         if(len(tmpDMFList)>0):           
             for i in tmpDMFList:                
                 self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
@@ -76,7 +76,7 @@ class DFMGroup:
                 self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
             self.currentDFMKeysList = list(self.theDFMs.keys())
             self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
-            self.SetFastProgramReadInterval()
+            self.SetFastProgramReadInterval()            
             self.StartReadWorker()
             time.sleep(0.010)  
         else:
@@ -215,6 +215,12 @@ class DFMGroup:
             d.SetStatus(Enums.CURRENTSTATUS.READING)         
      
 
+    def SetActiveDFM(self,listNum):
+        self.activeDFM = self.theDFMs[listNum] 
+        # Only focus DFM is readworker is running (not programworker)
+        if self.isReadWorkerRunning:
+            self.MP.SetFocusDFM(self.activeDFM.ID)
+
     def StopReadWorker(self):
         if len(self.theDFMs)==0:
             return    
@@ -235,7 +241,9 @@ class DFMGroup:
         if(len(self.theDFMs)==0): 
             return     
         for d in self.theDFMs.values():
-            d.SetStatus(Enums.CURRENTSTATUS.READING)              
+            d.SetStatus(Enums.CURRENTSTATUS.READING)   
+        # Cancel any focus
+        self.MP.SetFocusDFM(0)           
         self.stopProgramWorkerSignal=False
         readThread = threading.Thread(target=self.ProgramWorker)        
         readThread.start()     
@@ -303,8 +311,8 @@ class DFMGroup:
         self.isReadWorkerRunning=True                    
         while True:   
             try:             
-                tmp = self.MP.data_q.get(block=True)                                                                                                          
-                if(tmp[0].DFMID == self.activeDFM.ID):   
+                tmp = self.MP.data_q.get(block=True)                                                                                                                        
+                if(tmp[0].DFMID == self.activeDFM.ID):                     
                     self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                                 
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:              
@@ -390,8 +398,7 @@ class DFMGroup:
 def ModuleTest():
     Board.BoardSetup()
     tmp = DFMGroup()
-    tmp.FindDFMs(maxNum=7)
-    time.sleep(10800)
+    tmp.FindDFMs(maxNum=7)    
     tmp.StopReadWorker()
     time.sleep(1)
     while tmp.MP.message_q.empty() != True:

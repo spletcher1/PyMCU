@@ -322,8 +322,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("Outputs toggled on.",self.statusmessageduration)  
 
     def SetStartTimeNow(self):
-        self.SetProgramStartTime(datetime.datetime.today())
-        
+        self.SetProgramStartTime(datetime.datetime.today())        
         #self.programStartTime= tmp.toPyDateTime()
 
 
@@ -361,22 +360,20 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setInformativeText(ss)    
         msg.exec_()   
 
-    def SetActiveDFM(self,num):
-        if(self.activeDFM is not None):
-            self.activeDFM.isSetNormalProgramIntervalNeeded=True
+    def SetActiveDFM(self,num):       
         self.activeDFMNum=num              
-        self.activeDFM = self.theDFMGroup.theDFMs[self.activeDFMNum]  
-
-        self.theDFMGroup.activeDFM = self.activeDFM           
-        ## This is here to ensure that current data is shown quickly regardless of the DFM buffer.   
-        ## Should only do it if NOT recording
+        self.theDFMGroup.SetActiveDFM(self.activeDFMNum)
+        self.activeDFM = self.theDFMGroup.activeDFM 
+      
         if self.theDFMGroup.isReadWorkerRunning: 
+            ## This is here to ensure that current data is shown quickly regardless of the DFM buffer.   
+            ## Should only do it if NOT recording
             self.activeDFM.isBufferResetNeeded=True
-        elif self.theDFMGroup.isWriting:
+        elif self.theDFMGroup.isWriting:          
             if(self.fastUpdateCheckBox.isChecked()):
-                self.activeDFM.SetFastProgramReadInterval()            
+                self.theDFMGroup.SetFastProgramReadInterval()            
             else:
-                self.activeDFM.isSetNormalProgramIntervalNeeded=True        
+                self.theDFMGroup.SetNormalProgramReadInterval()
         self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
         self.UpdateDFMButtonTextColors()
 

@@ -25,19 +25,13 @@ class UARTCOMM():
         ## The timeout here is tricky.  For 15 packets to be sent, it seems to
         ## take about 0.150 seconds, so the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=0.3)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=0.8)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        UARTCOMM.UART_message.notify(tmp)   
-    def _Write(self,s,delay=0.005):
-        GPIO.output(self.sendPIN,GPIO.HIGH)       
-        time.sleep(delay)    
-        self.thePort.write(s.encode())               
-        time.sleep(delay)     
-        GPIO.output(self.sendPIN,GPIO.LOW)
+        UARTCOMM.UART_message.notify(tmp)      
     def _WriteByteArray(self,ba,delay=0.005):       
         GPIO.output(self.sendPIN,GPIO.HIGH)
         time.sleep(delay)    
@@ -93,8 +87,8 @@ class UARTCOMM():
         
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
-        barray.append(0x00)                 
-        self._WriteByteArray(barray,0.001)
+        barray.append(0x00)                        
+        self._WriteByteArray(barray,0.002)
     
     def SendAck(self,ID):        
         ba = bytearray(3)
@@ -105,7 +99,7 @@ class UARTCOMM():
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)            
-        self._WriteByteArray(barray,0.005)
+        self._WriteByteArray(barray,0.002)
 
     def RequestBufferReset(self,ID):        
         self.thePort.reset_input_buffer()
@@ -116,16 +110,22 @@ class UARTCOMM():
     
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
-        barray.append(0x00)            
-        self._WriteByteArray(barray,0.001)
-               
-        tmp=cobs.decode(self._ReadCOBSPacket(5))    
-        if(len(tmp)!=1):            
+        barray.append(0x00)                      
+        self._WriteByteArray(barray,0.003)
+
+        try:
+            tmp=cobs.decode(self._ReadCOBSPacket(5))                 
+            if(len(tmp)!=1):            
+                return False
+            if(tmp[0]==ID):
+                return True
+            else:
+                return False    
+        except:
             return False
-        if(tmp[0]==ID):
-            return True
-        else:
-            return False    
+
+
+
     def SendLinkage(self,ID,linkage):
         ba = bytearray(18)
         ba[0]=ID
@@ -136,14 +136,18 @@ class UARTCOMM():
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)        
-        self._WriteByteArray(barray,0.006)        
-        tmp=self._Read(2)
-        if(len(tmp)!=2):            
-            return False
-        if(tmp[0]==ID):
-            return True 
-        else:            
-            return False    
+        self._WriteByteArray(barray,0.002)
+
+        try:
+            tmp=cobs.decode(self._ReadCOBSPacket(5))              
+            if(len(tmp)!=1):            
+                return False
+            if(tmp[0]==ID):
+                return True
+            else:
+                return False    
+        except:
+            return False 
 
     def SendInstruction(self,ID,anInstruction):          
         ba = bytearray(41)           
@@ -178,17 +182,17 @@ class UARTCOMM():
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)         
-
-        # Using the RT patched linus, it appears that 
-        # a delay of 0.005 is just enough to transmit 43 bytes.
-        self._WriteByteArray(barray,0.006)        
-        tmp=self._Read(2)
-        if(len(tmp)!=2):            
-            return False
-        if(tmp[0]==ID):
-            return True 
-        else:            
-            return False    
+        self._WriteByteArray(barray,0.002)        
+        try:
+            tmp=cobs.decode(self._ReadCOBSPacket(5))              
+            if(len(tmp)!=1):            
+                return False
+            if(tmp[0]==ID):
+                return True
+            else:
+                return False    
+        except:
+            return False  
 
     def GetSomething(self,chars):
         tmp=cobs.decode(self._ReadCOBSPacket(4000))
@@ -207,7 +211,8 @@ class UARTCOMM():
             ## This is set for maxpackets = 60
             tmp=cobs.decode(self._ReadCOBSPacket(4000))
             ## If we make it here we received at least a valid packet
-            ## so send Ack                       
+            ## so send Ack   
+            time.sleep(.002) # Allow DFM to switch its RS483Bit back the other way.                        
             self.SendAck(ID)
             return tmp
         except:
@@ -291,21 +296,58 @@ class I2CCOMM():
         except:
             return False
        
+def ModuleTest2(dfmID):
+    Board.BoardSetup()
+    theCOMM = UARTCOMM()    
+    print(theCOMM.RequestBufferReset(dfmID))
+    return
 
-def ModuleTest(dfmID):
+    tmp = theCOMM.GetStatusPacket(dfmID,0)  
+
+    sp=StatusPacket.StatusPacket(6,6,Enums.DFMTYPE.PLETCHERV3)
+    sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
+    if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
+        print(sp.processResult)
+    else:
+        print(sp.GetConsolePrintPacket())
+
+
+    
+
+def ModuleTest():
     Board.BoardSetup()
     theCOMM = UARTCOMM()    
 
+
+    #for i in range(1,16):
+    #    print(theCOMM.RequestBufferReset(i))
+    #    time.sleep(.3)
+    #return
+
     #print(theCOMM.GetStatusPacket(6,0))
     #return
-    theCOMM.RequestBufferReset(dfmID)    
+    #print(theCOMM.RequestBufferReset(dfmID))
+    #return
     time.sleep(0.5)
-    for i in range(0,2):
-        tmp = theCOMM.GetStatusPacket(6,0)
-        print(len(tmp))
-        sp=StatusPacket.StatusPacket(6,6,Enums.DFMTYPE.PLETCHERV3)
-        sp.ProcessStatusPacket(tmp,datetime.datetime.today(),1)
-        print(sp.GetConsolePrintPacket())
+    #DFMs = [1,2,3,4,5,6]
+    DFMs=[1]
+    for i in range(0,100):
+        for jj in DFMs:
+            tmp = theCOMM.GetStatusPacket(jj,1)        
+            if(len(tmp)>0):
+                numpackets = int(len(tmp)/66)            
+                for j in range(0,numpackets):
+                    sp=StatusPacket.StatusPacket(6,jj,Enums.DFMTYPE.PLETCHERV3)
+                    sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
+                    if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
+                        print(sp.processResult)
+                    print(sp.GetConsolePrintPacket())
+            time.sleep(0.002)
+        time.sleep(5)
+        print('*')
+    return
+    
+
 
 def SimpleTest():
     Board.BoardSetup()
@@ -317,6 +359,7 @@ def SimpleTest():
 
 
 if __name__=="__main__" :
-    ModuleTest(6)
+    ModuleTest()
+    #ModuleTest2(1)
    
    

@@ -26,8 +26,7 @@ class DFM:
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
-        self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
-        self.beforeErrorStatus = Enums.CURRENTSTATUS.UNDEFINED
+        self.pastStatus = Enums.PASTSTATUS.ALLCLEAR        
         self.theData = DataBuffer.DataBuffer()             
         self.sampleIndex=1
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))      
@@ -95,11 +94,9 @@ class DFM:
         
     def SetStatus(self, newStatus):
         if(newStatus != self.status):
-            if(newStatus == Enums.CURRENTSTATUS.ERROR):
-                self.beforeErrorStatus = self.status
+            if(newStatus == Enums.CURRENTSTATUS.ERROR or newStatus == Enums.CURRENTSTATUS.MISSING):               
                 self.pastStatus = Enums.PASTSTATUS.PASTERROR
-            elif(newStatus == Enums.CURRENTSTATUS.RECORDING):
-                self.beforeErrorStatus = newStatus
+            elif(newStatus == Enums.CURRENTSTATUS.RECORDING):                
                 self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
             self.status = newStatus
     #endregion
@@ -179,6 +176,7 @@ class DFM:
                 s="({:d}) Wrong number of bytes".format(self.ID)
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
+              
                 isSuccess=True
             if isSuccess:                                                                                                                        
                 if (currentStatusPackets[j].recordIndex>0):                                                   
@@ -187,16 +185,19 @@ class DFM:
                         self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
                     else:                         
-                        if(self.status == Enums.CURRENTSTATUS.ERROR):
-                            self.SetStatus(self.beforeErrorStatus)                                     
+                        if(saveDataToQueue):
+                            self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
+                        else:
+                            self.SetStatus(Enums.CURRENTSTATUS.READING)                                     
                     if(self.isCalculatingBaseline):                        
                         self.UpdateBaseline()
                 else :
                     # It's okay now to receive these because of the fast buffer reset and call.
                     s="({:d}) Empty packet received".format(self.ID)
-                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)    
+                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)   
+                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)                        
   
-        self.UpdateReportedValues(currentStatusPackets) 
+                self.UpdateReportedValues(currentStatusPackets) 
 
         if(self.DFMType == Enums.DFMTYPE.PLETCHERV3):               
             self.CheckStatusV3()
@@ -224,8 +225,7 @@ class DFM:
             self.currentInstruction = instruct                        
             if(useBaseline):
                 self.currentInstruction.SetBaseline(self.signalBaselines)                        
-            self.isInstructionUpdateNeeded=True         
-            self.isSetNormalProgramIntervalNeeded=True
+            self.isInstructionUpdateNeeded=True                     
     
     def CheckStatusV2(self):        
         lsp = self.theData.GetLastDataPoint()   

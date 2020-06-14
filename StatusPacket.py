@@ -148,9 +148,10 @@ class StatusPacket:
         expectedCheckSum += bytesData[(indexer+64)]<<8
         expectedCheckSum += bytesData[(indexer+65)]
        
-        if(calculatedCheckSum != expectedCheckSum):            
-            self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
-            return
+        #if(calculatedCheckSum != expectedCheckSum):     
+        #    print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
+        #    self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
+        #    return
         
         ## Add one to move past the ID
         indexer+=1
@@ -204,6 +205,12 @@ class StatusPacket:
         self.recordIndex = currentValue        
         #self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
         self.packetTime = datetime.datetime.today()
+
+        if(calculatedCheckSum != expectedCheckSum):     
+            print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
+            self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
+            return
+
         self.processResult =  PROCESSEDPACKETRESULT.OKAY      
         return
 
