@@ -120,8 +120,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         except:
             pass
 
-    def device_connected(self,device):
-        print(device.action)
+    def device_connected(self,device):        
         if(device.action=="add"):
             self.isUSBAttached=True
             self.StatusBar.showMessage("USB connected...",2000)

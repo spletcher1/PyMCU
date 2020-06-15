@@ -98,7 +98,7 @@ class DFMGroup:
     def StartRecording(self):        
         if len(self.theDFMs)==0:
             return False    
-        # THis is here to ensure that the queues are cleared and ready for recording.       
+        # This is here to ensure that the queues are cleared and ready for recording.       
         self.MP.PauseReading()        
         self.theMessageList.ClearMessages()
         for i in self.theDFMs.values():            
@@ -215,8 +215,8 @@ class DFMGroup:
             d.SetStatus(Enums.CURRENTSTATUS.READING)         
      
 
-    def SetActiveDFM(self,listNum):
-        self.activeDFM = self.theDFMs[listNum] 
+    def SetActiveDFM(self,dfmNum):
+        self.activeDFM = self.theDFMs[dfmNum] 
         # Only focus DFM is readworker is running (not programworker)
         if self.isReadWorkerRunning:
             self.MP.SetFocusDFM(self.activeDFM.ID)
@@ -233,7 +233,7 @@ class DFMGroup:
             return
         for d in self.theDFMs.values():
             d.SetStatus(Enums.CURRENTSTATUS.READING)      
-        self.stopReadWorkerSignal=False
+        self.stopReadWorkerSignal=False        
         readThread = threading.Thread(target=self.ReadWorker)        
         readThread.start()    
 
@@ -267,7 +267,7 @@ class DFMGroup:
     def SetFastProgramReadInterval(self):
         if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):
             self.programReadInterval = "fast"
-            self.MP.SetReadInterval(0.5)        
+            self.MP.SetReadInterval(0.3)        
         else:
             self.programReadInterval = "normal"
             self.MP.SetReadInterval(0.2)
@@ -284,12 +284,9 @@ class DFMGroup:
                 self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)    
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
-            except:
-                # Only do this for V3 because V2 will always be fast enough
-                # following status packets alone.
-                for value in self.theDFMs.values():
-                    if(value.DFMType == Enums.DFMTYPE.PLETCHERV3):               
-                        value.CheckStatusV3()
+            except:              
+                for value in self.theDFMs.values():                   
+                    value.CheckStatus()
                    
               
             if(self.isWriting):
@@ -368,15 +365,18 @@ class DFMGroup:
     def StopCurrentProgram(self):
         if(len(self.theDFMs)==0):
             return
-        print("Stopping program.")        
+        print("Stopping program.")     
+        # This is here for V3 to make sure all have nearly the 
+        # same number of observations (not off by 5sec)
+        self.SetFastProgramReadInterval()
+        time.sleep(1)   
         self.StopRecording()         
-        self.SetDFMIdleStatus() 
-        time.sleep(2)
+        self.SetDFMIdleStatus()         
         self.StopProgramWorker()  
         self.currentProgram.isActive=False
         self.StartReadWorker()  
-        DFMGroup.DFMGroup_programEnded.notify()      
-        print("Done")
+        self.MP.SetFocusDFM(self.activeDFM.ID)
+        DFMGroup.DFMGroup_programEnded.notify()              
     
     def StageCurrentProgram(self):
         if(len(self.theDFMs)==0):

@@ -199,12 +199,7 @@ class DFM:
   
                 self.UpdateReportedValues(currentStatusPackets) 
 
-        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3):               
-            self.CheckStatusV3()
-        elif(self.DFMType == Enums.DFMTYPE.PLETCHERV2):
-            self.CheckStatusV2()
-        else:
-            pass #Sable V2 doesn't need anything here.
+        self.CheckStatus()
 
     def ResetOutputFileStuff(self):
         self.outputFileIncrementor=0
@@ -227,6 +222,14 @@ class DFM:
                 self.currentInstruction.SetBaseline(self.signalBaselines)                        
             self.isInstructionUpdateNeeded=True                     
     
+    def CheckStatus(self):
+        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3):               
+            self.CheckStatusV3()
+        elif(self.DFMType == Enums.DFMTYPE.PLETCHERV2):
+            self.CheckStatusV2()
+        else:
+            pass #Sable V2 doesn't need anything here.
+
     def CheckStatusV2(self):        
         lsp = self.theData.GetLastDataPoint()   
         
@@ -260,8 +263,7 @@ class DFM:
         if(self.isBufferResetNeeded):                  
             tmpcommand1=MP_Command(Enums.COMMANDTYPE.BUFFER_RESET,[self.ID])
             DFM.DFM_command.notify(tmpcommand1)      
-            if(self.MP.GetAnswer()):      
-                print("Buffer reset good")                 
+            if(self.MP.GetAnswer()):                    
                 self.isBufferResetNeeded=False
                 self.sampleIndex=1    
             else:

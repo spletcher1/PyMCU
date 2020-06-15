@@ -235,11 +235,8 @@ class DataGetter:
         currentTime = datetime.datetime.today()        
         for info in self.focalDFMs:
             try:
-                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                                 
-                #bytesData=self.theCOMM.GetStatusPacket(info.ID,dummy)                                                 
-                packList=self.ProcessPacket(info,bytesData,currentTime)    
-                #for p in packList:
-                #    print(p.GetConsolePrintPacket())                                          
+                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                                                                                             
+                packList=self.ProcessPacket(info,bytesData,currentTime)                                                  
                 self.data_q.put(packList)                                
             except:                        
                 ss = "Get status exception " + str(id) +"."
@@ -263,9 +260,7 @@ class DataGetter:
             return [currentStatusPacket]          
         if(info.DFMType==DFMTYPE.PLETCHERV3):           
             numPacketsReceived = len(bytesData)/66                                 
-            if (math.floor(numPacketsReceived)!=numPacketsReceived):
-                # TODO: Need to figure out how to possibly recover some of the packets.
-                # TODO: for now, however, no.            
+            if (math.floor(numPacketsReceived)!=numPacketsReceived):             
                 currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
                 currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
                 return [currentStatusPacket]
