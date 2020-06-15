@@ -23,10 +23,10 @@ def DetectUpdateFile():
         if(len(files)==1):    
             print("Updating...")
             time.sleep(1)
-            command = "/bin/tar -C /home/pi/PyMCU -xvf " + "\""+files[0]+"\""                        
+            command = "/bin/tar -C /home/pi/PyMCU/PyMCU -xvf " + "\""+files[0]+"\""                        
             os.system(command)            
             print("Done!")
-            print("Shutting down...Remove USB")    
+            print("Shutting down...Remove USB and power cycle")    
             time.sleep(3)
             os.system("sudo shutdown -h now")
         else:            
