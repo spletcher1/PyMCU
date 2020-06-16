@@ -20,7 +20,7 @@ class DFMErrors:
         return self.currentErrorStatuses[4]
     def GetFERRErrorStatus(self):
         return self.currentErrorStatuses[5]
-    def GetBufferErrorStatus(self):
+    def GetInterruptErrorStatus(self):
         return self.currentErrorStatuses[6]
     def GetMiscErrorStatus(self):
         return self.currentErrorStatuses[7]

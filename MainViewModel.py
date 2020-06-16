@@ -581,10 +581,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.FERRErrorBox.setChecked(False)
         else:
             self.FERRErrorBox.setChecked(True)
-        if(self.activeDFM.currentDFMErrors.GetBufferErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.BufferErrorBox.setChecked(False)
+        if(self.activeDFM.currentDFMErrors.GetInterruptErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
+            self.InterruptErrorBox.setChecked(False)
         else:
-            self.BufferErrorBox.setChecked(True)
+            self.InterruptErrorBox.setChecked(True)
         if(self.activeDFM.currentDFMErrors.GetMiscErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.MiscErrorBox.setChecked(False)
         else:
