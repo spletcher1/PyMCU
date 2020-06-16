@@ -89,7 +89,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>484</width>
+             <width>98</width>
              <height>88</height>
             </rect>
            </property>
@@ -1151,7 +1151,7 @@
                <number>1</number>
               </property>
               <item row="4" column="1">
-               <widget class="QCheckBox" name="BufferErrorBox">
+               <widget class="QCheckBox" name="InterruptErrorBox">
                 <property name="font">
                  <font>
                   <pointsize>10</pointsize>
@@ -1160,7 +1160,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>Buffer</string>
+                 <string>Interrupt</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1327,8 +1327,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>775</width>
-             <height>384</height>
+             <width>98</width>
+             <height>90</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
