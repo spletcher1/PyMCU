@@ -25,7 +25,7 @@ class UARTCOMM():
         ## The timeout here is tricky.  For 15 packets to be sent, it seems to
         ## take about 0.150 seconds, so the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=0.8)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=0.3)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -83,6 +83,18 @@ class UARTCOMM():
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFC # Indicates status request
+        ba[2]=ID
+        
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)                        
+        self._WriteByteArray(barray,0.002)
+
+    def RequestLatestStatus(self,ID):
+                 
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xEA # Indicates latest status request
         ba[2]=ID
         
         encodedba=cobs.encode(ba)        
@@ -198,12 +210,13 @@ class UARTCOMM():
         tmp=cobs.decode(self._ReadCOBSPacket(4000))
         return tmp
         
-
-
-    def GetStatusPacket(self,ID,dummy):    
+    def GetStatusPacket(self,ID,dummy,latestOnly):    
         ack = bytearray(2)                  
         start = time.time()
-        self.RequestStatus(ID)
+        if(latestOnly):            
+            self.RequestLatestStatus(ID)
+        else:
+            self.RequestStatus(ID)
         end=time.time()
         if ((end-start)>0.030) :
             print("Request time: "+str(end-start))        
@@ -244,7 +257,7 @@ class I2CCOMM():
         except:
             return ''
         
-    def GetStatusPacket(self,ID,DFMType):
+    def GetStatusPacket(self,ID,DFMType,dummy):
         if(DFMType == Enums.DFMTYPE.PLETCHERV2):             
             bytestoget = 64               
         elif(DFMType == Enums.DFMTYPE.SABLEV2):             

@@ -203,8 +203,8 @@ class StatusPacket:
         currentValue += bytesData[(indexer+59)]<<8
         currentValue += bytesData[(indexer+60)]
         self.recordIndex = currentValue        
-        #self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
-        self.packetTime = datetime.datetime.today()
+        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
+        #self.packetTime = datetime.datetime.today()
 
         if(calculatedCheckSum != expectedCheckSum):     
             print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       

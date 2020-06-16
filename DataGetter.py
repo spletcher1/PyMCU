@@ -3,7 +3,7 @@ import queue
 import COMM
 import datetime
 import StatusPacket
-from Enums import COMMTYPE,DFMTYPE,COMMANDTYPE,PROCESSEDPACKETRESULT
+from Enums import COMMTYPE,DFMTYPE,COMMANDTYPE,PROCESSEDPACKETRESULT,STATUSREQUESTTYPE
 import math
 import Board
 import time
@@ -48,7 +48,8 @@ class DataGetter:
         self.isPaused = False
         self.theReader = Process(target=self.ReadWorker)
         self.theReader.start()
-        self.QueueMessage("Reader started.")      
+        self.QueueMessage("Reader started.")   
+        self.getLatestStatusOnly=False   
 
     #region Functions that can be called from outside the process
 
@@ -85,7 +86,14 @@ class DataGetter:
     def SetReadInterval(self,interval):
         self.command_q.put(MP_Command(COMMANDTYPE.SET_REFRESHRATE,[interval]))
     def SetFocusDFM(self,dfmid):  
-        self.command_q.put(MP_Command(COMMANDTYPE.SET_FOCAL_DFM,[dfmid]))           
+        self.command_q.put(MP_Command(COMMANDTYPE.SET_FOCAL_DFM,[dfmid]))    
+    def SetStatusRequestType(self,requestType):
+        if(requestType==STATUSREQUESTTYPE.LATESTONLY):
+            self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_LATESTSTATUS,''))
+        else:
+            self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_NORMALSTATUS,''))
+
+
                     
 
   
@@ -206,6 +214,10 @@ class DataGetter:
                 self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
                 ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                    
                 self.QueueMessage(ss)   
+            elif(tmp.commandType==COMMANDTYPE.SET_GET_LATESTSTATUS):
+                self.getLatestStatusOnly=True
+            elif(tmp.commandType==COMMANDTYPE.SET_GET_NORMALSTATUS):
+                self.getLatestStatusOnly=False
             else:
                 print("Unknown Command")
                 return False 
@@ -235,7 +247,7 @@ class DataGetter:
         currentTime = datetime.datetime.today()        
         for info in self.focalDFMs:
             try:
-                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType)                                                                                                             
+                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)                                                                                                             
                 packList=self.ProcessPacket(info,bytesData,currentTime)                                                  
                 self.data_q.put(packList)                                
             except:                        

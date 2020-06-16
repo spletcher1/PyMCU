@@ -363,12 +363,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.activeDFMNum=num              
         self.theDFMGroup.SetActiveDFM(self.activeDFMNum)
         self.activeDFM = self.theDFMGroup.activeDFM 
-      
-        if self.theDFMGroup.isReadWorkerRunning: 
-            ## This is here to ensure that current data is shown quickly regardless of the DFM buffer.   
-            ## Should only do it if NOT recording
-            self.activeDFM.isBufferResetNeeded=True
-        elif self.theDFMGroup.isWriting:          
+        
+        if self.theDFMGroup.isWriting:          
             if(self.fastUpdateCheckBox.isChecked()):
                 self.theDFMGroup.SetFastProgramReadInterval()            
             else:
