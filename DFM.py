@@ -180,7 +180,7 @@ class DFM:
                 isSuccess=True
             if isSuccess:                                                                                                                        
                 if (currentStatusPackets[j].recordIndex>0):                                                   
-                    currentStatusPackets[j].sampleIndex = self.sampleIndex
+                    currentStatusPackets[j].sample = self.sampleIndex
                     self.sampleIndex+=1
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue error".format(self.ID)

@@ -306,6 +306,9 @@ class I2CCOMM():
             return True
         except:
             return False
+    
+    def SendAck(self,ID):
+        pass
        
 def ModuleTest2(dfmID):
     Board.BoardSetup()
