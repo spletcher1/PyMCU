@@ -223,10 +223,8 @@ class UARTCOMM():
         try:      
             ## This is set for maxpackets = 60
             tmp=cobs.decode(self._ReadCOBSPacket(4000))
-            ## If we make it here we received at least a valid packet
-            ## so send Ack   
-            time.sleep(.002) # Allow DFM to switch its RS483Bit back the other way.                        
-            self.SendAck(ID)
+            ## Ack is now sent after packet processing.
+            ## So bad packets are resent.
             return tmp
         except:
             return ''

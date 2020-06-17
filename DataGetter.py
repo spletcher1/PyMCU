@@ -248,7 +248,13 @@ class DataGetter:
         for info in self.focalDFMs:
             try:
                 bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)                                                                                                             
-                packList=self.ProcessPacket(info,bytesData,currentTime)                                                  
+                packList=self.ProcessPacket(info,bytesData,currentTime)     
+                tmp = True    
+                for p in packList:
+                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:
+                        tmp = False
+                if (tmp):
+                    self.theCOMM.SendAck(info.ID)                
                 self.data_q.put(packList)                                
             except:                        
                 ss = "Get status exception " + str(id) +"."
