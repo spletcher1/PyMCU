@@ -48,15 +48,15 @@ class MyDFMDataPlot(FigureCanvas):
         self.pointsB, = self.axes.plot([1.2,2.2,3.2,4.2,5.2,6.2],[7,8,9,10,11,12],"ro",markersize=11)
         
         self.draw()
-    def UpdateFigure(self,DFM, isbaselined):        
-        data = DFM.GetLastAnalogData(True)
+    def UpdateFigure(self,DFM, isbaselined):           
+        data = DFM.GetLastAnalogData(True)      
         if(data==None): return
         AData=data[::2]
-        BData=data[1::2]
+        BData=data[1::2]        
         self.pointsA.set_ydata(AData)
         self.pointsB.set_ydata(BData)
         #self.autolabel(self.rects1)
-        #self.autolabel(self.rects2)
+        #self.autolabel(self.rects2)        
         self.draw()
         
     def compute_initial_figureBARS(self):      
@@ -73,7 +73,7 @@ class MyDFMDataPlot(FigureCanvas):
         self.rects2 = self.axes.bar(self.x + self.barwidth/2, self.column2Data, self.barwidth, label='Col2')        
         #self.autolabel(self.rects1)
         #self.autolabel(self.rects2)
-        #self.axes.legend()
+        self.axes.legend()
    
     def UpdateFigureBARS(self,DFM, isbaselined):        
         data = DFM.GetLastAnalogData(True)

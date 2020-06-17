@@ -3,6 +3,7 @@ FLICData/
 __pycache__/
 *.py[cod]
 *$py.class
+*.tgz
 
 # C extensions
 *.so

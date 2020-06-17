@@ -243,7 +243,7 @@ class MCUProgram():
             tmp ={}
             for key in self.theInstructionSets:
                 a = False
-                for d in dfmList:
+                for d in dfmList.values():
                     if d.ID == key:
                         a = True
                 if a==True:
@@ -251,7 +251,7 @@ class MCUProgram():
 
             self.theInstructionSets = tmp
             
-            for d in dfmList:                
+            for d in dfmList.values():                
                 if(d.ID in self.theInstructionSets.keys()):
                     pass
                 else :
