@@ -212,7 +212,7 @@ class DataGetter:
                 self.QueueMessage(ss)                         
             elif(tmp.commandType==COMMANDTYPE.SEND_OPTOSTATE):                                       
                 self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
-                ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                    
+                ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                                
                 self.QueueMessage(ss)   
             elif(tmp.commandType==COMMANDTYPE.SET_GET_LATESTSTATUS):
                 self.getLatestStatusOnly=True
@@ -232,11 +232,12 @@ class DataGetter:
         self.QueueMessage("Read worker started.")        
         lastTime = time.time()   
         while(True):  
-            if(self.ProcessCommand()==False):         
-                if(self.isPaused==False):
-                    if(time.time()-lastTime>self.refreshRate):                                                               
-                        lastTime = time.time() 
-                        self.ReadValues()                                                                                                                             
+            #if(self.ProcessCommand()==False):         
+            self.ProcessCommand()
+            if(self.isPaused==False):
+                if(time.time()-lastTime>self.refreshRate):                                                               
+                    lastTime = time.time() 
+                    self.ReadValues()                                                                                                                                   
             time.sleep(0.001)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.

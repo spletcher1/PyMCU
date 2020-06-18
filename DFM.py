@@ -232,7 +232,7 @@ class DFM:
         else:
             pass #Sable V2 doesn't need anything here.
 
-    def CheckStatusV2(self):        
+    def CheckStatusV2(self):                  
         lsp = self.theData.GetLastDataPoint()   
         
         if(lsp.optoFrequency!=self.currentInstruction.frequency):            
@@ -250,10 +250,10 @@ class DFM:
 
 
         if(self.isInstructionUpdateNeeded):                
-            self.theOptoLid.UpdateWithInstruction(self.currentInstruction)                   
+            self.theOptoLid.UpdateWithInstruction(self.currentInstruction)                               
             self.isInstructionUpdateNeeded=False
-
-        self.theOptoLid.SetOptoState(lsp.analogValues)              
+        
+        self.theOptoLid.SetOptoState(lsp.analogValues)                      
         if(lsp.optoState1!=self.theOptoLid.optoStateCol1 or lsp.optoState2!=self.theOptoLid.optoStateCol2):            
             tmpcommand4 = MP_Command(Enums.COMMANDTYPE.SEND_OPTOSTATE,[self.ID,self.theOptoLid.optoStateCol1,self.theOptoLid.optoStateCol2])
             DFM.DFM_command.notify(tmpcommand4)   
@@ -269,7 +269,7 @@ class DFM:
                 self.isBufferResetNeeded=False
                 self.sampleIndex=1    
             else:
-                print("Buffer reset nogood")                 
+                print("Buffer reset failed")                 
         
         if(self.isInstructionUpdateNeeded):            
             tmpcommand2=MP_Command(Enums.COMMANDTYPE.INSTRUCTION,[self.ID,self.currentInstruction])
