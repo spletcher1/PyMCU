@@ -281,6 +281,7 @@ class DataGetter:
             if (math.floor(numPacketsReceived)!=numPacketsReceived):             
                 currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
                 currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
+                print(len(bytesData))
                 return [currentStatusPacket]
             else:
                 numPacketsReceived = int(numPacketsReceived)                                

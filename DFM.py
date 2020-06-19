@@ -173,7 +173,7 @@ class DFM:
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Wrong number of bytes".format(self.ID)
+                s="({:d}) Wrong number of bytes:".format(self.ID)
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
               

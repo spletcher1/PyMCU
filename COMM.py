@@ -267,8 +267,7 @@ class I2CCOMM():
             msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
             self.i2cbus.i2c_rdwr(msg)            
             return list(msg)                
-        except:
-            print("Get Status I2C Error")
+        except:            
             return ''   
 
     def SendDark(self,ID,darkstate):

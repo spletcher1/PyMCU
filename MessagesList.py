@@ -3,10 +3,12 @@ import Enums
 import Event
 
 
+
 class MessageList():
     def __init__(self):
         self.theMessages = []
         self.OnMessageRaised=Event.Event()
+        self.maxMessages=500
     def __len__(self):
         return len(self.theMessages)
     def __str__(self):
@@ -35,7 +37,16 @@ class MessageList():
         return s        
     def AddMessage(self,newmessage):
         newmessage.messageNumber = len(self.theMessages)+1
-        self.theMessages.append(newmessage)
+        if(len(self.theMessages)==self.maxMessages):
+            newmessage.DFMID = 0
+            newmessage.messageType=Enums.MESSAGETYPE.NOTICE
+            newmessage.message = "Reached max messages"
+            self.theMessages.append(newmessage)
+        elif(len(self.theMessages)<self.maxMessages):
+            self.theMessages.append(newmessage)
+        else:
+            pass
+        
     def ClearMessages(self):
         self.theMessages.clear()
 
