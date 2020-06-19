@@ -53,7 +53,7 @@ class DFMGroup:
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
     
-    def DFMCommandReceive(self,newCommand):            
+    def DFMCommandReceive(self,newCommand):                
         self.MP.command_q.put(newCommand)
 
     def ClearDFMList(self):        
@@ -289,9 +289,17 @@ class DFMGroup:
                 self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)    
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
-            except:              
-                for value in self.theDFMs.values():                   
-                    value.CheckStatus()
+            except:
+                # For V3 only, check status as needed.  Can't do this for V2
+                # because LED updates rely on last data point, which needs to
+                # be updated before another call to CheckStatus. 
+                # Leave it up to the PacketProcess function to do this.
+                # But that's okay because those come every 0.2 sec
+                # V3 calls come only every 5 sec so need to update BufferReset
+                # Linkage and Instuction as often as possible.
+                if(self.activeDFM.DFMType == Enums.DFMTYPE.PLETCHERV3):              
+                    for value in self.theDFMs.values():                   
+                        value.CheckStatus()
                    
               
             if(self.isWriting):

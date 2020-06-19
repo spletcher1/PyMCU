@@ -480,8 +480,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 print("Shutting down")  
-                self.theDFMGroup.MP.StopReading(True)                                 
-                QCoreApplication.instance().quit()
+                self.theDFMGroup.MP.StopReading()                                 
+                #QCoreApplication.instance().quit()
                 subprocess.call("sudo nohup shutdown -h now", shell=True)
 
     def AssureClearMessages(self):
