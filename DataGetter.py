@@ -142,7 +142,8 @@ class DataGetter:
             return False        
         if (tmp is not None):  
             #print(tmp.commandType)
-            if(tmp.commandType == COMMANDTYPE.FIND_DFM):              
+            if(tmp.commandType == COMMANDTYPE.FIND_DFM):
+                ClearQueuesInternal()             
                 if(tmp.arguments[0]==COMMTYPE.UART):                  
                     self.theCOMM=COMM.UARTCOMM()
                     self.COMMType = COMMTYPE.UART                    
