@@ -117,7 +117,13 @@ class DataGetter:
             self.isPaused=False        
         return self.DFMInfos
 
-  
+    def ClearAnswerQueueInternal(self):
+        try:
+            while True:
+                self.answer_q.get_nowait()
+        except queue.Empty:
+            pass        
+        
     def ClearQueuesInternal(self):
         try:
             while True:
@@ -143,7 +149,7 @@ class DataGetter:
         if (tmp is not None):  
             #print(tmp.commandType)
             if(tmp.commandType == COMMANDTYPE.FIND_DFM):
-                ClearQueuesInternal()             
+                self.ClearQueuesInternal()             
                 if(tmp.arguments[0]==COMMTYPE.UART):                  
                     self.theCOMM=COMM.UARTCOMM()
                     self.COMMType = COMMTYPE.UART                    
@@ -183,7 +189,7 @@ class DataGetter:
                 self.startTime=tmp.arguments[0]                                 
             elif(tmp.commandType==COMMANDTYPE.SET_REFRESHRATE):
                 self.refreshRate = tmp.arguments[0]                                          
-            elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                  
+            elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                             
                 answer=self.theCOMM.RequestBufferReset(tmp.arguments[0])                                    
                 self.answer_q.put([tmp.arguments[0],answer])                
             elif(tmp.commandType==COMMANDTYPE.SET_FOCAL_DFM):
@@ -193,10 +199,10 @@ class DataGetter:
                     for i in self.DFMInfos:                        
                         if i.ID == tmp.arguments[0]:
                             self.focalDFMs = [i]                                                        
-            elif(tmp.commandType==COMMANDTYPE.LINKAGE):
+            elif(tmp.commandType==COMMANDTYPE.LINKAGE):                
                 answer=self.theCOMM.SendLinkage(tmp.arguments[0],tmp.arguments[1])
                 self.answer_q.put([tmp.arguments[0],answer])
-            elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):
+            elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):                
                 answer=self.theCOMM.SendInstruction(tmp.arguments[0],tmp.arguments[1])
                 self.answer_q.put([tmp.arguments[0],answer])
             elif(tmp.commandType==COMMANDTYPE.SEND_DARK):                                       
