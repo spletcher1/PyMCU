@@ -115,7 +115,7 @@ class UARTCOMM():
 
     def RequestBufferReset(self,ID):        
         self.thePort.reset_input_buffer()
-        self.thePort.timeout=0.05
+        self.thePort.timeout=0.1
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFE # Indicates buffer reset        
@@ -128,7 +128,7 @@ class UARTCOMM():
 
         try:
             tmp=cobs.decode(self._ReadCOBSPacket(5))                 
-            self.thePort.timeout=0.3
+            self.thePort.timeout=0.5
             if(len(tmp)!=1):            
                 return False
             if(tmp[0]==ID):
@@ -136,7 +136,7 @@ class UARTCOMM():
             else:
                 return False    
         except:
-            self.thePort.timeout=0.3
+            self.thePort.timeout=0.5
             return False
 
 
@@ -222,12 +222,12 @@ class UARTCOMM():
             self.RequestStatus(ID)
         
         try:      
-            start = time.time()
+            #start = time.time()
             ## This is set for maxpackets = 60
             tmp=cobs.decode(self._ReadCOBSPacket(4000))
-            end=time.time()
-            if ((end-start)>0.030) :
-                print("Status time: "+str(end-start))        
+            #end=time.time()
+            #if ((end-start)>0.030) :
+            #    print("Status time: "+str(end-start))        
             ## Ack is now sent after packet processing.
             ## So bad packets are resent.
             return tmp
