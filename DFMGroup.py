@@ -106,9 +106,8 @@ class DFMGroup:
             i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
             i.isLinkageSetNeeded=True
             i.currentDFMErrors.ClearErrors()
-        
-        command=DataGetter.MP_Command(Enums.COMMANDTYPE.SET_STARTTIME,[datetime.datetime.today()])
-        self.MP.QueueCommand(command)
+                
+        self.MP.SetStartTime()
                   
         # All DFMV3 should be at fast program read interval here.
         ## So wait enough time to allow everyone to reset, say 2 seconds

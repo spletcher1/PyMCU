@@ -18,6 +18,8 @@ class MP_Command:
     def __init__(self,ctype,arg):
         self.commandType = ctype
         self.arguments=arg
+    def __str__(self):
+        return str(self.commandType) + ":" + str(self.arguments)
 
 class DFMInfo:
     def __init__(self,id,dfmtype):
@@ -102,11 +104,14 @@ class DataGetter:
     def SetFocusDFM(self,dfmid):  
         self.command_q.put(MP_Command(COMMANDTYPE.SET_FOCAL_DFM,[dfmid]))    
     def SetStatusRequestType(self,requestType):
+
         if(requestType==STATUSREQUESTTYPE.LATESTONLY):
             self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_LATESTSTATUS,''))
         else:
             self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_NORMALSTATUS,''))
-  
+    def SetStartTime(self):
+        self.command_q.put(MP_Command(COMMANDTYPE.SET_STARTTIME,[datetime.datetime.today()]))
+                  
     #endregion
 
 
@@ -157,7 +162,7 @@ class DataGetter:
         except:
             return False        
         if (tmp is not None):  
-            #print(tmp.commandType)
+            print(tmp)
             if(tmp.commandType == COMMANDTYPE.FIND_DFM):              
                 if(tmp.arguments[0]==COMMTYPE.UART):                  
                     self.theCOMM=COMM.UARTCOMM()
@@ -252,7 +257,7 @@ class DataGetter:
             self.ProcessCommand()
             if(self.isPaused==False):
                 if(time.time()-lastTime>self.refreshRate):                                                               
-                    lastTime = time.time() 
+                    lastTime = time.time()                 
                     self.ReadValues()                                                                                                                                   
             time.sleep(0.001)
             # Note that when reading is stopped it should stop (especially for V3)

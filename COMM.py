@@ -22,10 +22,10 @@ class UARTCOMM():
     UART_message = Event.Event()
     #region Core read/write functions
     def __init__(self):
-        ## The timeout here is tricky.  For 15 packets to be sent, it seems to
-        ## take about 0.150 seconds, so the timeout has to be larger than this
+        ## The timeout here is tricky.  For 60 packets to be sent, it seems to
+        ## take about 0.250 seconds, but sometimes over 0.3. So the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=0.1)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=0.5)           
         self.sendPIN = 17
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -115,6 +115,7 @@ class UARTCOMM():
 
     def RequestBufferReset(self,ID):        
         self.thePort.reset_input_buffer()
+        self.thePort.timeout=0.05
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFE # Indicates buffer reset        
@@ -127,6 +128,7 @@ class UARTCOMM():
 
         try:
             tmp=cobs.decode(self._ReadCOBSPacket(5))                 
+            self.thePort.timeout=0.3
             if(len(tmp)!=1):            
                 return False
             if(tmp[0]==ID):
@@ -134,6 +136,7 @@ class UARTCOMM():
             else:
                 return False    
         except:
+            self.thePort.timeout=0.3
             return False
 
 
@@ -212,17 +215,19 @@ class UARTCOMM():
         
     def GetStatusPacket(self,ID,dummy,latestOnly):    
         ack = bytearray(2)                  
-        start = time.time()
+     
         if(latestOnly):            
             self.RequestLatestStatus(ID)
         else:
             self.RequestStatus(ID)
-        end=time.time()
-        if ((end-start)>0.030) :
-            print("Request time: "+str(end-start))        
+        
         try:      
+            start = time.time()
             ## This is set for maxpackets = 60
             tmp=cobs.decode(self._ReadCOBSPacket(4000))
+            end=time.time()
+            if ((end-start)>0.030) :
+                print("Status time: "+str(end-start))        
             ## Ack is now sent after packet processing.
             ## So bad packets are resent.
             return tmp
