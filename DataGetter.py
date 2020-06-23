@@ -62,7 +62,7 @@ class DataGetter:
             return tmp
         except:                
             return None
-     def ClearQueues(self):
+    def ClearQueues(self):
         self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
     def PauseReading(self):
         self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
@@ -79,24 +79,24 @@ class DataGetter:
         return self.GetAnswer(20)
     def SendBufferReset(self,ID):
         self.ClearAnswerQueueInternal()
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.BUFFER_RESET,[ID])
+        self.command_q.put(MP_Command(COMMANDTYPE.BUFFER_RESET,[ID]))
         return self.GetAnswer(1)
     def SendInstruction(self,ID,currentInstruction):
         self.ClearAnswerQueueInternal()
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.INSTRUCTION,[ID,currentInstruction]))
+        self.command_q.put(MP_Command(COMMANDTYPE.INSTRUCTION,[ID,currentInstruction]))
         return self.GetAnswer(2)
     def SendLinkage(self,ID,currentLinkage):
         self.ClearAnswerQueueInternal()
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.LINKAGE,[ID,currentLinkage]))
+        self.command_q.put(MP_Command(COMMANDTYPE.LINKAGE,[ID,currentLinkage]))
         return self.GetAnswer(2)
     def SendFrequency(self,ID,frequency):
-        self.command_q.put(Enums.COMMANDTYPE.SEND_FREQ,[ID,frequency])        
+        self.command_q.put(MP_Command(COMMANDTYPE.SEND_FREQ,[ID,frequency]))        
     def SendPulseWidth(self,ID,pulseWidth):
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.SEND_PW,[ID,pulseWidth])        
+        self.command_q.put(MP_Command(COMMANDTYPE.SEND_PW,[ID,pulseWidth]))        
     def SendDarkState(self,ID,val):
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.SEND_DARK,[ID,val])   
+        self.command_q.put(MP_Command(COMMANDTYPE.SEND_DARK,[ID,val]))   
     def SendOptoState(self,ID,os1,os2):
-        self.command_q.put(MP_Command(Enums.COMMANDTYPE.SEND_OPTOSTATE,[ID,os1,os2])        
+        self.command_q.put(MP_Command(COMMANDTYPE.SEND_OPTOSTATE,[ID,os1,os2]))        
     def SetReadInterval(self,interval):
         self.command_q.put(MP_Command(COMMANDTYPE.SET_REFRESHRATE,[interval]))
     def SetFocusDFM(self,dfmid):  

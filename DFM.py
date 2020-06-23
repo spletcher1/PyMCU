@@ -242,7 +242,7 @@ class DFM:
                 
         if(self.currentInstruction.theDarkState!=Enums.DARKSTATE.UNCONTROLLED):                 
             if(lsp.darkStatus!=self.currentInstruction.theDarkState.value[0]): 
-                self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value[0]])          
+                self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value[0])          
                
         if(self.isInstructionUpdateNeeded):                
             self.theOptoLid.UpdateWithInstruction(self.currentInstruction)                               
@@ -252,23 +252,25 @@ class DFM:
         if(lsp.optoState1!=self.theOptoLid.optoStateCol1 or lsp.optoState2!=self.theOptoLid.optoStateCol2):   
             self.MP.SendOptoState(self.ID,self.theOptoLid.optoStateCol1,self.theOptoLid.optoStateCol2)                 
 
-    # NOTE: Currently I lost the ability to make sure the request was received.
-    #       need to fix this.
     def CheckStatusV3(self):             
         if(self.isBufferResetNeeded):                  
             if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False
                 self.sampleIndex=1    
             else:
-                print("Buffer reset failed")                 
+                print("Buffer reset NACKed")                 
         
         if(self.isInstructionUpdateNeeded):            
             if(self.MP.SendInstruction(self.ID, self.currentInstruction)):                       
                 self.isInstructionUpdateNeeded=False
+            else:
+                print("Instruction update NACKed")            
            
         if(self.isLinkageSetNeeded):                       
-            if(self.MP.SendLinkage()):                       
+            if(self.MP.SendLinkage(self.ID,self.currentLinkage)):                       
                 self.isLinkageSetNeeded=False
+            else:
+                print("Linkage update NACKed")            
                   
         return    
 
