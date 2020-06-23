@@ -22,8 +22,7 @@ class DFMGroup:
     def __init__(self):
         self.MP = DataGetter.DataGetter() 
         self.theDFMs = {}
-        DFM.DFM.DFM_message+=self.NewMessageDirect
-        DFM.DFM.DFM_command+=self.DFMCommandReceive
+        DFM.DFM.DFM_message+=self.NewMessageDirect        
         self.stopReadWorkerSignal = False        
         self.stopProgramWorkerSignal = False    
         self.stopRecordingSignal = False
@@ -52,9 +51,7 @@ class DFMGroup:
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
-    
-    def DFMCommandReceive(self,newCommand):                
-        self.MP.command_q.put(newCommand)
+
 
     def ClearDFMList(self):        
         self.StopRecording()

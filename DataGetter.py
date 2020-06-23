@@ -56,20 +56,13 @@ class DataGetter:
     def StopReading(self):   
         self.QueueMessage("Reader termination requested.")         
         self.command_q.put(MP_Command(COMMANDTYPE.STOP_READING,''))              
-    def GetAnswer(self, blk=True,tout=1):
-        if(blk):
-            try:                
-                tmp = self.answer_q.get(block=True,timeout=tout)                              
-                return tmp
-            except:                
-                return None
-        else:
-            try:
-                tmp = self.answer_q.get(False)
-                return tmp
-            except:
-                return None 
-    def ClearQueues(self):
+    def GetAnswer(self, tout):     
+        try:                
+            tmp = self.answer_q.get(block=True,timeout=tout)                              
+            return tmp
+        except:                
+            return None
+     def ClearQueues(self):
         self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
     def PauseReading(self):
         self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
@@ -81,8 +74,29 @@ class DataGetter:
         self.command_q.put(MP_Command(COMMANDTYPE.RESET_COUNTER,''))
         self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))    
     def FindDFM(self,COMMType):
+        self.ClearAnswerQueueInternal()
         self.command_q.put(MP_Command(COMMANDTYPE.FIND_DFM,[COMMType]))
-        return self.GetAnswer(blk=True,tout=20)
+        return self.GetAnswer(20)
+    def SendBufferReset(self,ID):
+        self.ClearAnswerQueueInternal()
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.BUFFER_RESET,[ID])
+        return self.GetAnswer(1)
+    def SendInstruction(self,ID,currentInstruction):
+        self.ClearAnswerQueueInternal()
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.INSTRUCTION,[ID,currentInstruction]))
+        return self.GetAnswer(2)
+    def SendLinkage(self,ID,currentLinkage):
+        self.ClearAnswerQueueInternal()
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.LINKAGE,[ID,currentLinkage]))
+        return self.GetAnswer(2)
+    def SendFrequency(self,ID,frequency):
+        self.command_q.put(Enums.COMMANDTYPE.SEND_FREQ,[ID,frequency])        
+    def SendPulseWidth(self,ID,pulseWidth):
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.SEND_PW,[ID,pulseWidth])        
+    def SendDarkState(self,ID,val):
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.SEND_DARK,[ID,val])   
+    def SendOptoState(self,ID,os1,os2):
+        self.command_q.put(MP_Command(Enums.COMMANDTYPE.SEND_OPTOSTATE,[ID,os1,os2])        
     def SetReadInterval(self,interval):
         self.command_q.put(MP_Command(COMMANDTYPE.SET_REFRESHRATE,[interval]))
     def SetFocusDFM(self,dfmid):  
@@ -92,10 +106,6 @@ class DataGetter:
             self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_LATESTSTATUS,''))
         else:
             self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_NORMALSTATUS,''))
-
-
-                    
-
   
     #endregion
 
@@ -148,8 +158,7 @@ class DataGetter:
             return False        
         if (tmp is not None):  
             #print(tmp.commandType)
-            if(tmp.commandType == COMMANDTYPE.FIND_DFM):
-                self.ClearQueuesInternal()             
+            if(tmp.commandType == COMMANDTYPE.FIND_DFM):              
                 if(tmp.arguments[0]==COMMTYPE.UART):                  
                     self.theCOMM=COMM.UARTCOMM()
                     self.COMMType = COMMTYPE.UART                    

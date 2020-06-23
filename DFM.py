@@ -16,8 +16,7 @@ import OptoLid
 from DataGetter import MP_Command
 
 class DFM:
-    DFM_message = Event.Event()
-    DFM_command = Event.Event()
+    DFM_message = Event.Event()    
     #region Initialization, etc.
     def __init__(self,id,dfmType,mp):
         self.MP = mp
@@ -235,52 +234,40 @@ class DFM:
     def CheckStatusV2(self):                  
         lsp = self.theData.GetLastDataPoint()   
         
-        if(lsp.optoFrequency!=self.currentInstruction.frequency):            
-            tmpcommand1=MP_Command(Enums.COMMANDTYPE.SEND_FREQ,[self.ID,self.currentInstruction.frequency])
-            DFM.DFM_command.notify(tmpcommand1)
-        
+        if(lsp.optoFrequency!=self.currentInstruction.frequency):     
+            self.MP.SendFrequency(self.ID,self.currentInstruction.frequency)       
+           
         if(lsp.optoPulseWidth!=self.currentInstruction.pulseWidth):               
-            tmpcommand2=MP_Command(Enums.COMMANDTYPE.SEND_PW,[self.ID,self.currentInstruction.pulseWidth])
-            DFM.DFM_command.notify(tmpcommand2)
+            self.MP.SendPulseWidth(self.ID,self.currentInstruction.pulseWidth)
                 
         if(self.currentInstruction.theDarkState!=Enums.DARKSTATE.UNCONTROLLED):                 
-            if(lsp.darkStatus!=self.currentInstruction.theDarkState.value[0]):           
-                tmpcommand3=MP_Command(Enums.COMMANDTYPE.SEND_DARK,[self.ID,self.currentInstruction.theDarkState.value[0]])
-                DFM.DFM_command.notify(tmpcommand3) 
-
-
+            if(lsp.darkStatus!=self.currentInstruction.theDarkState.value[0]): 
+                self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value[0]])          
+               
         if(self.isInstructionUpdateNeeded):                
             self.theOptoLid.UpdateWithInstruction(self.currentInstruction)                               
             self.isInstructionUpdateNeeded=False
         
         self.theOptoLid.SetOptoState(lsp.analogValues)                      
-        if(lsp.optoState1!=self.theOptoLid.optoStateCol1 or lsp.optoState2!=self.theOptoLid.optoStateCol2):            
-            tmpcommand4 = MP_Command(Enums.COMMANDTYPE.SEND_OPTOSTATE,[self.ID,self.theOptoLid.optoStateCol1,self.theOptoLid.optoStateCol2])
-            DFM.DFM_command.notify(tmpcommand4)   
-        
+        if(lsp.optoState1!=self.theOptoLid.optoStateCol1 or lsp.optoState2!=self.theOptoLid.optoStateCol2):   
+            self.MP.SendOptoState(self.ID,self.theOptoLid.optoStateCol1,self.theOptoLid.optoStateCol2)                 
 
     # NOTE: Currently I lost the ability to make sure the request was received.
     #       need to fix this.
     def CheckStatusV3(self):             
         if(self.isBufferResetNeeded):                  
-            tmpcommand1=MP_Command(Enums.COMMANDTYPE.BUFFER_RESET,[self.ID])
-            DFM.DFM_command.notify(tmpcommand1)      
-            if(self.MP.GetAnswer()):                    
+            if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False
                 self.sampleIndex=1    
             else:
                 print("Buffer reset failed")                 
         
         if(self.isInstructionUpdateNeeded):            
-            tmpcommand2=MP_Command(Enums.COMMANDTYPE.INSTRUCTION,[self.ID,self.currentInstruction])
-            DFM.DFM_command.notify(tmpcommand2)
-            if(self.MP.GetAnswer()):                       
+            if(self.MP.SendInstruction(self.ID, self.currentInstruction)):                       
                 self.isInstructionUpdateNeeded=False
            
-        if(self.isLinkageSetNeeded):            
-            tmpcommand3=MP_Command(Enums.COMMANDTYPE.LINKAGE,[self.ID,self.currentLinkage])
-            DFM.DFM_command.notify(tmpcommand3)
-            if(self.MP.GetAnswer()):                       
+        if(self.isLinkageSetNeeded):                       
+            if(self.MP.SendLinkage()):                       
                 self.isLinkageSetNeeded=False
                   
         return    
