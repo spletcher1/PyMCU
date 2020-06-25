@@ -354,7 +354,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
         msg.setWindowTitle("About MCU")
-        ss="Version: 0.5 beta\nIP: " + hostip
+        ss="Version: 0.9 beta\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +"MB"
         msg.setInformativeText(ss)    
         msg.exec_()   
