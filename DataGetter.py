@@ -293,7 +293,7 @@ class DataGetter:
             ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
             self.QueueMessage(ss)              
 
-    def ProcessPacket(self,info,bytesData,currentTime):                 
+    def ProcessPacket(self,info,bytesData,currentTime):              
         if(bytesData==-1):                            
             currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
             currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER          

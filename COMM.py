@@ -45,13 +45,16 @@ class UARTCOMM():
         cobsResult = Enums.COBSRESULT.OKAY        
         term = bytearray(1)
         term[0]=0x00
-        result = self.thePort.read_until(term,maxBytes)
-        if(len(result)==0):
+        result = self.thePort.read_until(term,maxBytes)      
+        if(len(result)==0):         
             cobsResult = Enums.COBSRESULT.NOANSWER
+            return (cobsResult,result)
         if(result[-1]!=0):
             cobsResult = Enums.COBSRESULT.INCOMPLETEPACKET          
+            return (cobsResult,result)
         result = result[:-1]        
         return (cobsResult,result)
+        
     #endregion
 
     #region Misc Functions
@@ -248,7 +251,7 @@ class UARTCOMM():
         try:      
             #start = time.time()
             ## This is set for maxpackets = 60
-            tmp = self._ReadCOBSPacket(5000)
+            tmp = self._ReadCOBSPacket(5000)            
             if(tmp[0]==Enums.COBSRESULT.NOANSWER):            
                 return -1
             elif(tmp[0]==Enums.COBSRESULT.INCOMPLETEPACKET):  
