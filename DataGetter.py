@@ -123,7 +123,7 @@ class DataGetter:
             return []            
         self.DFMInfos.clear()
         for i in range(1,15+1):
-            tmp = self.theCOMM.PollSlave(i)
+            tmp = self.theCOMM.PollSlave(i)            
             if(tmp != '' ):                
                 self.DFMInfos.append(DFMInfo(i,tmp))                        
             time.sleep(0.010)
@@ -273,9 +273,9 @@ class DataGetter:
                 packList=self.ProcessPacket(info,bytesData,currentTime)     
                 tmp = True    
                 for p in packList:
-                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:
+                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:                      
                         tmp = False
-                if (tmp):
+                if (tmp):                    
                     self.theCOMM.SendAck(info.ID)                
                 self.data_q.put(packList)                                
             except:                        
@@ -294,16 +294,22 @@ class DataGetter:
             self.QueueMessage(ss)              
 
     def ProcessPacket(self,info,bytesData,currentTime):                 
-        if(len(bytesData)==0):                            
+        if(bytesData==-1):                            
             currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
-            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER                    
-            return [currentStatusPacket]          
+            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER          
+            print("No answer")          
+            return [currentStatusPacket]      
+        elif(bytesData==-2):  
+            currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
+            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.INCOMPLETEPACKET          
+            print("Incomplete packet")          
+            return [currentStatusPacket]    
         if(info.DFMType==DFMTYPE.PLETCHERV3):           
             numPacketsReceived = len(bytesData)/66                                 
             if (math.floor(numPacketsReceived)!=numPacketsReceived):             
                 currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
                 currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
-                print(len(bytesData))
+                print("Wrong num bytes")
                 return [currentStatusPacket]
             else:
                 numPacketsReceived = int(numPacketsReceived)                                
@@ -327,14 +333,17 @@ def ModuleTest():
     mp.theCOMM=COMM.UARTCOMM()
     mp.COMMType = COMMTYPE.UART  
     print(mp.FindDFMInternal())
-    return
-    mp.theCOMM.RequestBufferReset(6)
+    for i in range(1,7):
+        mp.theCOMM.RequestBufferReset(i)
+        time.sleep(0.1)
     time.sleep(1)
-
+    mp.focalDFMs=mp.DFMInfos[0:6]
+    mp.getLatestStatusOnly=False
     for i in range(0,10):
         mp.ReadValues()
         print('*')        
         time.sleep(1)
+    mp.ClearQueuesInternal()
     
 
 

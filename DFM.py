@@ -174,8 +174,11 @@ class DFM:
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Wrong number of bytes:".format(self.ID)
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
-            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
-              
+            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET):
+                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                s="({:d}) Incomplete packet received:".format(self.ID)
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
             if isSuccess:                                                                                                                        
                 if (currentStatusPackets[j].recordIndex>0):                                                   
