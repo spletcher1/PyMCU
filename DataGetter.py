@@ -277,6 +277,8 @@ class DataGetter:
                         tmp = False
                 if (tmp):                    
                     self.theCOMM.SendAck(info.ID)                
+                else:
+                    print("Ack not sent")
                 self.data_q.put(packList)                                
             except:                        
                 ss = "Get status exception " + str(id) +"."

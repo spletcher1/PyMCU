@@ -381,7 +381,7 @@ def ModuleTest():
     time.sleep(0.5)
     #DFMs = [1,2,3,4,5,6]
     DFMs=[3]
-    for i in range(0,100):
+    for i in range(0,10):
         for jj in DFMs:
             tmp = theCOMM.GetStatusPacket(jj,1,False)        
             if(len(tmp)>0):
