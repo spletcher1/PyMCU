@@ -25,7 +25,7 @@ class UARTCOMM():
         ## The timeout here is tricky.  For 60 packets to be sent, it seems to
         ## take about 0.250 seconds, but sometimes over 0.3. So the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,inter_byte_timeout=0.1,timeout=1)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,inter_byte_timeout=0.3,timeout=1)           
         self.sendPIN = 17        
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -376,12 +376,12 @@ def ModuleTest():
 
     #print(theCOMM.GetStatusPacket(6,0))
     #return
-    #print(theCOMM.RequestBufferReset(3))
+    print(theCOMM.RequestBufferReset(3))
     #return
     time.sleep(0.5)
     #DFMs = [1,2,3,4,5,6]
     DFMs=[3]
-    for i in range(0,10):
+    for i in range(0,4):
         for jj in DFMs:
             tmp = theCOMM.GetStatusPacket(jj,1,False)        
             if(len(tmp)>0):
@@ -393,7 +393,7 @@ def ModuleTest():
                         print(sp.processResult)
                     print(sp.GetConsolePrintPacket())
             time.sleep(0.002)
-        time.sleep(5)
+        time.sleep(1)
         print('*')
     return
     
