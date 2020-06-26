@@ -276,9 +276,7 @@ class DataGetter:
                     if p.processResult != PROCESSEDPACKETRESULT.OKAY:                      
                         tmp = False
                 if (tmp):                    
-                    self.theCOMM.SendAck(info.ID)                
-                else:
-                    print("Ack not sent")
+                    self.theCOMM.SendAck(info.ID)                             
                 self.data_q.put(packList)                                
             except:                        
                 ss = "Get status exception " + str(id) +"."
@@ -311,7 +309,7 @@ class DataGetter:
             if (math.floor(numPacketsReceived)!=numPacketsReceived):             
                 currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
                 currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
-                print("Wrong num bytes")
+                print("Wrong num bytes: " + str(numPacketsReceived))
                 return [currentStatusPacket]
             else:
                 numPacketsReceived = int(numPacketsReceived)                                

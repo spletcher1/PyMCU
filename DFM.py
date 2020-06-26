@@ -79,8 +79,6 @@ class DFM:
         ## Idle is opto off, dark running as its has been, and default other parameters.
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=True
-        ## Do not write to the serial device here because it will collide with its use in the ReadWorker
-        ## Thread.  Checkstatus, which should send the default instruction, is handled by that thread.
 
     def SetOutputsOn(self):
         self.currentInstruction = Instruction.DFMInstruction()

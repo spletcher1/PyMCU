@@ -25,7 +25,7 @@ class UARTCOMM():
         ## The timeout here is tricky.  For 60 packets to be sent, it seems to
         ## take about 0.250 seconds, but sometimes over 0.3. So the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,inter_byte_timeout=0.3,timeout=1)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=1)           
         self.sendPIN = 17        
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)

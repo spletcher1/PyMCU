@@ -314,7 +314,8 @@ class DFMGroup:
          
 
     def ReadWorker(self):    
-        self.isReadWorkerRunning=True   
+        self.isReadWorkerRunning=True  
+        self.MP.StartReading()    
         self.MP.SetStatusRequestType(Enums.STATUSREQUESTTYPE.LATESTONLY);                 
         while True:   
             try:             
@@ -336,7 +337,7 @@ class DFMGroup:
 
     #region Updating Functions
     ## This function is the one that should be called by an external timer
-    ## to keep things rolling correctly.
+    ## to ke ep things rolling correctly.
     def UpdateProgramStatus(self):
         if(self.currentProgram.isActive):
             if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):
@@ -379,7 +380,8 @@ class DFMGroup:
         # This is here for V3 to make sure all have nearly the 
         # same number of observations (not off by 5sec)
         self.SetFastProgramReadInterval()
-        time.sleep(1)   
+        time.sleep(1)    
+        self.MP.PauseReading()      
         self.StopRecording()         
         self.SetDFMIdleStatus()         
         self.StopProgramWorker()  
