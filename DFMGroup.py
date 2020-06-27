@@ -22,8 +22,7 @@ class DFMGroup:
     def __init__(self):
         self.MP = DataGetter.DataGetter() 
         self.theDFMs = {}
-        DFM.DFM.DFM_message+=self.NewMessageDirect
-        DFM.DFM.DFM_command+=self.DFMCommandReceive
+        DFM.DFM.DFM_message+=self.NewMessageDirect        
         self.stopReadWorkerSignal = False        
         self.stopProgramWorkerSignal = False    
         self.stopRecordingSignal = False
@@ -52,9 +51,7 @@ class DFMGroup:
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         self.theMessageList.AddMessage(tmp)  
         DFMGroup.DFMGroup_message.notify(tmp)      
-    
-    def DFMCommandReceive(self,newCommand):            
-        self.MP.command_q.put(newCommand)
+
 
     def ClearDFMList(self):        
         self.StopRecording()
@@ -109,9 +106,8 @@ class DFMGroup:
             i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
             i.isLinkageSetNeeded=True
             i.currentDFMErrors.ClearErrors()
-        
-        command=DataGetter.MP_Command(Enums.COMMANDTYPE.SET_STARTTIME,[datetime.datetime.today()])
-        self.MP.QueueCommand(command)
+                
+        self.MP.SetStartTime()
                   
         # All DFMV3 should be at fast program read interval here.
         ## So wait enough time to allow everyone to reset, say 2 seconds
@@ -289,9 +285,17 @@ class DFMGroup:
                 self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)    
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
-            except:              
-                for value in self.theDFMs.values():                   
-                    value.CheckStatus()
+            except:
+                # For V3 only, check status as needed.  Can't do this for V2
+                # because LED updates rely on last data point, which needs to
+                # be updated before another call to CheckStatus. 
+                # Leave it up to the PacketProcess function to do this.
+                # But that's okay because those come every 0.2 sec
+                # V3 calls come only every 5 sec so need to update BufferReset
+                # Linkage and Instuction as often as possible.
+                if(self.activeDFM.DFMType == Enums.DFMTYPE.PLETCHERV3):              
+                    for value in self.theDFMs.values():                   
+                        value.CheckStatus()
                    
               
             if(self.isWriting):
@@ -310,7 +314,8 @@ class DFMGroup:
          
 
     def ReadWorker(self):    
-        self.isReadWorkerRunning=True   
+        self.isReadWorkerRunning=True  
+        self.MP.StartReading()    
         self.MP.SetStatusRequestType(Enums.STATUSREQUESTTYPE.LATESTONLY);                 
         while True:   
             try:             
@@ -332,7 +337,7 @@ class DFMGroup:
 
     #region Updating Functions
     ## This function is the one that should be called by an external timer
-    ## to keep things rolling correctly.
+    ## to ke ep things rolling correctly.
     def UpdateProgramStatus(self):
         if(self.currentProgram.isActive):
             if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):
@@ -375,7 +380,8 @@ class DFMGroup:
         # This is here for V3 to make sure all have nearly the 
         # same number of observations (not off by 5sec)
         self.SetFastProgramReadInterval()
-        time.sleep(1)   
+        time.sleep(1)    
+        self.MP.PauseReading()      
         self.StopRecording()         
         self.SetDFMIdleStatus()         
         self.StopProgramWorker()  

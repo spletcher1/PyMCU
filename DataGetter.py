@@ -18,6 +18,8 @@ class MP_Command:
     def __init__(self,ctype,arg):
         self.commandType = ctype
         self.arguments=arg
+    def __str__(self):
+        return str(self.commandType) + ":" + str(self.arguments)
 
 class DFMInfo:
     def __init__(self,id,dfmtype):
@@ -56,19 +58,12 @@ class DataGetter:
     def StopReading(self):   
         self.QueueMessage("Reader termination requested.")         
         self.command_q.put(MP_Command(COMMANDTYPE.STOP_READING,''))              
-    def GetAnswer(self, blk=True,tout=1):
-        if(blk):
-            try:                
-                tmp = self.answer_q.get(block=True,timeout=tout)                              
-                return tmp
-            except:                
-                return None
-        else:
-            try:
-                tmp = self.answer_q.get(False)
-                return tmp
-            except:
-                return None 
+    def GetAnswer(self, tout):     
+        try:                
+            tmp = self.answer_q.get(block=True,timeout=tout)                              
+            return tmp
+        except:                
+            return None
     def ClearQueues(self):
         self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
     def PauseReading(self):
@@ -81,22 +76,42 @@ class DataGetter:
         self.command_q.put(MP_Command(COMMANDTYPE.RESET_COUNTER,''))
         self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))    
     def FindDFM(self,COMMType):
+        self.ClearAnswerQueueInternal()
         self.command_q.put(MP_Command(COMMANDTYPE.FIND_DFM,[COMMType]))
-        return self.GetAnswer(blk=True,tout=20)
+        return self.GetAnswer(20)
+    def SendBufferReset(self,ID):
+        self.ClearAnswerQueueInternal()
+        self.command_q.put(MP_Command(COMMANDTYPE.BUFFER_RESET,[ID]))
+        return self.GetAnswer(1)
+    def SendInstruction(self,ID,currentInstruction):
+        self.ClearAnswerQueueInternal()
+        self.command_q.put(MP_Command(COMMANDTYPE.INSTRUCTION,[ID,currentInstruction]))
+        return self.GetAnswer(2)
+    def SendLinkage(self,ID,currentLinkage):
+        self.ClearAnswerQueueInternal()
+        self.command_q.put(MP_Command(COMMANDTYPE.LINKAGE,[ID,currentLinkage]))
+        return self.GetAnswer(2)
+    def SendFrequency(self,ID,frequency):
+        self.command_q.put(MP_Command(COMMANDTYPE.SEND_FREQ,[ID,frequency]))        
+    def SendPulseWidth(self,ID,pulseWidth):
+        self.command_q.put(MP_Command(COMMANDTYPE.SEND_PW,[ID,pulseWidth]))        
+    def SendDarkState(self,ID,val):
+        self.command_q.put(MP_Command(COMMANDTYPE.SEND_DARK,[ID,val]))   
+    def SendOptoState(self,ID,os1,os2):
+        self.command_q.put(MP_Command(COMMANDTYPE.SEND_OPTOSTATE,[ID,os1,os2]))        
     def SetReadInterval(self,interval):
         self.command_q.put(MP_Command(COMMANDTYPE.SET_REFRESHRATE,[interval]))
     def SetFocusDFM(self,dfmid):  
         self.command_q.put(MP_Command(COMMANDTYPE.SET_FOCAL_DFM,[dfmid]))    
     def SetStatusRequestType(self,requestType):
+
         if(requestType==STATUSREQUESTTYPE.LATESTONLY):
             self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_LATESTSTATUS,''))
         else:
             self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_NORMALSTATUS,''))
-
-
-                    
-
-  
+    def SetStartTime(self):
+        self.command_q.put(MP_Command(COMMANDTYPE.SET_STARTTIME,[datetime.datetime.today()]))
+                  
     #endregion
 
 
@@ -108,7 +123,7 @@ class DataGetter:
             return []            
         self.DFMInfos.clear()
         for i in range(1,15+1):
-            tmp = self.theCOMM.PollSlave(i)
+            tmp = self.theCOMM.PollSlave(i)            
             if(tmp != '' ):                
                 self.DFMInfos.append(DFMInfo(i,tmp))                        
             time.sleep(0.010)
@@ -117,7 +132,13 @@ class DataGetter:
             self.isPaused=False        
         return self.DFMInfos
 
-  
+    def ClearAnswerQueueInternal(self):
+        try:
+            while True:
+                self.answer_q.get_nowait()
+        except queue.Empty:
+            pass        
+        
     def ClearQueuesInternal(self):
         try:
             while True:
@@ -141,7 +162,7 @@ class DataGetter:
         except:
             return False        
         if (tmp is not None):  
-            #print(tmp.commandType)
+            #print(tmp)
             if(tmp.commandType == COMMANDTYPE.FIND_DFM):              
                 if(tmp.arguments[0]==COMMTYPE.UART):                  
                     self.theCOMM=COMM.UARTCOMM()
@@ -182,7 +203,7 @@ class DataGetter:
                 self.startTime=tmp.arguments[0]                                 
             elif(tmp.commandType==COMMANDTYPE.SET_REFRESHRATE):
                 self.refreshRate = tmp.arguments[0]                                          
-            elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                  
+            elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                             
                 answer=self.theCOMM.RequestBufferReset(tmp.arguments[0])                                    
                 self.answer_q.put([tmp.arguments[0],answer])                
             elif(tmp.commandType==COMMANDTYPE.SET_FOCAL_DFM):
@@ -192,10 +213,10 @@ class DataGetter:
                     for i in self.DFMInfos:                        
                         if i.ID == tmp.arguments[0]:
                             self.focalDFMs = [i]                                                        
-            elif(tmp.commandType==COMMANDTYPE.LINKAGE):
+            elif(tmp.commandType==COMMANDTYPE.LINKAGE):                
                 answer=self.theCOMM.SendLinkage(tmp.arguments[0],tmp.arguments[1])
                 self.answer_q.put([tmp.arguments[0],answer])
-            elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):
+            elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):                
                 answer=self.theCOMM.SendInstruction(tmp.arguments[0],tmp.arguments[1])
                 self.answer_q.put([tmp.arguments[0],answer])
             elif(tmp.commandType==COMMANDTYPE.SEND_DARK):                                       
@@ -212,7 +233,7 @@ class DataGetter:
                 self.QueueMessage(ss)                         
             elif(tmp.commandType==COMMANDTYPE.SEND_OPTOSTATE):                                       
                 self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
-                ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                    
+                ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                                
                 self.QueueMessage(ss)   
             elif(tmp.commandType==COMMANDTYPE.SET_GET_LATESTSTATUS):
                 self.getLatestStatusOnly=True
@@ -232,11 +253,12 @@ class DataGetter:
         self.QueueMessage("Read worker started.")        
         lastTime = time.time()   
         while(True):  
-            if(self.ProcessCommand()==False):         
-                if(self.isPaused==False):
-                    if(time.time()-lastTime>self.refreshRate):                                                               
-                        lastTime = time.time() 
-                        self.ReadValues()                                                                                                                             
+            #if(self.ProcessCommand()==False):         
+            self.ProcessCommand()
+            if(self.isPaused==False):
+                if(time.time()-lastTime>self.refreshRate):                                                               
+                    lastTime = time.time()                 
+                    self.ReadValues()                                                                                                                                   
             time.sleep(0.001)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
@@ -251,10 +273,10 @@ class DataGetter:
                 packList=self.ProcessPacket(info,bytesData,currentTime)     
                 tmp = True    
                 for p in packList:
-                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:
+                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:                      
                         tmp = False
-                if (tmp):
-                    self.theCOMM.SendAck(info.ID)                
+                if (tmp):                    
+                    self.theCOMM.SendAck(info.ID)                             
                 self.data_q.put(packList)                                
             except:                        
                 ss = "Get status exception " + str(id) +"."
@@ -271,16 +293,23 @@ class DataGetter:
             ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
             self.QueueMessage(ss)              
 
-    def ProcessPacket(self,info,bytesData,currentTime):                 
-        if(len(bytesData)==0):                            
+    def ProcessPacket(self,info,bytesData,currentTime):              
+        if(bytesData==-1):                            
             currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
-            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER                    
-            return [currentStatusPacket]          
+            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER          
+            print("No answer")          
+            return [currentStatusPacket]      
+        elif(bytesData==-2):  
+            currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
+            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.INCOMPLETEPACKET          
+            print("Incomplete packet")          
+            return [currentStatusPacket]    
         if(info.DFMType==DFMTYPE.PLETCHERV3):           
             numPacketsReceived = len(bytesData)/66                                 
             if (math.floor(numPacketsReceived)!=numPacketsReceived):             
                 currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
                 currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
+                print("Wrong num bytes: " + str(numPacketsReceived))
                 return [currentStatusPacket]
             else:
                 numPacketsReceived = int(numPacketsReceived)                                
@@ -304,14 +333,17 @@ def ModuleTest():
     mp.theCOMM=COMM.UARTCOMM()
     mp.COMMType = COMMTYPE.UART  
     print(mp.FindDFMInternal())
-    return
-    mp.theCOMM.RequestBufferReset(6)
+    for i in range(1,7):
+        mp.theCOMM.RequestBufferReset(i)
+        time.sleep(0.1)
     time.sleep(1)
-
+    mp.focalDFMs=mp.DFMInfos[0:6]
+    mp.getLatestStatusOnly=False
     for i in range(0,10):
         mp.ReadValues()
         print('*')        
         time.sleep(1)
+    mp.ClearQueuesInternal()
     
 
 

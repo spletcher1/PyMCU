@@ -22,11 +22,11 @@ class UARTCOMM():
     UART_message = Event.Event()
     #region Core read/write functions
     def __init__(self):
-        ## The timeout here is tricky.  For 15 packets to be sent, it seems to
-        ## take about 0.150 seconds, so the timeout has to be larger than this
+        ## The timeout here is tricky.  For 60 packets to be sent, it seems to
+        ## take about 0.250 seconds, but sometimes over 0.3. So the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=0.3)           
-        self.sendPIN = 17
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=1)           
+        self.sendPIN = 17        
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
     def NewMessage(self,ID, errorTime, sample,  message,mt):
@@ -42,11 +42,19 @@ class UARTCOMM():
         result=self.thePort.read(numBytes)
         return result
     def _ReadCOBSPacket(self, maxBytes):
+        cobsResult = Enums.COBSRESULT.OKAY        
         term = bytearray(1)
         term[0]=0x00
-        result = self.thePort.read_until(term,maxBytes)
+        result = self.thePort.read_until(term,maxBytes)      
+        if(len(result)==0):         
+            cobsResult = Enums.COBSRESULT.NOANSWER
+            return (cobsResult,result)
+        if(result[-1]!=0):
+            cobsResult = Enums.COBSRESULT.INCOMPLETEPACKET          
+            return (cobsResult,result)
         result = result[:-1]        
-        return result
+        return (cobsResult,result)
+        
     #endregion
 
     #region Misc Functions
@@ -78,8 +86,7 @@ class UARTCOMM():
     #endregion
 
     #region Specific DFM calls     
-    def RequestStatus(self,ID):
-                 
+    def RequestStatus(self,ID):      
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFC # Indicates status request
@@ -88,7 +95,7 @@ class UARTCOMM():
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)                        
-        self._WriteByteArray(barray,0.002)
+        self._WriteByteArray(barray,0.002)        
 
     def RequestLatestStatus(self,ID):
                  
@@ -113,8 +120,13 @@ class UARTCOMM():
         barray.append(0x00)            
         self._WriteByteArray(barray,0.002)
 
-    def RequestBufferReset(self,ID):        
-        self.thePort.reset_input_buffer()
+    def RequestBufferReset(self,ID): 
+        if (self.thePort.in_waiting>0):
+            self.thePort.reset_input_buffer()
+               
+        #self.thePort.reset_input_buffer()  
+        tmpOut = self.thePort.timeout
+        self.thePort.timeout = 0.1  
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFE # Indicates buffer reset        
@@ -123,22 +135,27 @@ class UARTCOMM():
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)                      
-        self._WriteByteArray(barray,0.003)
-
+        self._WriteByteArray(barray,0.003)        
         try:
-            tmp=cobs.decode(self._ReadCOBSPacket(5))                 
-            if(len(tmp)!=1):            
+            tmp=self._ReadCOBSPacket(5)                         
+            self.thePort.timeout = tmpOut
+            if(tmp[0]!=Enums.COBSRESULT.OKAY):            
                 return False
+            tmp = cobs.decode(tmp[1])                        
             if(tmp[0]==ID):
                 return True
             else:
                 return False    
-        except:
+        except: 
+            self.thePort.timeout = tmpOut             
             return False
 
 
 
     def SendLinkage(self,ID,linkage):
+        if (self.thePort.in_waiting>0):
+            self.thePort.reset_input_buffer()
+        
         ba = bytearray(18)
         ba[0]=ID
         ba[1]=0xFB
@@ -151,9 +168,12 @@ class UARTCOMM():
         self._WriteByteArray(barray,0.002)
 
         try:
-            tmp=cobs.decode(self._ReadCOBSPacket(5))              
+            tmp=self._ReadCOBSPacket(5)                                     
+            if(tmp[0]!=Enums.COBSRESULT.OKAY):            
+                return False          
+            tmp = cobs.decode(tmp[1])  
             if(len(tmp)!=1):            
-                return False
+                return False    
             if(tmp[0]==ID):
                 return True
             else:
@@ -161,7 +181,10 @@ class UARTCOMM():
         except:
             return False 
 
-    def SendInstruction(self,ID,anInstruction):          
+    def SendInstruction(self,ID,anInstruction):           
+        if (self.thePort.in_waiting>0):
+            self.thePort.reset_input_buffer()
+                 
         ba = bytearray(41)           
         ba[0]=ID
         ba[1]=0xFD
@@ -190,13 +213,16 @@ class UARTCOMM():
             ba[index] = (anInstruction.adjustedThresholds[i]>>8) & 0xFF            
             ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                     
         self._AddChecksumFourBytes(0,ba)       
-        
+      
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)         
         self._WriteByteArray(barray,0.002)        
         try:
-            tmp=cobs.decode(self._ReadCOBSPacket(5))              
+            tmp=self._ReadCOBSPacket(5)                                     
+            if(tmp[0]!=Enums.COBSRESULT.OKAY):            
+                return False     
+            tmp = cobs.decode(tmp[1])      
             if(len(tmp)!=1):            
                 return False
             if(tmp[0]==ID):
@@ -207,22 +233,33 @@ class UARTCOMM():
             return False  
 
     def GetSomething(self,chars):
-        tmp=cobs.decode(self._ReadCOBSPacket(4000))
+        tmp=self._ReadCOBSPacket(4000)                                     
+        if(tmp[0]!=Enums.COBSRESULT.OKAY):            
+            return False     
+        tmp=cobs.decode(tmp[1])
         return tmp
         
     def GetStatusPacket(self,ID,dummy,latestOnly):    
-        ack = bytearray(2)                  
-        start = time.time()
+        ack = bytearray(2)   
+        if (self.thePort.in_waiting>0):
+            self.thePort.reset_input_buffer()
+        
         if(latestOnly):            
             self.RequestLatestStatus(ID)
         else:
-            self.RequestStatus(ID)
-        end=time.time()
-        if ((end-start)>0.030) :
-            print("Request time: "+str(end-start))        
+            self.RequestStatus(ID)        
         try:      
+            #start = time.time()
             ## This is set for maxpackets = 60
-            tmp=cobs.decode(self._ReadCOBSPacket(4000))
+            tmp = self._ReadCOBSPacket(5000)            
+            if(tmp[0]==Enums.COBSRESULT.NOANSWER):            
+                return -1
+            elif(tmp[0]==Enums.COBSRESULT.INCOMPLETEPACKET):  
+                return -2               
+            tmp=cobs.decode(tmp[1])
+            #end=time.time()
+            #if ((end-start)>0.030) :
+            #    print("Status time: "+str(end-start))        
             ## Ack is now sent after packet processing.
             ## So bad packets are resent.
             return tmp
@@ -267,8 +304,7 @@ class I2CCOMM():
             msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
             self.i2cbus.i2c_rdwr(msg)            
             return list(msg)                
-        except:
-            print("Get Status I2C Error")
+        except:            
             return ''   
 
     def SendDark(self,ID,darkstate):
@@ -316,7 +352,7 @@ def ModuleTest2(dfmID):
     print(theCOMM.RequestBufferReset(dfmID))
     return
 
-    tmp = theCOMM.GetStatusPacket(dfmID,0)  
+    tmp = theCOMM.GetStatusPacket(dfmID,0,True)  
 
     sp=StatusPacket.StatusPacket(6,6,Enums.DFMTYPE.PLETCHERV3)
     sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
@@ -340,14 +376,14 @@ def ModuleTest():
 
     #print(theCOMM.GetStatusPacket(6,0))
     #return
-    #print(theCOMM.RequestBufferReset(dfmID))
+    print(theCOMM.RequestBufferReset(3))
     #return
     time.sleep(0.5)
     #DFMs = [1,2,3,4,5,6]
-    DFMs=[1]
-    for i in range(0,100):
+    DFMs=[3]
+    for i in range(0,4):
         for jj in DFMs:
-            tmp = theCOMM.GetStatusPacket(jj,1)        
+            tmp = theCOMM.GetStatusPacket(jj,1,False)        
             if(len(tmp)>0):
                 numpackets = int(len(tmp)/66)            
                 for j in range(0,numpackets):
@@ -357,7 +393,7 @@ def ModuleTest():
                         print(sp.processResult)
                     print(sp.GetConsolePrintPacket())
             time.sleep(0.002)
-        time.sleep(5)
+        time.sleep(1)
         print('*')
     return
     
