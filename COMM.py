@@ -97,8 +97,7 @@ class UARTCOMM():
         barray.append(0x00)                        
         self._WriteByteArray(barray,0.002)        
 
-    def RequestLatestStatus(self,ID):
-                 
+    def RequestLatestStatus(self,ID):                 
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xEA # Indicates latest status request
@@ -149,8 +148,6 @@ class UARTCOMM():
         except: 
             self.thePort.timeout = tmpOut             
             return False
-
-
 
     def SendLinkage(self,ID,linkage):
         if (self.thePort.in_waiting>0):
@@ -239,8 +236,7 @@ class UARTCOMM():
         tmp=cobs.decode(tmp[1])
         return tmp
         
-    def GetStatusPacket(self,ID,dummy,latestOnly):    
-        ack = bytearray(2)   
+    def GetStatusPacket(self,ID,dummy,latestOnly):            
         if (self.thePort.in_waiting>0):
             self.thePort.reset_input_buffer()
         
@@ -345,7 +341,8 @@ class I2CCOMM():
     
     def SendAck(self,ID):
         pass
-       
+
+#region Testing       
 def ModuleTest2(dfmID):
     Board.BoardSetup()
     theCOMM = UARTCOMM()    
@@ -412,4 +409,4 @@ if __name__=="__main__" :
     ModuleTest()
     #ModuleTest2(1)
    
-   
+#endregion

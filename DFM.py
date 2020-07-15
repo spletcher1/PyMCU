@@ -119,9 +119,7 @@ class DFM:
         self.isCalculatingBaseline = True
     #endregion
 
-    #region Packet processing, reading, writing, file methods.
-
-   
+    #region Packet processing, reading, writing, file methods.  
     def UpdateReportedValues(self, currentStatusPackets):
         self.reportedHumidity = currentStatusPackets[-1].humidity
         self.reportedLUX = currentStatusPackets[-1].lux

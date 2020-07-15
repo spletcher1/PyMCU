@@ -274,7 +274,7 @@ class DFMGroup:
 
     def ProgramWorker(self):
         self.isProgramWorkerRunning=True     
-        self.MP.SetStatusRequestType(Enums.STATUSREQUESTTYPE.NORMAL);        
+        self.MP.SetStatusRequestType(Enums.STATUSREQUESTTYPE.NORMAL)        
         # Now clear out the buffers so that you can view the data before recording starts
         # which itself will clear out the buffer.
         for i in self.theDFMs.values():       
@@ -316,7 +316,7 @@ class DFMGroup:
     def ReadWorker(self):    
         self.isReadWorkerRunning=True  
         self.MP.StartReading()    
-        self.MP.SetStatusRequestType(Enums.STATUSREQUESTTYPE.LATESTONLY);                 
+        self.MP.SetStatusRequestType(Enums.STATUSREQUESTTYPE.LATESTONLY)                 
         while True:   
             try:             
                 tmp = self.MP.data_q.get(block=True)                                                                                                                        

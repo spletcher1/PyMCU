@@ -174,7 +174,7 @@ class InstructionSet:
                 s+=str(i)+"\n"
 
         return s
-
+#region Testing
 def ModuleTest():
     tmp = InstructionSet()
     tmp.instructionSetType = INSTRUCTIONSETTYPE.CIRCADIAN
@@ -191,7 +191,7 @@ def ModuleTest():
 
 if __name__=="__main__" :
     ModuleTest()    
-
+#endregion
 
 
 

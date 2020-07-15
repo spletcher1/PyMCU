@@ -12,7 +12,7 @@ class MonitorState(Enum):
     REQUESTHUM=4
     GETHUM=5
     GETLIGHT=6
-
+# Packages required for Environmental Monitor
 # pip3 install adafruit-blinka
 # pip3 install adafruit-circuitpython-tsl2591
 # pip3 install adafruit-circuitpython-si7021
