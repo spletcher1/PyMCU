@@ -8,6 +8,7 @@ import math
 import Board
 import time
 import sys
+import EnvironmentalMonitor
 
 class MP_Message:
     def __init__(self,message):
@@ -48,11 +49,12 @@ class DataGetter:
         self.currentReadIndex=1
         self.continueRunning = False
         self.isPaused = False
+        self.getLatestStatusOnly=False  
+        self.theEnvironmentalMonitor = EnvironmentalMonitor.EnvironmentalMonitor(1) 
         self.theReader = Process(target=self.ReadWorker)
         self.theReader.start()
         self.QueueMessage("Reader started.")   
-        self.getLatestStatusOnly=False   
-
+      
     #region Functions that can be called from outside the process
 
     def StopReading(self):   
@@ -251,14 +253,18 @@ class DataGetter:
         self.refreshRate=0.25
         self.isPaused=True      
         self.QueueMessage("Read worker started.")        
-        lastTime = time.time()   
+        lastTime = time.time()  
+        lastTime_Env = time.time()  
         while(True):  
             #if(self.ProcessCommand()==False):         
             self.ProcessCommand()
             if(self.isPaused==False):
                 if(time.time()-lastTime>self.refreshRate):                                                               
-                    lastTime = time.time()                 
+                    lastTime = time.time()                             
                     self.ReadValues()                                                                                                                                   
+            if(time.time()-lastTime_Env>1):
+                self.theEnvironmentalMonitor.StepMonitor()
+                lastTime_Env = time.time()                            
             time.sleep(0.001)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
@@ -268,16 +274,16 @@ class DataGetter:
     def ReadValues(self): 
         currentTime = datetime.datetime.today()        
         for info in self.focalDFMs:
-            try:
-                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)                                                                                                             
+            try:                 
+                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)                                                                                                                            
                 packList=self.ProcessPacket(info,bytesData,currentTime)     
-                tmp = True    
-                for p in packList:
-                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:                      
-                        tmp = False
-                if (tmp):                    
-                    self.theCOMM.SendAck(info.ID)                             
-                self.data_q.put(packList)                                
+                tmp = True                    
+                for p in packList:                    
+                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:                                           
+                        tmp = False                
+                if (tmp):                                        
+                    self.theCOMM.SendAck(info.ID)                                                     
+                self.data_q.put(packList)                 
             except:                        
                 ss = "Get status exception " + str(id) +"."
                 self.QueueMessage(ss)
@@ -324,6 +330,8 @@ class DataGetter:
         else:
             currentStatusPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)
             currentStatusPacket.ProcessStatusPacket(bytesData,currentTime)     
+            if(self.theEnvironmentalMonitor.isPresent):
+                currentStatusPacket.AddEnvironmentalInformation(self.theEnvironmentalMonitor.temperature,self.theEnvironmentalMonitor.light,self.theEnvironmentalMonitor.humidity)            
             self.currentReadIndex+=1                         
             return [currentStatusPacket]
 
@@ -345,8 +353,22 @@ def ModuleTest():
         time.sleep(1)
     mp.ClearQueuesInternal()
     
+def ModuleTestI2C():
+    Board.BoardSetup()
+    mp=DataGetter()
+    tmp = mp.FindDFM(COMMTYPE.I2C)
+    print(tmp)  
+    while True:   
+        try:           
+            tmp = mp.data_q.get(block=False)                    
+            #print(tmp[0].GetConsolePrintPacket())
+        except:
+            pass
+        time.sleep(.1)
+    mp.ClearQueuesInternal()
+    
 
 
 if __name__=="__main__" :
-    ModuleTest()
+    ModuleTestI2C()
     

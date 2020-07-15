@@ -30,6 +30,11 @@ class StatusPacket:
         elif(self.DFMType==DFMTYPE.PLETCHERV3):            
             return self.ProcessStatusPacketPletcherV3(bytesData,startTime,index)
 
+    def AddEnvironmentalInformation(self,temp,lux,humid):
+        self.temp = int(temp)
+        self.humidity = int(humid)       
+        self.lux = int(lux)
+
     def ProcessStatusPacketSableV2(self,bytesData,currentTime):        
         if(len(bytesData)!=52):
             self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES   
