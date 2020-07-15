@@ -18,7 +18,8 @@ class MonitorState(Enum):
 # pip3 install adafruit-circuitpython-si7021
 class EnvironmentalMonitor():
     def __init__(self,stepsinidle): 
-        self.stepsInIdle=stepsinidle  
+        self.stepsInIdle=stepsinidle 
+        self.isPresent=False  
         self.Initialize()       
     
     def Initialize(self):
@@ -42,28 +43,37 @@ class EnvironmentalMonitor():
         if(self.isPresent==False):
             self.currentState==MonitorState.IDLE
             return
-        if (self.currentState==MonitorState.IDLE):          
-            self.currentIdleSteps+=1
-            if(self.currentIdleSteps>=self.stepsInIdle):
-                print(self)
-                self.currentIdleSteps=0
-                self.currentState = MonitorState.REQUESTTEMP
-        elif (self.currentState==MonitorState.REQUESTTEMP):
-            self.si.StartTemperatureMeasurement()
-            self.currentState = MonitorState.GETTEMP
-        elif (self.currentState==MonitorState.GETTEMP):
-            self.temperature = self.si.GetTemperature()
-            self.currentState = MonitorState.REQUESTHUM
-        elif (self.currentState == MonitorState.REQUESTHUM):
-            self.si.StartHumidityMeasurement()
-            self.currentState = MonitorState.GETHUM
-        elif(self.currentState==MonitorState.GETHUM):
-            self.humidity = self.si.GetHumidity()  
-            self.currentState = MonitorState.GETLIGHT
-        elif(self.currentState==MonitorState.GETLIGHT):
-            self.light=self.tsl.GetLUX()
-            if(self.light!=-99):
-                self.currentState = MonitorState.IDLE                
+        try:
+            if (self.currentState==MonitorState.IDLE):          
+                self.currentIdleSteps+=1
+                if(self.currentIdleSteps>=self.stepsInIdle):                
+                    self.currentIdleSteps=0
+                    self.currentState = MonitorState.REQUESTTEMP
+            elif (self.currentState==MonitorState.REQUESTTEMP):
+                self.si.StartTemperatureMeasurement()
+                self.currentState = MonitorState.GETTEMP
+            elif (self.currentState==MonitorState.GETTEMP):
+                self.temperature = self.si.GetTemperature()
+                self.currentState = MonitorState.REQUESTHUM
+            elif (self.currentState == MonitorState.REQUESTHUM):
+                self.si.StartHumidityMeasurement()
+                self.currentState = MonitorState.GETHUM
+            elif(self.currentState==MonitorState.GETHUM):
+                self.humidity = self.si.GetHumidity()  
+                self.currentState = MonitorState.GETLIGHT
+            elif(self.currentState==MonitorState.GETLIGHT):
+                self.light=self.tsl.GetLUX()
+                if(self.light!=-99):
+                    self.currentState = MonitorState.IDLE   
+        except:
+            print("Environmental monitor lost.")
+            self.isPresent=False
+            self.light=0
+            self.humidity=0
+            self.temperature=0      
+            self.currentState==MonitorState.IDLE
+            return
+
 
     def UpdateReadings(self):
         testing=False

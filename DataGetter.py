@@ -183,7 +183,8 @@ class DataGetter:
                         self.focalDFMs = tmp                     
                     self.answer_q.put(tmp)
                 else:
-                    self.answer_q.put([])           
+                    self.answer_q.put([])    
+                self.theEnvironmentalMonitor.Initialize()                           
             elif(tmp.commandType==COMMANDTYPE.STOP_READING):
                 self.DFMInfos = []  
                 self.theCOMM = None
