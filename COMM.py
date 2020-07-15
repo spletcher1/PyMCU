@@ -292,14 +292,14 @@ class I2CCOMM():
         except:
             return ''
         
-    def GetStatusPacket(self,ID,DFMType,dummy):
+    def GetStatusPacket(self,ID,DFMType,dummy):             
         if(DFMType == Enums.DFMTYPE.PLETCHERV2):             
             bytestoget = 64               
         elif(DFMType == Enums.DFMTYPE.SABLEV2):             
             bytestoget = 52               
         else:
             bytestoget = 64               
-        try:                     
+        try:                            
             tmpAddr = 0x50+ID         
             msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
             self.i2cbus.i2c_rdwr(msg)            
