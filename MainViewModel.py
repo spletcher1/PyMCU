@@ -339,7 +339,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setText("Flidea Master Control Unit")
         msg.setWindowTitle("About MCU")
         ss="Version: 0.9.5 beta\nIP: " + hostip
-        ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +"MB"
+        ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         msg.exec_()   
 
@@ -724,16 +724,29 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
             return
         else:         
-            self.GoToMessagesPage()                
+            self.GoToMessagesPage()                        
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("Do not remove USB until copy is noted as complete.")
+            msg.setWindowTitle("Data Transfer")
+            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
+            ss="This may take several minutes.\nPress Okay to begin."
+            msg.setInformativeText(ss)    
+            returnVal=msg.exec_()  
             
-            command = 'cp -r FLICData/ "' + subfolders[0] +'"'            
-            self.StatusBar.showMessage("Copying data files...",120000)      
-            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.NOTICE)          
-            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
             QApplication.processEvents()
-            os.system(command)
-            self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
-            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)  
+            if returnVal==QMessageBox.Ok:
+                command = 'cp -r FLICData/ "' + subfolders[0] +'"'            
+                self.StatusBar.showMessage("Copying data files...",120000)      
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.NOTICE)          
+                self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
+                QApplication.processEvents()
+                os.system(command)
+                self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)  
+            else:
+                self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
+
 
     def FastUpdatesChanged(self):
         if(self.theDFMGroup.isWriting==False):
