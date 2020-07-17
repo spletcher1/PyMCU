@@ -112,7 +112,7 @@ class OptoWell:
                     self.StartDelayTimer()
                     self.StopDecayTimer()
                     if(self.maxTimeOn>0):
-                        StopMaxTimeTimer()
+                        self.StopMaxTimeTimer()
             else:
                 if(self.decay>0):
                     if(self.lastSignalOverThreshold):

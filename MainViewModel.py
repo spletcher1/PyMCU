@@ -21,6 +21,7 @@ import os
 import subprocess
 import glob
 import shutil
+import FLICDataCopy
 
 if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
@@ -107,6 +108,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.fastUpdateCheckBox.setChecked(False)
 
         self.currentDFMType = Enums.DFMTYPE.PLETCHERV3
+
+        self.isDataTransferring=False
 
         ## Check for USB upon startup
         try:
@@ -218,10 +221,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.LoadSimpleProgram()
         elif(tmp == "5 days"):
             self.programDuration = datetime.timedelta(minutes=60*24*5)
-            self.LoadSimpleProgram()
-        elif(tmp == "Move"):
-            return
+            self.LoadSimpleProgram()    
         elif(tmp == "Custom"):
+            return
+        else:
             return
 
         self.StatusBar.showMessage("Loaded basic program: " + tmp,self.statusmessageduration)
@@ -324,22 +327,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.SetProgramStartTime(datetime.datetime.today())        
         #self.programStartTime= tmp.toPyDateTime()
 
-
-    def AboutPyMCUOLD(self):
-        stat = os.statvfs("./MainViewModel.py")
-        availableMegaBytes=(stat.f_bree*stat.f_bsize)/1048576
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Information)
-        msg.setText("Flidea Master Control Unit")
-        msg.setWindowTitle("About MCU")
-        with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as s:
-            s.connect(("google.com",80))    
-            hostip=s.getsockname()[0]
-        ss="Version: 0.9 beta\nIP: " + hostip
-        ss=ss+"\n Available space: " + str(int(availableMegaBytes)) +"MB"
-        msg.setInformativeText(ss)    
-        msg.exec_()   
-
     def AboutPyMCU(self):      
         stat = os.statvfs("./MainViewModel.py")
         availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
@@ -355,7 +342,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setText("Flidea Master Control Unit")
         msg.setWindowTitle("About MCU")
         ss="Version: 0.9.5 beta\nIP: " + hostip
-        ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +"MB"
+        ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         msg.exec_()   
 
@@ -462,7 +449,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 os.system("rm -rf FLICData")  
-            self.StatusBar.showMessage("Local data folder has been deleted.",self.statusmessageduration)                              
+                self.StatusBar.showMessage("Local data folder has been deleted.",self.statusmessageduration)                              
 
     def PowerOff(self):
         msg = QMessageBox()
@@ -734,47 +721,63 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.GotoProgramLoadPage()
         return
 
+    def DataTransferFunction(self):
+        self.isDataTransferring=True
+        try:
+            command = 'cp -r FLICData/ "' + subfolders[0] +'"'   
+            os.system(command)        
+        except:
+            self.isDataTransferring=False
+        self.isDataTransferring=False
+
     def SaveDataToUSB( self ):
         subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
         if len(subfolders)==0:
             self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
             return
-        else:         
-            self.GoToMessagesPage()                
+        else:                                      
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("Do not remove USB until copy is noted as complete.")
+            msg.setWindowTitle("Data Transfer")
+            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
+            ss="This may take several minutes.\nPress Okay to begin."
+            msg.setInformativeText(ss)    
+            returnVal=msg.exec_()  
             
-            command = 'cp -r FLICData/ "' + subfolders[0] +'"'            
-            self.StatusBar.showMessage("Copying data files...",120000)      
-            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.NOTICE)          
-            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
             QApplication.processEvents()
-            os.system(command)
-            self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
-            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)  
-
-    ## This function is not used anymore.
-    def ChooseDataSaveLocationDEPRECATED( self ):
-        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        if len(subfolders)==0:
-            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
-            return
-        else:                    
-            dialog =QFileDialog(self)
-            dialog.showMaximized()
-            dialog.setFileMode(QFileDialog.Directory)
-            dialog.setOption(QFileDialog.ShowDirsOnly, True)
-            dialog.setWindowTitle("Save Data")
-            dialog.setDirectory(subfolders[0])
-            if dialog.exec_():
-                self.GoToMessagesPage()                
-                direct = dialog.selectedFiles()
-                command = 'cp -r FLICData/ "' + direct[0]+'"'            
+            if returnVal==QMessageBox.Ok:   
+                self.GoToMessagesPage()                            
                 self.StatusBar.showMessage("Copying data files...",120000)      
                 self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.NOTICE)          
                 self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
-                QApplication.processEvents()
-                os.system(command)
-                self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)                
-                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)          
+                QApplication.processEvents()              
+                destPath = subfolders[0]+'/FLICData'    
+                sourcePath="/home/pi/PyMCU/PyMCU/FLICData"                
+                tmp=FLICDataCopy.FLICDataCopy("Copying files: ")                
+                tmp.StartDataTransfer(sourcePath,destPath)     
+                while(tmp.isDataTransferring):
+                    self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
+                    QApplication.processEvents()  
+                    time.sleep(0.2)      
+                if(tmp.copySuccess):
+                    self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
+                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)  
+                else:
+                    self.StatusBar.showMessage("Data copy failed.",self.statusmessageduration)  
+                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)                  
+            else:
+                self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
+        try:
+            command = "umount " + '"'+subfolders[0]+'"'
+            os.system(command)    
+            self.isUSBAttached=False            
+            self.saveDataAction.setEnabled(False)
+            self.MoveProgramButton.setEnabled(False)
+            QApplication.processEvents()
+        except:
+            return
+
 
     def FastUpdatesChanged(self):
         if(self.theDFMGroup.isWriting==False):
