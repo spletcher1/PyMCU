@@ -19,7 +19,8 @@ class DFMGroup:
     DFMGroup_programEnded = Event.Event()
 
     #region Initialization, Messaging, and DFMlist Management
-    def __init__(self):
+    def __init__(self,pcb):
+        self.theBoard=pcb
         self.MP = DataGetter.DataGetter() 
         self.theDFMs = {}
         DFM.DFM.DFM_message+=self.NewMessageDirect        
@@ -41,6 +42,7 @@ class DFMGroup:
         self.currentDFMIndex=0                
         self.currentDFMKeysList=[]
         self.programReadInterval=""
+        print(self.theBoard.GetBoardVersion())
 
 
     def NewMessageDirect(self,newMessage):        
@@ -62,20 +64,19 @@ class DFMGroup:
         self.MP.StopReading()
 
     def FindDFMs(self,maxNum=12): 
-        self.theDFMs.clear()
-        # First search UART for V3 DFMs
-        # Set UART and wait for answer
-        tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.UART)                
-        if(len(tmpDMFList)>0):           
-            for i in tmpDMFList:                
-                self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
-                s = "DFM "+str(i.ID)+" found"
-                self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
-            self.currentDFMKeysList = list(self.theDFMs.keys())
-            self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
-            self.SetFastProgramReadInterval()            
-            self.StartReadWorker()
-            time.sleep(0.010)  
+        self.theDFMs.clear()       
+        if(self.theBoard.IsDFMV3Board()):
+            tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.UART)                        
+            if(len(tmpDMFList)>0):           
+                for i in tmpDMFList:                
+                    self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
+                    s = "DFM "+str(i.ID)+" found"
+                    self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                self.currentDFMKeysList = list(self.theDFMs.keys())
+                self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
+                self.SetFastProgramReadInterval()            
+                self.StartReadWorker()
+                time.sleep(0.010)  
         else:
             # Now search I2C for V2 DFM             
             tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.I2C)
@@ -88,7 +89,7 @@ class DFMGroup:
                 self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
                 self.SetFastProgramReadInterval()
                 self.StartReadWorker()
-            time.sleep(0.010)  
+                time.sleep(0.010)  
     #endregion
 
     #region Reading and Recording

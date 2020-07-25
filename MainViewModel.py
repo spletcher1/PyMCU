@@ -45,8 +45,9 @@ class GUIUpdateThread(QtCore.QThread):
 
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
-    def __init__( self ):       
-        self.theDFMGroup = DFMGroup.DFMGroup()
+    def __init__( self,pcb ):   
+        self.theBoard=pcb    
+        self.theDFMGroup = DFMGroup.DFMGroup(self.theBoard)
         super(MyMainWindow,self).__init__()        
         uic.loadUi("Mainwindow.ui",self)
         self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
@@ -828,7 +829,7 @@ def main():
     
     app = QtWidgets.QApplication(sys.argv)
     #app.setStyleSheet("QStatusBar.item {border : 0px black}")
-    myapp = MyMainWindow()
+    myapp = MyMainWindow(theBoard)
     #ModuleTest()    
     myapp.showFullScreen()
     sys.exit(app.exec_()) 

@@ -47,8 +47,7 @@ class TSL2591:
             else :
                 print("Adjusting sensitivity...")
 
-    def IncreaseSensitivity(self):
-        print("Increasing sensitivity...")
+    def IncreaseSensitivity(self):       
         wasSensitivityIncreased=True
         if self.theSensor.gain == adafruit_tsl2591.GAIN_LOW :
             self.theSensor.gain = adafruit_tsl2591.GAIN_MED
@@ -66,8 +65,7 @@ class TSL2591:
             wasSensitivityIncreased=False
         return wasSensitivityIncreased
 
-    def DecreaseSensitivity(self):
-        print("Decreasing sensitivity...")
+    def DecreaseSensitivity(self):        
         wasSensitivityDecreased=True      
         if self.theSensor.integration_time == adafruit_tsl2591.INTEGRATIONTIME_500MS :
             self.theSensor.integration_time = adafruit_tsl2591.INTEGRATIONTIME_400MS
