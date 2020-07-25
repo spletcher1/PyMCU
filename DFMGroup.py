@@ -42,7 +42,6 @@ class DFMGroup:
         self.currentDFMIndex=0                
         self.currentDFMKeysList=[]
         self.programReadInterval=""
-        print(self.theBoard.GetBoardVersion())
 
 
     def NewMessageDirect(self,newMessage):        
