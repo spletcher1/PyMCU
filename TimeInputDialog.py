@@ -25,6 +25,7 @@ class DateDialog(QDialog):
         layout.addWidget(self.buttons)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
+        
 
     # get current date and time from the dialog
     def dateTime(self):
