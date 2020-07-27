@@ -22,6 +22,7 @@ import subprocess
 import glob
 import shutil
 import FLICDataCopy
+from TimeInputDialog import DateDialog
 
 if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
@@ -40,7 +41,16 @@ class GUIUpdateThread(QtCore.QThread):
     def StopThread(self):
         self.keepRunning = False
 
+#class AoutBox(QtGui.QDialog):
+#    def __init__(self, parent=None):
+#        super(Example, self).__init__(parent)#
 
+        #msgBox = QtGui.QMessageBox()
+        ##msgBox.setText('What to do?')
+        #msgBox.addButton(QtGui.QPushButton('Accept'), QtGui.QMessageBox.YesRole)
+        #msgBox.addButton(QtGui.QPushButton('Reject'), QtGui.QMessageBox.NoRole)
+        #msgBox.addButton(QtGui.QPushButton('Cancel'), QtGui.QMessageBox.RejectRole)
+        #ret = msgBox.exec_()
 
 
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
@@ -311,6 +321,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         self.fastUpdateCheckBox.stateChanged.connect(self.FastUpdatesChanged)
 
+        self.SetDateAndTimeButton.clicked.connect(self.SetTimeDialog)
+
   
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -328,7 +340,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.SetProgramStartTime(datetime.datetime.today())        
         #self.programStartTime= tmp.toPyDateTime()
 
-    def AboutPyMCU(self):      
+    def SetTimeDialog(self):
+        secs= DateDialog.getDateTime()
+        if(secs==0):
+            return
+        ss1 = "'@"+str(secs)+"'"
+        ss2 = "sudo hwclock --set --date=\"$(date --date="+ss1+")\""
+        os.system(ss2)  
+        time.sleep(1)
+        os.system("sudo hwclock -s")        
+        return
+
+    def AboutPyMCU(self):             
         stat = os.statvfs("./MainViewModel.py")
         availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
         try: 
@@ -339,13 +362,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip="unknown"
         
         msg = QMessageBox()
+        msg.addButton(QPushButton("Settings"),QMessageBox.YesRole)
+        msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
         msg.setWindowTitle("About MCU")
         ss="Version: 1.0.0 beta\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
-        msg.exec_()   
+        retval=msg.exec_()           
+        if(retval==0):
+            self.GotoSettingsPage()
+
 
     def SetActiveDFM(self,num):       
         self.activeDFMNum=num              
@@ -512,6 +540,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
      
     def GotoProgramLoadPage(self):  
         self.StackedPages.setCurrentIndex(3)
+
+    def GotoSettingsPage(self):
+        self.StackedPages.setCurrentIndex(4)
+
 
     def UpdateDFMPageGUI(self):                
         self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
