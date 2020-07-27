@@ -168,6 +168,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.LoadProgramButton.setEnabled(False)
         self.MoveProgramButton.setEnabled(False)
         self.DeleteProgramButton.setEnabled(False)
+        self.SetDateAndTimeButton.setEnabled(False)
       
 
     def EnableButtons(self):        
@@ -191,6 +192,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.toggleOutputsAction.setEnabled(True)
         self.LoadProgramButton.setEnabled(True)
         self.DeleteProgramButton.setEnabled(True)
+        self.SetDateAndTimeButton.setEnabled(True)
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)            
