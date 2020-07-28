@@ -28,10 +28,12 @@ class EnvironmentalMonitor():
             self.currentIdleSteps=0
             self.light=0
             self.humidity=0
-            self.temperature=0            
+            self.temperature=0                        
             self.i2c = busio.I2C(board.SCL, board.SDA)
+            time.sleep(0.100)
             self.tsl = TSL2591.TSL2591(self.i2c)
-            self.si =  SI7021.SI7021(self.i2c)                      
+            time.sleep(0.100)
+            self.si =  SI7021.SI7021(self.i2c)                                  
             self.isPresent=True                
         except:            
             self.tsl=None
@@ -103,6 +105,7 @@ def ModuleTest():
    tmp = EnvironmentalMonitor(10)
    while(True):
        tmp.StepMonitor()
+       print(tmp)
        time.sleep(0.1)
    
        

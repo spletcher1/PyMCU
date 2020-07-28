@@ -430,7 +430,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ClearDFM()
         self.StatusBar.showMessage("Searching for DFMs...",self.statusmessageduration)     
         self.ClearMessages()
-        self.theDFMGroup.FindDFMs(10)                      
+        self.theDFMGroup.FindDFMs()                      
         if(len(self.theDFMGroup.theDFMs)==0):
             self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
             return

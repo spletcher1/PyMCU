@@ -62,7 +62,7 @@ class DFMGroup:
         self.activeDFM=None
         self.MP.StopReading()
 
-    def FindDFMs(self,maxNum=12): 
+    def FindDFMs(self): 
         self.theDFMs.clear()       
         if(self.theBoard.IsDFMV3Board()):
             tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.UART)                        
