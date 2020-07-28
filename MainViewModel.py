@@ -364,7 +364,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip="unknown"
         
         msg = QMessageBox()
-        msg.addButton(QPushButton("Settings"),QMessageBox.YesRole)
+        tmpButton = QPushButton("Settings")
+        if(self.theDFMGroup.currentProgram.isActive):
+            tmpButton.setEnabled(False)
+        msg.addButton(tmpButton,QMessageBox.YesRole)
         msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
