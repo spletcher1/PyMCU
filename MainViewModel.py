@@ -132,6 +132,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.MoveProgramButton.setEnabled(True)
                 QApplication.processEvents()
         except:
+            print("Normal except: No usb on startup.")
             pass
 
     def device_connected(self,device):        
@@ -361,6 +362,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             s.connect(("8.8.8.8", 80))
             hostip= s.getsockname()[0]
         except:
+            print("Normal except: No internet")
             hostip="unknown"
         
         msg = QMessageBox()
@@ -677,6 +679,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                     self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)   
                 self.UpdateProgramGUI() 
             except:
+                print("Normal except: problem loading program")
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)    
@@ -697,6 +700,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                     self.StatusBar.showMessage("Program deleted.",self.statusmessageduration) 
                     self.LoadFilesListWidget()
                 except:
+                    print("Normal except: problem deleting program")
                     self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration) 
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)      
@@ -737,6 +741,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.StatusBar.showMessage("No .txt files found.",self.statusmessageduration)  
                 
         except:
+             print("Normal except: problem moving program")
             self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)  
         sss="Move complete. {:d} program files moved.".format(len(files))
         self.StatusBar.showMessage(sss,self.statusmessageduration)  
@@ -765,6 +770,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             command = 'cp -r FLICData/ "' + subfolders[0] +'"'   
             os.system(command)        
         except:
+            print("Except: problem in DataTransferFunction")
             self.isDataTransferring=False
         self.isDataTransferring=False
 
@@ -814,6 +820,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.MoveProgramButton.setEnabled(False)
             QApplication.processEvents()
         except:
+            print("Except: Problem saving data to USB.")
             return
 
 

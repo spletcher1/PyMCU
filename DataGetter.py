@@ -293,6 +293,7 @@ class DataGetter:
                 self.data_q.put(packList)                 
             except:                        
                 ss = "Get status exception " + str(id) +"."
+                print(ss)
                 self.QueueMessage(ss)
             time.sleep(0.002)        
 

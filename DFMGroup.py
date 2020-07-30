@@ -148,11 +148,12 @@ class DFMGroup:
         self.currentOutputDirectory="./FLICData/"+platform.node()+"_"+dt.strftime("%m_%d_%Y_%H_%M")
         try:
             os.mkdir("./FLICData")
-        except FileExistsError:
+        except FileExistsError:            
             pass
         try:
             os.mkdir(self.currentOutputDirectory)
         except OSError:
+            print("Except: Could not create data directory")
             self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed", Enums.MESSAGETYPE.ERROR)                    
         self.WriteProgram()
 
@@ -384,7 +385,7 @@ class DFMGroup:
         self.MP.PauseReading()      
         self.StopRecording()         
         self.SetDFMIdleStatus()         
-        self.StopProgramWorker()  
+        self.StopProgramWorker()          
         self.currentProgram.isActive=False
         self.StartReadWorker()  
         self.MP.SetFocusDFM(self.activeDFM.ID)
