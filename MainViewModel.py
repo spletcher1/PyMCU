@@ -741,7 +741,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.StatusBar.showMessage("No .txt files found.",self.statusmessageduration)  
                 
         except:
-             print("Normal except: problem moving program")
+            print("Normal except: problem moving program")
             self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)  
         sss="Move complete. {:d} program files moved.".format(len(files))
         self.StatusBar.showMessage(sss,self.statusmessageduration)  
