@@ -320,9 +320,10 @@ class DFMGroup:
         self.MP.SetStatusRequestType(Enums.STATUSREQUESTTYPE.LATESTONLY)                 
         while True:   
             try:             
-                tmp = self.MP.data_q.get(block=True)                                                                                                                        
-                if(tmp[0].DFMID == self.activeDFM.ID):                     
-                    self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,False)                                 
+                tmp = self.MP.data_q.get(block=True)   
+                ## Should this be tmp[-1] to get last element?  Probably                                                                                                                     
+                if(tmp[-1].DFMID == self.activeDFM.ID):                     
+                    self.theDFMs[tmp[-1].DFMID].ProcessPackets(tmp,False)                                 
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:              
                 pass         
@@ -338,7 +339,7 @@ class DFMGroup:
 
     #region Updating Functions
     ## This function is the one that should be called by an external timer
-    ## to ke ep things rolling correctly.
+    ## to keep things rolling correctly.
     def UpdateProgramStatus(self):
         if(self.currentProgram.isActive):
             if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):

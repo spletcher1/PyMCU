@@ -41,19 +41,6 @@ class GUIUpdateThread(QtCore.QThread):
     def StopThread(self):
         self.keepRunning = False
 
-#class AoutBox(QtGui.QDialog):
-#    def __init__(self, parent=None):
-#        super(Example, self).__init__(parent)#
-
-        #msgBox = QtGui.QMessageBox()
-        ##msgBox.setText('What to do?')
-        #msgBox.addButton(QtGui.QPushButton('Accept'), QtGui.QMessageBox.YesRole)
-        #msgBox.addButton(QtGui.QPushButton('Reject'), QtGui.QMessageBox.NoRole)
-        #msgBox.addButton(QtGui.QPushButton('Cancel'), QtGui.QMessageBox.RejectRole)
-        #ret = msgBox.exec_()
-
-
-#class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
     def __init__( self,pcb ):   
         self.theBoard=pcb    
@@ -101,10 +88,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         DFMGroup.DFMGroup.DFMGroup_programEnded+=self.ProgramEnded
         self.toggleOutputsState=False
 
-        self.MThread = GUIUpdateThread()
-        self.MThread.updateGUISignal.connect(self.UpdateGUI)      
-        self.MThread.start()
-
         self.FilesListWidget.currentItemChanged.connect(self.ProgramFileChoiceChanged)
         self.currentChosenProgramFile=""
         self.currentProgramFileDirectory=""
@@ -134,6 +117,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         except:
             print("Normal except: No usb on startup.")
             pass
+
+        self.MThread = GUIUpdateThread()
+        self.MThread.updateGUISignal.connect(self.UpdateGUI)      
+        self.MThread.start()
+
 
     def device_connected(self,device):        
         if(device.action=="add"):
@@ -205,7 +193,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.theDFMGroup.currentProgram.startTime = self.programStartTime
         self.UpdateProgramGUI()
         self.StatusBar.showMessage("Set program start time: " + self.programStartTime.strftime("%m/%d/%Y %H:%M:%S") ,self.statusmessageduration)
-
 
     def SetSimpleProgramButtonClicked(self):
         if(len(self.theDFMGroup.theDFMs)==0): 
@@ -282,16 +269,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.ProgramTextEdit.setText(self.theDFMGroup.currentProgram.GetProgramDescription())
         else:
             self.ProgramTextEdit.setText("No program loaded.")
-
-    def setupUi( self, MW ):
-        ''' Setup the UI of the super class, and add here code
-        that relates to the way we want our UI to operate.
-        '''
-        super().setupUi( MW )
-
-        # close the lower part of the splitter to hide the 
-        # debug window under normal operations
-        #self.splitter.setSizes([300, 0])
   
     def MakeConnections(self):                
         self.messagesAction.triggered.connect(self.GoToMessagesPage)
@@ -326,7 +303,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         self.SetDateAndTimeButton.clicked.connect(self.SetTimeDialog)
 
-  
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
             for d in self.theDFMGroup.theDFMs.values():
@@ -380,7 +356,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         retval=msg.exec_()           
         if(retval==0):
             self.GotoSettingsPage()
-
 
     def SetActiveDFM(self,num):       
         self.activeDFMNum=num              
@@ -684,7 +659,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)    
 
-
     def DeleteProgramFile(self):
         if(self.currentChosenProgramFile!=""):
             msg = QMessageBox()
@@ -822,7 +796,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         except:
             print("Except: Problem saving data to USB.")
             return
-
 
     def FastUpdatesChanged(self):
         if(self.theDFMGroup.isWriting==False):
