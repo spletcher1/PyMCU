@@ -119,12 +119,18 @@ class DataGetter:
 
     # Remember that any variables set at the time of process forking can not be changed except
     # Through a queue.
-    def FindDFMInternal(self): 
+    def FindDFMInternal(self,maxID): 
         if(self.theCOMM is None):
             print("COMM not defined.")
             return []            
         self.DFMInfos.clear()
-        for i in range(1,15+1):
+        for i in range(1,maxID):
+            if(i==24):
+                continue # RTC
+            if(i==88):
+                continue # Light Sensor
+            if(i==89):
+                continue # Humidity sensor
             tmp = self.theCOMM.PollSlave(i)            
             if(tmp != '' ):                
                 self.DFMInfos.append(DFMInfo(i,tmp))                        
@@ -170,7 +176,7 @@ class DataGetter:
                     self.theCOMM=COMM.UARTCOMM()
                     self.COMMType = COMMTYPE.UART                    
                     self.refreshRate=0.3
-                    tmp = self.FindDFMInternal()  
+                    tmp = self.FindDFMInternal(16)  
                     if(len(tmp)>0):
                         self.focalDFMs = [tmp[0]]
                     self.answer_q.put(tmp)
@@ -178,7 +184,7 @@ class DataGetter:
                     self.theCOMM=COMM.I2CCOMM()
                     self.COMMType = COMMTYPE.I2C
                     self.refreshRate=0.2 
-                    tmp = self.FindDFMInternal()    
+                    tmp = self.FindDFMInternal(99)    
                     if(len(tmp)>0):
                         self.focalDFMs = tmp                     
                     self.answer_q.put(tmp)
@@ -287,6 +293,7 @@ class DataGetter:
                 self.data_q.put(packList)                 
             except:                        
                 ss = "Get status exception " + str(id) +"."
+                print(ss)
                 self.QueueMessage(ss)
             time.sleep(0.002)        
 

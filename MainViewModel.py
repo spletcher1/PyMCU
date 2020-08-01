@@ -22,6 +22,7 @@ import subprocess
 import glob
 import shutil
 import FLICDataCopy
+from TimeInputDialog import DateDialog
 
 if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
@@ -40,13 +41,23 @@ class GUIUpdateThread(QtCore.QThread):
     def StopThread(self):
         self.keepRunning = False
 
+#class AoutBox(QtGui.QDialog):
+#    def __init__(self, parent=None):
+#        super(Example, self).__init__(parent)#
 
+        #msgBox = QtGui.QMessageBox()
+        ##msgBox.setText('What to do?')
+        #msgBox.addButton(QtGui.QPushButton('Accept'), QtGui.QMessageBox.YesRole)
+        #msgBox.addButton(QtGui.QPushButton('Reject'), QtGui.QMessageBox.NoRole)
+        #msgBox.addButton(QtGui.QPushButton('Cancel'), QtGui.QMessageBox.RejectRole)
+        #ret = msgBox.exec_()
 
 
 #class MyMainWindow(QMainWindow, Ui_MainWindow ):
 class MyMainWindow(QtWidgets.QMainWindow):
-    def __init__( self ):       
-        self.theDFMGroup = DFMGroup.DFMGroup()
+    def __init__( self,pcb ):   
+        self.theBoard=pcb    
+        self.theDFMGroup = DFMGroup.DFMGroup(self.theBoard)
         super(MyMainWindow,self).__init__()        
         uic.loadUi("Mainwindow.ui",self)
         self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
@@ -121,6 +132,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.MoveProgramButton.setEnabled(True)
                 QApplication.processEvents()
         except:
+            print("Normal except: No usb on startup.")
             pass
 
     def device_connected(self,device):        
@@ -157,6 +169,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.LoadProgramButton.setEnabled(False)
         self.MoveProgramButton.setEnabled(False)
         self.DeleteProgramButton.setEnabled(False)
+        self.SetDateAndTimeButton.setEnabled(False)
       
 
     def EnableButtons(self):        
@@ -180,6 +193,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.toggleOutputsAction.setEnabled(True)
         self.LoadProgramButton.setEnabled(True)
         self.DeleteProgramButton.setEnabled(True)
+        self.SetDateAndTimeButton.setEnabled(True)
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)            
@@ -310,6 +324,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         self.fastUpdateCheckBox.stateChanged.connect(self.FastUpdatesChanged)
 
+        self.SetDateAndTimeButton.clicked.connect(self.SetTimeDialog)
+
   
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -327,7 +343,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.SetProgramStartTime(datetime.datetime.today())        
         #self.programStartTime= tmp.toPyDateTime()
 
-    def AboutPyMCU(self):      
+    def SetTimeDialog(self):
+        secs= DateDialog.getDateTime()
+        if(secs==0):
+            return
+        ss1 = "'@"+str(secs)+"'"
+        ss2 = "sudo hwclock --set --date=\"$(date --date="+ss1+")\""
+        os.system(ss2)  
+        time.sleep(1)
+        os.system("sudo hwclock -s")        
+        return
+
+    def AboutPyMCU(self):             
         stat = os.statvfs("./MainViewModel.py")
         availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
         try: 
@@ -335,16 +362,25 @@ class MyMainWindow(QtWidgets.QMainWindow):
             s.connect(("8.8.8.8", 80))
             hostip= s.getsockname()[0]
         except:
+            print("Normal except: No internet")
             hostip="unknown"
         
         msg = QMessageBox()
+        tmpButton = QPushButton("Settings")
+        if(self.theDFMGroup.currentProgram.isActive):
+            tmpButton.setEnabled(False)
+        msg.addButton(tmpButton,QMessageBox.YesRole)
+        msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
         msg.setText("Flidea Master Control Unit")
         msg.setWindowTitle("About MCU")
-        ss="Version: 0.9.5 beta\nIP: " + hostip
+        ss="Version: 1.0.0 beta\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
-        msg.exec_()   
+        retval=msg.exec_()           
+        if(retval==0):
+            self.GotoSettingsPage()
+
 
     def SetActiveDFM(self,num):       
         self.activeDFMNum=num              
@@ -399,7 +435,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.ClearDFM()
         self.StatusBar.showMessage("Searching for DFMs...",self.statusmessageduration)     
         self.ClearMessages()
-        self.theDFMGroup.FindDFMs(10)                      
+        self.theDFMGroup.FindDFMs()                      
         if(len(self.theDFMGroup.theDFMs)==0):
             self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
             return
@@ -511,6 +547,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
      
     def GotoProgramLoadPage(self):  
         self.StackedPages.setCurrentIndex(3)
+
+    def GotoSettingsPage(self):
+        self.StackedPages.setCurrentIndex(4)
+
 
     def UpdateDFMPageGUI(self):                
         self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
@@ -639,6 +679,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                     self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)   
                 self.UpdateProgramGUI() 
             except:
+                print("Normal except: problem loading program")
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)    
@@ -659,6 +700,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                     self.StatusBar.showMessage("Program deleted.",self.statusmessageduration) 
                     self.LoadFilesListWidget()
                 except:
+                    print("Normal except: problem deleting program")
                     self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration) 
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)      
@@ -699,6 +741,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.StatusBar.showMessage("No .txt files found.",self.statusmessageduration)  
                 
         except:
+            print("Normal except: problem moving program")
             self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)  
         sss="Move complete. {:d} program files moved.".format(len(files))
         self.StatusBar.showMessage(sss,self.statusmessageduration)  
@@ -727,6 +770,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             command = 'cp -r FLICData/ "' + subfolders[0] +'"'   
             os.system(command)        
         except:
+            print("Except: problem in DataTransferFunction")
             self.isDataTransferring=False
         self.isDataTransferring=False
 
@@ -776,6 +820,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.MoveProgramButton.setEnabled(False)
             QApplication.processEvents()
         except:
+            print("Except: Problem saving data to USB.")
             return
 
 
@@ -828,7 +873,7 @@ def main():
     
     app = QtWidgets.QApplication(sys.argv)
     #app.setStyleSheet("QStatusBar.item {border : 0px black}")
-    myapp = MyMainWindow()
+    myapp = MyMainWindow(theBoard)
     #ModuleTest()    
     myapp.showFullScreen()
     sys.exit(app.exec_()) 
