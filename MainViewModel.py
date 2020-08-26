@@ -348,7 +348,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.addButton(tmpButton,QMessageBox.YesRole)
         msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
-        msg.setText("Flidea Master Control Unit")
+        if(self.theBoard.IsDFMV2Board()):
+            stext = "Flidea Master Control Unit (V2)"
+        else:
+            stext = "Flidea Master Control Unit (V3)"        
+        msg.setText(stext)
         msg.setWindowTitle("About MCU")
         ss="Version: 1.0.0 beta\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
