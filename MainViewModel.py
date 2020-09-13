@@ -729,8 +729,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def LoadFilesListWidget(self):
         self.FilesListWidget.clear()       
         self.currentProgramFileDirectory ="./FLICPrograms/"    
-
-        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))        
+        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))       
+        files.sort(reverse=True)       
         for f in files:
             h, t = os.path.split(f)
             self.FilesListWidget.insertItem(0,t)
@@ -842,15 +842,18 @@ def ModuleTest():
     #    print(tmp.longestQueue)
     #    time.sleep(1)
     
-
+def main2():
+    files=(glob.glob("FLICPrograms/*.txt"))           
+    print(files)
+    files.sort(reverse=True)   
+    print(files)
 
 def main():
     if("MCU" in platform.node()):
         theBoard=Board.BoardSetup()  
     
-    app = QtWidgets.QApplication(sys.argv)
-    #app.setStyleSheet("QStatusBar.item {border : 0px black}")
-    myapp = MyMainWindow(theBoard)
+    app = QtWidgets.QApplication(sys.argv)    
+    myapp = MyMainWindow(theBoard)    
     #ModuleTest()    
     myapp.showFullScreen()
     sys.exit(app.exec_()) 
