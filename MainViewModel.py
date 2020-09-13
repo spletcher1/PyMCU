@@ -100,6 +100,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.monitor.start()
 
         self.fastUpdateCheckBox.setChecked(False)
+        self.zoomPlotCheckBox.setChecked(False)
 
         self.currentDFMType = Enums.DFMTYPE.PLETCHERV3
 
@@ -300,6 +301,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.DeleteProgramButton.clicked.connect(self.DeleteProgramFile)
 
         self.fastUpdateCheckBox.stateChanged.connect(self.FastUpdatesChanged)
+        self.zoomPlotCheckBox.stateChanged.connect(self.ZoomPlotChanged)
 
         self.SetDateAndTimeButton.clicked.connect(self.SetTimeDialog)
 
@@ -800,6 +802,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
         except:
             print("Except: Problem saving data to USB.")
             return
+
+    def ZoomPlotChanged(self):
+        if(self.zoomPlotCheckBox.isChecked()):
+            self.theDFMDataPlot.UpdateYAxisRange(0,100)
+        else:
+            self.theDFMDataPlot.UpdateYAxisRange(0,1000)
 
     def FastUpdatesChanged(self):
         if(self.theDFMGroup.isWriting==False):
