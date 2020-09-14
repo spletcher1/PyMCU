@@ -244,9 +244,9 @@ class DFM:
            
         if(lsp.optoPulseWidth!=self.currentInstruction.pulseWidth):               
             self.MP.SendPulseWidth(self.ID,self.currentInstruction.pulseWidth)
-                               
-        if(lsp.darkStatus!=self.currentInstruction.theDarkState.value[0]): 
-            self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value[0])          
+            
+        if(lsp.darkStatus!=self.currentInstruction.theDarkState.value):         
+            self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value)          
                
         if(self.isInstructionUpdateNeeded):                
             self.theOptoLid.UpdateWithInstruction(self.currentInstruction)                               
