@@ -116,7 +116,7 @@ class MCUProgram():
         return s
 
     def CreateSimpleProgram(self,starttime,dur):
-        # This will create a "linear" experiment with uncontrolled Opto with the current begin time and duration.
+        # This will create a "linear" experiment with the current begin time and duration.
         self.ClearProgram()
         self.startTime=starttime
         self.experimentDuration=dur
@@ -132,7 +132,7 @@ class MCUProgram():
         instruct.linkage = self.globalLinkage[:]
         instruct.maxTimeOn = self.maxTimeOn
         instruct.instructionSetType = self.globalPType
-        instruct.AddSimpleInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))        
+        instruct.AddSimpleInstruction(Enums.DARKSTATE.OFF,dur,datetime.timedelta(seconds=0))        
         self.theInstructionSets[dfmid]=instruct
     
     def SetLinkageFromString(self,lk):

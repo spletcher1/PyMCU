@@ -100,6 +100,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.monitor.start()
 
         self.fastUpdateCheckBox.setChecked(False)
+        self.zoomPlotCheckBox.setChecked(False)
+
+        self.updateButton.setEnabled(False)
 
         self.currentDFMType = Enums.DFMTYPE.PLETCHERV3
 
@@ -113,6 +116,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.StatusBar.showMessage("USB connected...",2000)
                 self.saveDataAction.setEnabled(True)
                 self.MoveProgramButton.setEnabled(True)
+                self.updateButton.setEnabled(True)
                 QApplication.processEvents()
         except:
             print("Normal except: No usb on startup.")
@@ -129,12 +133,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("USB connected...",2000)
             self.saveDataAction.setEnabled(True)
             self.MoveProgramButton.setEnabled(True)
+            self.updateButton.setEnabled(True)
             QApplication.processEvents()
         elif(device.action=="remove"):
             self.isUSBAttached=False
             self.StatusBar.showMessage("USB removed...",2000)
             self.saveDataAction.setEnabled(False)
             self.MoveProgramButton.setEnabled(False)
+            self.updateButton.setEnabled(False)
             QApplication.processEvents()
 
     def DisableButtons(self):        
@@ -298,8 +304,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
         self.MoveProgramButton.clicked.connect(self.MoveProgramFilesToLocal)
         self.DeleteProgramButton.clicked.connect(self.DeleteProgramFile)
+        self.updateButton.clicked.connect(self.RunUpdate)
 
         self.fastUpdateCheckBox.stateChanged.connect(self.FastUpdatesChanged)
+        self.zoomPlotCheckBox.stateChanged.connect(self.ZoomPlotChanged)
 
         self.SetDateAndTimeButton.clicked.connect(self.SetTimeDialog)
 
@@ -354,7 +362,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.0 beta\nIP: " + hostip
+        ss="Version: 1.0.1 beta\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         retval=msg.exec_()           
@@ -729,8 +737,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def LoadFilesListWidget(self):
         self.FilesListWidget.clear()       
         self.currentProgramFileDirectory ="./FLICPrograms/"    
-
-        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))        
+        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))       
+        files.sort(reverse=True)       
         for f in files:
             h, t = os.path.split(f)
             self.FilesListWidget.insertItem(0,t)
@@ -801,6 +809,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
             print("Except: Problem saving data to USB.")
             return
 
+    def ZoomPlotChanged(self):
+        if(self.zoomPlotCheckBox.isChecked()):
+            self.theDFMDataPlot.UpdateYAxisRange(0,100)
+        else:
+            self.theDFMDataPlot.UpdateYAxisRange(0,1000)
+
     def FastUpdatesChanged(self):
         if(self.theDFMGroup.isWriting==False):
             ## This shouldn't happen.  Just here to catch strange event.
@@ -811,6 +825,29 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.SetFastProgramReadInterval()            
         else:            
             self.theDFMGroup.SetNormalProgramReadInterval()
+
+    def RunUpdate(self):  
+        try:    
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]       
+            if len(subfolders)==0:
+                sourceDirectory = "/media/pi/FLICUpdates/"
+            else:
+                sourceDirectory = subfolders[0]+"/FLICUpdates/"                            
+            files=(glob.glob(sourceDirectory+"*.tgz"))                
+            if(len(files)==1):               
+                self.StatusBar.showMessage("Updating...",self.statusmessageduration)                    
+                time.sleep(1)
+                command = "/bin/tar -C /home/pi/PyMCU/PyMCU -xvf " + "\""+files[0]+"\""                        
+                os.system(command)            
+                self.StatusBar.showMessage("Update complete. Rebooting. Remove USB.",self.statusmessageduration)                                    
+                time.sleep(3)
+                os.system("sudo shutdown -r now")
+            else:            
+                self.StatusBar.showMessage("Update failed.",self.statusmessageduration)       
+                self.GotoDFMPage()                                           
+        except:
+            pass
+        
 
 
     
@@ -842,15 +879,18 @@ def ModuleTest():
     #    print(tmp.longestQueue)
     #    time.sleep(1)
     
-
+def main2():
+    files=(glob.glob("FLICPrograms/*.txt"))           
+    print(files)
+    files.sort(reverse=True)   
+    print(files)
 
 def main():
     if("MCU" in platform.node()):
         theBoard=Board.BoardSetup()  
     
-    app = QtWidgets.QApplication(sys.argv)
-    #app.setStyleSheet("QStatusBar.item {border : 0px black}")
-    myapp = MyMainWindow(theBoard)
+    app = QtWidgets.QApplication(sys.argv)    
+    myapp = MyMainWindow(theBoard)    
     #ModuleTest()    
     myapp.showFullScreen()
     sys.exit(app.exec_()) 

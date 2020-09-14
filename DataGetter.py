@@ -230,7 +230,7 @@ class DataGetter:
                 self.answer_q.put([tmp.arguments[0],answer])
             elif(tmp.commandType==COMMANDTYPE.SEND_DARK):                                       
                 self.theCOMM.SendDark(tmp.arguments[0],tmp.arguments[1])
-                ss = "Dark state sent to DFM " + str(tmp.arguments[0]) +"."                    
+                ss = "Dark state sent to DFM " + str(tmp.arguments[0]) +"."                                    
                 self.QueueMessage(ss) 
             elif(tmp.commandType==COMMANDTYPE.SEND_FREQ):                                       
                 self.theCOMM.SendFrequency(tmp.arguments[0],tmp.arguments[1])  

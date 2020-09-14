@@ -1,7 +1,7 @@
 from enum import Enum
 
 class STATUSREQUESTTYPE(Enum):
-    LATESTONLY=1,
+    LATESTONLY=1
     NORMAL=2
 
 class COMMANDTYPE(Enum):
@@ -63,26 +63,25 @@ class COBSRESULT(Enum):
 
 
 class INSTRUCTIONSETTYPE(Enum):
-    LINEAR=1,
-    REPEATING=2,
-    CIRCADIAN=3,
+    LINEAR=1
+    REPEATING=2
+    CIRCADIAN=3
     CONSTANT=4
 
 class DARKSTATE(Enum):
-    OFF=0,
-    ON=1,
-    UNCONTROLLED=2
+    OFF=0
+    ON=1
 
 class MESSAGETYPE(Enum):
-    NOTICE=1,
-    WARNING=2,
+    NOTICE=1
+    WARNING=2
     ERROR=3
 
 class OPTOTYPE(Enum):
-    ALLON=1,
+    ALLON=1
     ADAPTIVE=2
 
 class DFMTYPE(Enum):
-    PLETCHERV2=1,
-    SABLEV2=2,
+    PLETCHERV2=1
+    SABLEV2=2
     PLETCHERV3=3

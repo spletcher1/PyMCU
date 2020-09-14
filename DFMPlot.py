@@ -58,6 +58,9 @@ class MyDFMDataPlot(FigureCanvas):
         #self.autolabel(self.rects1)
         #self.autolabel(self.rects2)        
         self.draw()
+
+    def UpdateYAxisRange(self,min,max):
+        self.axes.set_ylim(min,max)   
         
     def compute_initial_figureBARS(self):      
         self.axes.set_ylabel('Signal')        

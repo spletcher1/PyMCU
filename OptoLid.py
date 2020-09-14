@@ -5,6 +5,7 @@ class OptoLid:
         self.theWells = []
         self.optoStateCol1=0
         self.optoStateCol2=0
+        self.linkRelations={}
         for i in range(0,12):
             self.theWells.append(OptoWell.OptoWell())
 
@@ -26,9 +27,30 @@ class OptoLid:
         for i in range(0,12):
             self.theWells[i].signalThreshold=thresh[i]
 
+
+    def SetLinkage(self,theLinkage):
+        self.linkRelations={}
+        for i in range(0,12):
+            tmp = theLinkage[i]
+            links=[]
+            for j in range(0,12):
+                if(j==i):
+                    continue
+                if(theLinkage[j]==tmp):                
+                    links.append(j)
+            self.linkRelations[i]=links
+
+    def UpdateOptoWellsFromLinkage(self):
+        for key,value in self.linkRelations.items():
+            if(self.theWells[key].isLEDOn):
+                for other in value:
+                    self.theWells[other].isLEDOn=True
+
+
     def SetOptoState(self,currentSignals):
         for i in range(0,12):
             self.theWells[i].ProcessSignal(currentSignals[i])
+        self.UpdateOptoWellsFromLinkage()
         self.optoStateCol1=0
         self.optoStateCol2=0
         if(self.theWells[0].isLEDOn):
