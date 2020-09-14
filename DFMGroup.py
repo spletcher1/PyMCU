@@ -103,8 +103,7 @@ class DFMGroup:
             i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
             i.isBufferResetNeeded=True   
             i.isSetNormalProgramIntervalNeeded=True
-            i.currentLinkage=self.currentProgram.GetLinkage(i.ID)  
-            i.isLinkageSetNeeded=True
+            i.SetLinkage(self.currentProgram.GetLinkage(i.ID))            
             i.currentDFMErrors.ClearErrors()
                 
         self.MP.SetStartTime()

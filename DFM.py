@@ -58,6 +58,12 @@ class DFM:
     #endregion
   
     #region Property-like getters and setters
+    def SetLinkage(self,links):
+        self.currentLinkage = links
+        if(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
+            self.theOptoLid.SetLinkage(self.currentLinkage)
+        self.isLinkageSetNeeded = True
+
     def GetDFMName(self):
         return "DFM "+str(self.ID)
         
