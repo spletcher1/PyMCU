@@ -844,7 +844,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 os.system("sudo shutdown -r now")
             else:            
                 self.StatusBar.showMessage("Update failed.",self.statusmessageduration)       
-                self.GotoDFMPage()                                             
+                self.GotoDFMPage()s                                             
         except:
             pass
         

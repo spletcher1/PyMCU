@@ -70,8 +70,7 @@ class INSTRUCTIONSETTYPE(Enum):
 
 class DARKSTATE(Enum):
     OFF=0,
-    ON=1,
-    UNCONTROLLED=2
+    ON=1    
 
 class MESSAGETYPE(Enum):
     NOTICE=1,

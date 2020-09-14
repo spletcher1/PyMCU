@@ -98,7 +98,7 @@ class InstructionSet:
             elif(int(ss[0])==1):
                 ds= DARKSTATE.ON
             else:
-                ds=DARKSTATE.UNCONTROLLED           
+                ds=DARKSTATE.OFF           
             ov = array.array("i",(-1 for jj in range(0,12)))
             for x in range(0,12):
                 ov[x]=int(ss[x+1])

@@ -42,7 +42,7 @@ class DFM:
         self.reportedOptoStateCol1=0
         self.reportedOptoStateCol2=0
         self.reportedTemperature=1.0
-        self.reportedDarkState = Enums.DARKSTATE.UNCONTROLLED
+        self.reportedDarkState = Enums.DARKSTATE.OFF
         self.reportedHumidity=1.0
         self.reportedLUX=0
         self.reportedVoltsIn=1.0                   
@@ -238,10 +238,9 @@ class DFM:
            
         if(lsp.optoPulseWidth!=self.currentInstruction.pulseWidth):               
             self.MP.SendPulseWidth(self.ID,self.currentInstruction.pulseWidth)
-                
-        if(self.currentInstruction.theDarkState!=Enums.DARKSTATE.UNCONTROLLED):                 
-            if(lsp.darkStatus!=self.currentInstruction.theDarkState.value[0]): 
-                self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value[0])          
+                               
+        if(lsp.darkStatus!=self.currentInstruction.theDarkState.value[0]): 
+            self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value[0])          
                
         if(self.isInstructionUpdateNeeded):                
             self.theOptoLid.UpdateWithInstruction(self.currentInstruction)                               
