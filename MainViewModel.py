@@ -102,6 +102,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.fastUpdateCheckBox.setChecked(False)
         self.zoomPlotCheckBox.setChecked(False)
 
+        self.updateButton.setEnabled(False)
+
         self.currentDFMType = Enums.DFMTYPE.PLETCHERV3
 
         self.isDataTransferring=False
@@ -114,6 +116,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.StatusBar.showMessage("USB connected...",2000)
                 self.saveDataAction.setEnabled(True)
                 self.MoveProgramButton.setEnabled(True)
+                self.updateButton.setEnabled(True)
                 QApplication.processEvents()
         except:
             print("Normal except: No usb on startup.")
@@ -130,12 +133,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("USB connected...",2000)
             self.saveDataAction.setEnabled(True)
             self.MoveProgramButton.setEnabled(True)
+            self.updateButton.setEnabled(True)
             QApplication.processEvents()
         elif(device.action=="remove"):
             self.isUSBAttached=False
             self.StatusBar.showMessage("USB removed...",2000)
             self.saveDataAction.setEnabled(False)
             self.MoveProgramButton.setEnabled(False)
+            self.updateButton.setEnabled(False)
             QApplication.processEvents()
 
     def DisableButtons(self):        
@@ -299,6 +304,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
         self.MoveProgramButton.clicked.connect(self.MoveProgramFilesToLocal)
         self.DeleteProgramButton.clicked.connect(self.DeleteProgramFile)
+        self.updateButton.clicked.connect(self.RunUpdate)
 
         self.fastUpdateCheckBox.stateChanged.connect(self.FastUpdatesChanged)
         self.zoomPlotCheckBox.stateChanged.connect(self.ZoomPlotChanged)
@@ -819,6 +825,29 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.SetFastProgramReadInterval()            
         else:            
             self.theDFMGroup.SetNormalProgramReadInterval()
+
+    def RunUpdate(self):  
+        try:    
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]       
+            if len(subfolders)==0:
+                sourceDirectory = "/media/pi/FLICUpdates/"
+            else:
+                sourceDirectory = subfolders[0]+"/FLICUpdates/"                            
+            files=(glob.glob(sourceDirectory+"*.tgz"))                
+            if(len(files)==1):               
+                self.StatusBar.showMessage("Updating...",self.statusmessageduration)                    
+                time.sleep(1)
+                command = "/bin/tar -C /home/pi/PyMCU/PyMCU -xvf " + "\""+files[0]+"\""                        
+                os.system(command)            
+                self.StatusBar.showMessage("Update complete. Rebooting. Remove USB.",self.statusmessageduration)                                    
+                time.sleep(3)
+                os.system("sudo shutdown -r now")
+            else:            
+                self.StatusBar.showMessage("Update failed.",self.statusmessageduration)       
+                self.GotoDFMPage()                                             
+        except:
+            pass
+        
 
 
     
