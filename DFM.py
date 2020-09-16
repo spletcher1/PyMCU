@@ -45,7 +45,8 @@ class DFM:
         self.reportedDarkState = Enums.DARKSTATE.OFF
         self.reportedHumidity=1.0
         self.reportedLUX=0
-        self.reportedVoltsIn=1.0                   
+        self.reportedVoltsIn=1.0       
+        self.lastRecordIndex=0            
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
             self.theOptoLid = OptoLid.OptoLid()       
 
@@ -135,7 +136,7 @@ class DFM:
         self.reportedOptoStateCol1  = currentStatusPackets[-1].optoState1
         self.reportedOptoStateCol2 = currentStatusPackets[-1].optoState2
         self.reportedVoltsIn = currentStatusPackets[-1].voltsIn
-        self.currentDFMErrors.UpdateErrors(currentStatusPackets[-1].errorFlags)
+        
         
         if(currentStatusPackets[-1].darkStatus==0):
             self.reportedDarkState = Enums.DARKSTATE.OFF
@@ -143,6 +144,7 @@ class DFM:
             self.reportedDarkState = Enums.DARKSTATE.ON
 
         for sp in currentStatusPackets:
+            self.currentDFMErrors.UpdateErrors(sp.errorFlags)
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero DFM error code: {:02X}".format(self.ID,sp.errorFlags)
                 self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)
@@ -182,7 +184,12 @@ class DFM:
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
-            if isSuccess:                                                                                                                        
+            if isSuccess:   
+                if(currentStatusPackets[j].recordIndex<self.lastRecordIndex):
+                    s="({:d}) Decreasing record index.".format(self.ID)
+                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
+                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
+                self.lastRecordIndex=currentStatusPackets[j].recordIndex                                                                                                                                        
                 if (currentStatusPackets[j].recordIndex>0):                                                   
                     currentStatusPackets[j].sample = self.sampleIndex
                     self.sampleIndex+=1
@@ -261,6 +268,7 @@ class DFM:
             if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False
                 self.sampleIndex=1    
+                self.lastRecordIndex=0
             else:
                 print("Buffer reset NACKed")                 
         
