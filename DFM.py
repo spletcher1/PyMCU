@@ -184,21 +184,22 @@ class DFM:
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
-            if isSuccess:   
-                if(currentStatusPackets[j].recordIndex<self.lastRecordIndex):
-                    s="({:d}) Decreasing record index.".format(self.ID)
-                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
-                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
-                self.lastRecordIndex=currentStatusPackets[j].recordIndex                                                                                                                                        
+            if isSuccess:                                                                                                                                            
                 if (currentStatusPackets[j].recordIndex>0):                                                   
                     currentStatusPackets[j].sample = self.sampleIndex
-                    self.sampleIndex+=1
+                    if saveDataToQueue:
+                        self.sampleIndex+=1
+                        if(currentStatusPackets[j].recordIndex<self.lastRecordIndex):
+                            s="({:d}) Decreasing record index.".format(self.ID)
+                            self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
+                            self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
+                        self.lastRecordIndex=currentStatusPackets[j].recordIndex                      
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue error".format(self.ID)
                         self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
-                    else:                         
-                        if(saveDataToQueue):
+                    else:                                  
+                        if(saveDataToQueue):                                  
                             self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
                         else:
                             self.SetStatus(Enums.CURRENTSTATUS.READING)                                     
