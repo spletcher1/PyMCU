@@ -86,6 +86,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
         DFMGroup.DFMGroup.DFMGroup_programEnded+=self.ProgramEnded
+        DFMGroup.DFMGroup.DFMGroup_message+=self.NewDFMMessage
         self.toggleOutputsState=False
 
         self.FilesListWidget.currentItemChanged.connect(self.ProgramFileChoiceChanged)
@@ -107,6 +108,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.currentDFMType = Enums.DFMTYPE.PLETCHERV3
 
         self.isDataTransferring=False
+        self.isMessageUpdateNeeded=False
 
         ## Check for USB upon startup
         try:
@@ -522,6 +524,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.DFMButtons.clear()
         self.UpdateProgramGUI()        
         self.findDFMAction.setEnabled(True)
+        self.ClearMessages()
 
     def GoToMessagesPage(self):
         self.StackedPages.setCurrentIndex(2)           
@@ -531,6 +534,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
     
     def GotoDFMPage(self):
         self.StackedPages.setCurrentIndex(1)
+        self.UpdateGUI()
      
     def GotoProgramLoadPage(self):  
         self.StackedPages.setCurrentIndex(3)
@@ -639,9 +643,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
             self.UpdateDFMPageGUI() 
-        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                       
+        if self.isMessageUpdateNeeded:
+            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                               
+            self.isMessageUpdateNeeded=False
+                
+    def NewDFMMessage(self,dummy):        
+        self.isMessageUpdateNeeded=True
         
-            
+
     def closeEvent(self,event):
         self.MThread.StopThread()
         self.ClearDFM()

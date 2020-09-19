@@ -120,8 +120,7 @@ class DataGetter:
     # Remember that any variables set at the time of process forking can not be changed except
     # Through a queue.
     def FindDFMInternal(self,maxID): 
-        if(self.theCOMM is None):
-            print("COMM not defined.")
+        if(self.theCOMM is None):           
             return []            
         self.DFMInfos.clear()
         for i in range(1,maxID):
