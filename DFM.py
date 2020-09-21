@@ -134,7 +134,7 @@ class DFM:
         self.reportedOptoFrequency = currentStatusPackets[-1].optoFrequency
         self.reportedOptoPulsewidth = currentStatusPackets[-1].optoPulseWidth
         self.reportedOptoStateCol1  = currentStatusPackets[-1].optoState1
-        self.reportedOptoStateCol2 = currentStatusPackets[-1].optoState2
+        self.reportedOptoStateCol2 = currentStatusPackets[-1].optoState2       
         self.reportedVoltsIn = currentStatusPackets[-1].voltsIn
         
         
