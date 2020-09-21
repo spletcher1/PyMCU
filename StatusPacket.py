@@ -174,9 +174,11 @@ class StatusPacket:
         currentValue += bytesData[(indexer+39)]        
         self.voltsIn = ((currentValue>>7)/(1024))*3.3*2
 
-        self.optoState1 = bytesData[(indexer+40)]
-        self.optoState2 = bytesData[(indexer+41)]
-
+        self.optoState1 = bytesData[(indexer+40)] <<8
+        self.optoState1 += bytesData[(indexer+41)]
+        #self.optoState2 = bytesData[(indexer+41)]
+        self.optoState2 =0
+        
         currentValue = bytesData[(indexer+42)]<<8
         currentValue += bytesData[(indexer+43)]
         self.optoFrequency = currentValue

@@ -71,6 +71,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         self.StatusBar.setStyleSheet('border: 0')
         self.StatusBar.setStyleSheet("QStatusBar::item {border: none;}")    
+
+        self.EnvironmentGroupBox.setEnabled(False)
        
         self.DFMButtons = {}
         self.UpdateProgramGUI()
@@ -422,7 +424,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def FindDFMs(self):   
         self.ClearDFM()
-        self.StatusBar.showMessage("Searching for DFMs...",self.statusmessageduration)     
+        self.StatusBar.showMessage("Searching for DFMs. This can take up to 3 seconds.",self.statusmessageduration)     
+        QApplication.processEvents()
         self.ClearMessages()
         self.theDFMGroup.FindDFMs()                      
         if(len(self.theDFMGroup.theDFMs)==0):
@@ -548,6 +551,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.HumidLabel.setText("{:.1f}%".format(self.activeDFM.reportedHumidity))
         self.LUXLabel.setText("{:d}".format(self.activeDFM.reportedLUX))
         self.VoltsInLabel.setText("{:.2f}V".format(self.activeDFM.reportedVoltsIn))
+
+        if(self.activeDFM.reportedTemperature + self.activeDFM.reportedHumidity+self.activeDFM.reportedLUX==0):
+            self.EnvironmentGroupBox.setEnabled(False)
+        else:
+            self.EnvironmentGroupBox.setEnabled(True)                    
+
         if(self.activeDFM.reportedDarkState == Enums.DARKSTATE.ON):
             self.DarkModeLabel.setText("Yes")
         else:
@@ -555,7 +564,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.FrequencyLabel.setText("{:d}Hz".format(self.activeDFM.reportedOptoFrequency))
         self.PulseWidthLabel.setText("{:d}ms".format(self.activeDFM.reportedOptoPulsewidth))
 
-        self.OptoStateLabel.setText("{:02X},{:02X}".format(self.activeDFM.reportedOptoStateCol1,self.activeDFM.reportedOptoStateCol2))
+        if (self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):          
+            self.OptoStateLabel.setText("0x{:03X}".format(self.activeDFM.reportedOptoStateCol1))
+        else:
+            self.OptoStateLabel.setText("{:02X},{:02X}".format(self.activeDFM.reportedOptoStateCol1,self.activeDFM.reportedOptoStateCol2))
 
         if(self.activeDFM.status==Enums.CURRENTSTATUS.ERROR):
             self.CurrentStatusLabel.setText("Error")
