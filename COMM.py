@@ -125,7 +125,7 @@ class UARTCOMM():
                
         #self.thePort.reset_input_buffer()  
         tmpOut = self.thePort.timeout
-        self.thePort.timeout = 0.1  
+        self.thePort.timeout = 0.03  
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFE # Indicates buffer reset        
