@@ -50,7 +50,7 @@ class DataGetter:
         self.continueRunning = False
         self.isPaused = False
         self.getLatestStatusOnly=False  
-        self.theEnvironmentalMonitor = EnvironmentalMonitor.EnvironmentalMonitor(1) 
+        self.theEnvironmentalMonitor = EnvironmentalMonitor.EnvironmentalMonitor(5) 
         self.theReader = Process(target=self.ReadWorker)
         self.theReader.start()
         self.QueueMessage("Reader started.")   
@@ -124,11 +124,11 @@ class DataGetter:
             return []            
         self.DFMInfos.clear()
         for i in range(1,maxID):
-            if(i==24):
+            if(i==24 and self.COMMType == COMMTYPE.I2C):
                 continue # RTC
-            if(i==88):
+            if(i==88 and self.COMMType == COMMTYPE.I2C):
                 continue # Light Sensor
-            if(i==89):
+            if(i==89 and self.COMMType == COMMTYPE.I2C):
                 continue # Humidity sensor
             tmp = self.theCOMM.PollSlave(i)            
             if(tmp != '' ):                
@@ -175,7 +175,7 @@ class DataGetter:
                     self.theCOMM=COMM.UARTCOMM()
                     self.COMMType = COMMTYPE.UART                    
                     self.refreshRate=0.3
-                    tmp = self.FindDFMInternal(16)  
+                    tmp = self.FindDFMInternal(99)  
                     if(len(tmp)>0):
                         self.focalDFMs = [tmp[0]]
                     self.answer_q.put(tmp)

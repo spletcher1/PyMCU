@@ -51,7 +51,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>4</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -89,7 +89,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>98</width>
+             <width>484</width>
              <height>88</height>
             </rect>
            </property>
@@ -567,7 +567,7 @@
             <number>2</number>
            </property>
            <item>
-            <widget class="QGroupBox" name="groupBox_2">
+            <widget class="QGroupBox" name="EnvironmentGroupBox">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                <horstretch>0</horstretch>
@@ -1147,7 +1147,7 @@
               </font>
              </property>
              <property name="title">
-              <string>DFM Warnings:</string>
+              <string>DFM Indicators:</string>
              </property>
              <layout class="QGridLayout" name="gridLayout">
               <property name="topMargin">
@@ -1342,7 +1342,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>98</width>
+             <width>90</width>
              <height>90</height>
             </rect>
            </property>
