@@ -26,8 +26,7 @@ class DFMGroup:
         DFM.DFM.DFM_message+=self.NewMessageDirect        
         self.stopReadWorkerSignal = False        
         self.stopProgramWorkerSignal = False    
-        self.stopRecordingSignal = False
-        self.longestQueue = 0
+        self.stopRecordingSignal = False        
         self.isWriting = False
         self.isReadWorkerRunning = False
         self.isProgramWorkerRunning = False
@@ -96,7 +95,8 @@ class DFMGroup:
         if len(self.theDFMs)==0:
             return False    
         # This is here to ensure that the queues are cleared and ready for recording.       
-        self.MP.PauseReading()        
+        self.MP.PauseReading()     
+        self.MP.ClearQueues()   
         self.theMessageList.ClearMessages()
         for i in self.theDFMs.values():            
             i.ResetOutputFileStuff()
@@ -188,12 +188,6 @@ class DFMGroup:
                 self.theFiles[currentDFM.ID].write(ss)                   
             self.WriteMessages()
         
-        tmpLQ=0
-        for d in self.theDFMs.values():
-            if(d.theData.ActualSize()>tmpLQ):
-                tmpLQ = d.theData.ActualSize()
-        self.longestQueue = tmpLQ
-        
         self.currentDFMIndex+=1
         if(self.currentDFMIndex==len(self.theDFMs)):
             self.currentDFMIndex=0 
@@ -280,7 +274,7 @@ class DFMGroup:
         for i in self.theDFMs.values():       
              i.isBufferResetNeeded=True                    
         while True:   
-            try:
+            try: 
                 tmp = self.MP.data_q.get(block=False)                    
                 self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)    
                 if(tmp[0].DFMID == self.activeDFM.ID):

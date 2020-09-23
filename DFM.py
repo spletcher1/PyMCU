@@ -45,8 +45,7 @@ class DFM:
         self.reportedDarkState = Enums.DARKSTATE.OFF
         self.reportedHumidity=1.0
         self.reportedLUX=0
-        self.reportedVoltsIn=1.0       
-        self.lastRecordIndex=0            
+        self.reportedVoltsIn=1.0                        
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
             self.theOptoLid = OptoLid.OptoLid()       
 
@@ -187,19 +186,13 @@ class DFM:
             if isSuccess:                                                                                                                                            
                 if (currentStatusPackets[j].recordIndex>0):                                                   
                     currentStatusPackets[j].sample = self.sampleIndex
-                    if saveDataToQueue:
-                        self.sampleIndex+=1
-                        if(currentStatusPackets[j].recordIndex<self.lastRecordIndex):
-                            s="({:d}) Decreasing record index.".format(self.ID)
-                            self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
-                            self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
-                        self.lastRecordIndex=currentStatusPackets[j].recordIndex                      
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue error".format(self.ID)
                         self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
                     else:                                  
-                        if(saveDataToQueue):                                  
+                        if(saveDataToQueue): 
+                            self.sampleIndex+=1                                                       
                             self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
                         else:
                             self.SetStatus(Enums.CURRENTSTATUS.READING)                                     
@@ -268,8 +261,7 @@ class DFM:
         if(self.isBufferResetNeeded):                  
             if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False
-                self.sampleIndex=1    
-                self.lastRecordIndex=0
+                self.sampleIndex=1                    
             else:
                 print("Buffer reset NACKed")                 
         
