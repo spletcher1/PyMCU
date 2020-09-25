@@ -89,7 +89,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>484</width>
+             <width>98</width>
              <height>88</height>
             </rect>
            </property>
@@ -1342,7 +1342,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>90</width>
+             <width>98</width>
              <height>90</height>
             </rect>
            </property>
@@ -1864,7 +1864,7 @@
      <normaloff>gtk-floppy.png</normaloff>gtk-floppy.png</iconset>
    </property>
    <property name="text">
-    <string>Save Data</string>
+    <string>Export Data</string>
    </property>
    <property name="toolTip">
     <string>Move data to USB</string>
@@ -1900,7 +1900,7 @@
      <normaloff>editclear.png</normaloff>editclear.png</iconset>
    </property>
    <property name="text">
-    <string>Clear Mess</string>
+    <string>Clear Msg</string>
    </property>
    <property name="toolTip">
     <string>Clear existing messages</string>
