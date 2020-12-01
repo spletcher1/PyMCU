@@ -142,16 +142,16 @@ class StatusPacket:
 
     def ProcessStatusPacketPletcherV3(self,bytesData,startTime,packetNum):        
         ## This function should receive packetnumbers 0-4        
-        indexer = (packetNum*66)
+        indexer = (packetNum*56)
         # Calculate the checksum
         calculatedCheckSum=0        
-        for cs in range(indexer,(indexer+62)) :
+        for cs in range(indexer,(indexer+52)) :
             calculatedCheckSum+=bytesData[cs]
         calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
-        expectedCheckSum = bytesData[(indexer+62)]<<24
-        expectedCheckSum += bytesData[(indexer+63)]<<16
-        expectedCheckSum += bytesData[(indexer+64)]<<8
-        expectedCheckSum += bytesData[(indexer+65)]
+        expectedCheckSum = bytesData[(indexer+52)]<<24
+        expectedCheckSum += bytesData[(indexer+53)]<<16
+        expectedCheckSum += bytesData[(indexer+54)]<<8
+        expectedCheckSum += bytesData[(indexer+55)]
        
         #if(calculatedCheckSum != expectedCheckSum):     
         #    print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
@@ -193,22 +193,6 @@ class StatusPacket:
         currentValue += bytesData[(indexer+48)]<<16
         currentValue += bytesData[(indexer+49)]<<8
         currentValue += bytesData[(indexer+50)]
-        self.temp = currentValue/1000.0
-
-        currentValue = bytesData[(indexer+51)]<<24
-        currentValue += bytesData[(indexer+52)]<<16
-        currentValue += bytesData[(indexer+53)]<<8
-        currentValue += bytesData[(indexer+54)]
-        self.humidity = currentValue/1000.0       
-
-        currentValue = bytesData[(indexer+55)]<<8
-        currentValue += bytesData[(indexer+56)]
-        self.lux = currentValue
-        
-        currentValue = bytesData[(indexer+57)]<<24
-        currentValue += bytesData[(indexer+58)]<<16
-        currentValue += bytesData[(indexer+59)]<<8
-        currentValue += bytesData[(indexer+60)]
         self.recordIndex = currentValue        
         self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
         #self.packetTime = datetime.datetime.today()

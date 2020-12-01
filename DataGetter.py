@@ -318,7 +318,7 @@ class DataGetter:
             print("Incomplete packet")          
             return [currentStatusPacket]    
         if(info.DFMType==DFMTYPE.PLETCHERV3):           
-            numPacketsReceived = len(bytesData)/66                                 
+            numPacketsReceived = len(bytesData)/56                                 
             if (math.floor(numPacketsReceived)!=numPacketsReceived):             
                 currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
                 currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
