@@ -1263,7 +1263,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>Si7025</string>
+                 <string>DMA_TX</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1280,7 +1280,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>Misc</string>
+                 <string>PERR</string>
                 </property>
                </widget>
               </item>
@@ -1294,7 +1294,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>TSL2591</string>
+                 <string>DMA_RX</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
