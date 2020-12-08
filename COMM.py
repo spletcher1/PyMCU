@@ -119,7 +119,7 @@ class UARTCOMM():
         barray.append(0x00)            
         self._WriteByteArray(barray,0.002)
 
-    def RequestBufferReset(self,ID): 
+    def RequestBufferReset(self,ID):         
         if (self.thePort.in_waiting>0):
             self.thePort.reset_input_buffer()
                
@@ -368,7 +368,6 @@ def ModuleTest():
     Board.BoardSetup()
     theCOMM = UARTCOMM()    
 
-
     #for i in range(1,16):
     #    print(theCOMM.RequestBufferReset(i))
     #    time.sleep(.3)
@@ -385,13 +384,13 @@ def ModuleTest():
         for jj in DFMs:
             tmp = theCOMM.GetStatusPacket(jj,1,False)                    
             if(len(tmp)>0):
+                theCOMM.SendAck(99)   
                 numpackets = int(len(tmp)/66)            
                 for j in range(0,numpackets):
                     sp=StatusPacket.StatusPacket(6,jj,Enums.DFMTYPE.ENVMONV3)
                     sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
                     if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
-                        print(sp.processResult)
-                        self.theCOMM.SendAck(99)   
+                        print(sp.processResult)                       
                     print(sp.GetConsolePrintPacket())
             time.sleep(0.002)
         time.sleep(1)

@@ -278,10 +278,10 @@ class DFMGroup:
         # Now clear out the buffers so that you can view the data before recording starts
         # which itself will clear out the buffer.
         for i in self.theDFMs.values():       
-             i.isBufferResetNeeded=True                    
+             i.isBufferResetNeeded=True              
         while True:   
             try: 
-                tmp = self.MP.data_q.get(block=False)                    
+                tmp = self.MP.data_q.get(block=False)                     
                 self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)    
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
@@ -293,7 +293,7 @@ class DFMGroup:
                 # But that's okay because those come every 0.2 sec
                 # V3 calls come only every 5 sec so need to update BufferReset
                 # Linkage and Instuction as often as possible.
-                if(self.activeDFM.DFMType == Enums.DFMTYPE.PLETCHERV3):              
+                if(self.activeDFM.DFMType == Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType == Enums.DFMTYPE.ENVMONV3):              
                     for value in self.theDFMs.values():                   
                         value.CheckStatus()
                    

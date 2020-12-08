@@ -417,7 +417,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.UpdateDFMPageGUI()                    
 
     def SetDFMTypeGUI(self):
-        if(self.currentDFMType==Enums.DFMTYPE.PLETCHERV3):
+        if(self.currentDFMType==Enums.DFMTYPE.PLETCHERV3 or self.currentDFMType==Enums.DFMTYPE.ENVMONV3):
             return
         self.DFMErrorGroupBox.setEnabled(False)
 
@@ -564,7 +564,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.FrequencyLabel.setText("{:d}Hz".format(self.activeDFM.reportedOptoFrequency))
         self.PulseWidthLabel.setText("{:d}ms".format(self.activeDFM.reportedOptoPulsewidth))
 
-        if (self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):          
+        if (self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType==Enums.DFMTYPE.ENVMONV3):          
             self.OptoStateLabel.setText("0x{:03X}".format(self.activeDFM.reportedOptoStateCol1))
         else:
             self.OptoStateLabel.setText("{:02X},{:02X}".format(self.activeDFM.reportedOptoStateCol1,self.activeDFM.reportedOptoStateCol2))

@@ -171,14 +171,15 @@ class EnvironmentalMonitorV3:
         if(self.isBufferResetNeeded):                  
             if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False
-                self.sampleIndex=1                    
+                self.sampleIndex=1      
+                print("Reset Buffer")                              
             else:
                 print("Buffer reset NACKed")                 
         
         ## TODO: activate instructions for outputs.
         if(self.isInstructionUpdateNeeded):            
             if(self.MP.SendInstruction(self.ID, self.currentInstruction)):                       
-                self.isInstructionUpdateNeeded=False
+                self.isInstructionUpdateNeeded=False                 
             else:
                 print("Instruction update NACKed")                           
                   
