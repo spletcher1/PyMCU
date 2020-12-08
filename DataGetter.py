@@ -123,7 +123,7 @@ class DataGetter:
         if(self.theCOMM is None):           
             return []            
         self.DFMInfos.clear()
-        for i in range(1,maxID):
+        for i in range(1,maxID+1):
             if(i==24 and self.COMMType == COMMTYPE.I2C):
                 continue # RTC
             if(i==88 and self.COMMType == COMMTYPE.I2C):
@@ -317,7 +317,7 @@ class DataGetter:
             currentStatusPacket.processResult = PROCESSEDPACKETRESULT.INCOMPLETEPACKET          
             print("Incomplete packet")          
             return [currentStatusPacket]    
-        if(info.DFMType==DFMTYPE.PLETCHERV3):           
+        if(info.DFMType==DFMTYPE.PLETCHERV3 or info.DFMType==DFMTYPE.ENVMONV3):           
             numPacketsReceived = len(bytesData)/56                                 
             if (math.floor(numPacketsReceived)!=numPacketsReceived):             
                 currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)

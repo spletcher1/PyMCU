@@ -262,8 +262,11 @@ class UARTCOMM():
         except:
             return ''
     def PollSlave(self,ID): 
-        if self.RequestBufferReset(ID):                      
-            return Enums.DFMTYPE.PLETCHERV3
+        if self.RequestBufferReset(ID):    
+            if(ID==99):
+                return Enums.DFMTYPE.ENVMONV3
+            else:                  
+                return Enums.DFMTYPE.PLETCHERV3
         else:
             return ''
     #endregion     
@@ -373,21 +376,22 @@ def ModuleTest():
 
     #print(theCOMM.GetStatusPacket(6,0))
     #return
-    print(theCOMM.RequestBufferReset(3))
+    print(theCOMM.RequestBufferReset(99))
     #return
     time.sleep(0.5)
     #DFMs = [1,2,3,4,5,6]
-    DFMs=[3]
-    for i in range(0,4):
+    DFMs=[99]
+    for i in range(0,10):
         for jj in DFMs:
-            tmp = theCOMM.GetStatusPacket(jj,1,False)        
+            tmp = theCOMM.GetStatusPacket(jj,1,False)                    
             if(len(tmp)>0):
                 numpackets = int(len(tmp)/66)            
                 for j in range(0,numpackets):
-                    sp=StatusPacket.StatusPacket(6,jj,Enums.DFMTYPE.PLETCHERV3)
+                    sp=StatusPacket.StatusPacket(6,jj,Enums.DFMTYPE.ENVMONV3)
                     sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
                     if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
                         print(sp.processResult)
+                        self.theCOMM.SendAck(99)   
                     print(sp.GetConsolePrintPacket())
             time.sleep(0.002)
         time.sleep(1)

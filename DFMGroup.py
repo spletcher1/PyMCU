@@ -12,6 +12,7 @@ import Program
 import Event
 import Board
 import DataGetter
+import EnvMonV3
 
 class DFMGroup:
     DFMGroup_message = Event.Event()
@@ -66,10 +67,15 @@ class DFMGroup:
         if(self.theBoard.IsDFMV3Board()):
             tmpDMFList = self.MP.FindDFM(Enums.COMMTYPE.UART)                        
             if(len(tmpDMFList)>0):           
-                for i in tmpDMFList:                
-                    self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
-                    s = "DFM "+str(i.ID)+" found"
-                    self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                for i in tmpDMFList:        
+                    if(i.ID!=99):        
+                        self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
+                        s = "DFM "+str(i.ID)+" found"
+                        self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                    else:
+                        self.theDFMs[i.ID]=EnvMonV3.EnvironmentalMonitorV3(self.MP)
+                        s = "Environmental monitor found"
+                        self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
                 self.currentDFMKeysList = list(self.theDFMs.keys())
                 self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
                 self.SetFastProgramReadInterval()            

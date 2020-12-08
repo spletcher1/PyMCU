@@ -549,7 +549,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def UpdateDFMPageGUI(self):                
         self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
         self.HumidLabel.setText("{:.1f}%".format(self.activeDFM.reportedHumidity))
-        self.LUXLabel.setText("{:d}".format(self.activeDFM.reportedLUX))
+        self.LUXLabel.setText("{:.1f}".format(self.activeDFM.reportedLUX))
         self.VoltsInLabel.setText("{:.2f}V".format(self.activeDFM.reportedVoltsIn))
 
         if(self.activeDFM.reportedTemperature + self.activeDFM.reportedHumidity+self.activeDFM.reportedLUX==0):

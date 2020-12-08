@@ -85,3 +85,4 @@ class DFMTYPE(Enum):
     PLETCHERV2=1
     SABLEV2=2
     PLETCHERV3=3
+    ENVMONV3=4

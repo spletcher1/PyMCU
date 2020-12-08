@@ -29,6 +29,8 @@ class StatusPacket:
             return self.ProcessStatusPacketPletcherV2(bytesData,startTime)
         elif(self.DFMType==DFMTYPE.PLETCHERV3):            
             return self.ProcessStatusPacketPletcherV3(bytesData,startTime,index)
+        elif(self.DFMType==DFMTYPE.ENVMONV3):
+            return self.ProcessStatusPacketEnvMonV3(bytesData,startTime,index)
 
     def AddEnvironmentalInformation(self,temp,lux,humid):
         self.temp = int(temp)
@@ -197,6 +199,75 @@ class StatusPacket:
         self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
         #self.packetTime = datetime.datetime.today()
 
+        self.temp = 0
+        self.humidity = 0       
+        self.lux = 0         
+        
+        if(calculatedCheckSum != expectedCheckSum):     
+            print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
+            self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
+            return
+
+        self.processResult =  PROCESSEDPACKETRESULT.OKAY      
+        return
+
+
+    def ProcessStatusPacketEnvMonV3(self,bytesData,startTime,packetNum):        
+        ## This function should receive packetnumbers 0-4        
+        indexer = (packetNum*56)
+        # Calculate the checksum
+        calculatedCheckSum=0        
+        for cs in range(indexer,(indexer+52)) :
+            calculatedCheckSum+=bytesData[cs]
+        calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
+        expectedCheckSum = bytesData[(indexer+52)]<<24
+        expectedCheckSum += bytesData[(indexer+53)]<<16
+        expectedCheckSum += bytesData[(indexer+54)]<<8
+        expectedCheckSum += bytesData[(indexer+55)]
+       
+        #if(calculatedCheckSum != expectedCheckSum):     
+        #    print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
+        #    self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
+        #    return
+        
+        ## Add one to move past the ID
+        indexer+=1
+       
+        self.errorFlags = bytesData[indexer]      
+
+        currentValue = bytesData[(indexer+1)]<<24
+        currentValue += bytesData[(indexer+2)]<<16
+        currentValue += bytesData[(indexer+3)]<<8
+        currentValue += bytesData[(indexer+4)]
+        self.temp = currentValue/1000.0
+
+        currentValue = bytesData[(indexer+5)]<<24
+        currentValue += bytesData[(indexer+6)]<<16
+        currentValue += bytesData[(indexer+7)]<<8
+        currentValue += bytesData[(indexer+8)]
+        self.humidity = currentValue/1000.0
+        
+        currentValue = bytesData[(indexer+9)]<<24
+        currentValue += bytesData[(indexer+10)]<<16
+        currentValue += bytesData[(indexer+11)]<<8
+        currentValue += bytesData[(indexer+12)]
+        self.lux = currentValue/1000.0        
+
+        self.darkStatus = bytesData[(indexer+46)]
+        
+        currentValue = bytesData[(indexer+47)]<<24
+        currentValue += bytesData[(indexer+48)]<<16
+        currentValue += bytesData[(indexer+49)]<<8
+        currentValue += bytesData[(indexer+50)]
+        self.recordIndex = currentValue        
+        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
+        #self.packetTime = datetime.datetime.today()
+        
+
+        self.voltsIn = 0.0
+        for i in range(0,12):
+            self.analogValues[i] = 0
+
         if(calculatedCheckSum != expectedCheckSum):     
             print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
             self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
@@ -211,7 +282,7 @@ class StatusPacket:
         ss += self.packetTime.strftime("%m/%d/%Y %H:%M:%S")
         ss+=' {:7.2f}'.format(tmp)
         ss += '  Wells: {:4d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}'.format(self.analogValues[0],self.analogValues[1],self.analogValues[2],self.analogValues[3],self.analogValues[4],self.analogValues[5],self.analogValues[6],self.analogValues[7],self.analogValues[8],self.analogValues[9],self.analogValues[10],self.analogValues[11])       
-        ss += '   E:{:<4d}  T:{:<6.2f}  H:{:<6.2f}  L:{:<4d}  V:{:4.2f}  OS1:{:02X}  OS2:{:02X}'.format(self.errorFlags,self.temp,self.humidity,self.lux,self.voltsIn,self.optoState1,self.optoState2)
+        ss += '   E:{:<4d}  T:{:<6.2f}  H:{:<6.2f}  L:{:<6.2f}  V:{:4.2f}  OS1:{:02X}  OS2:{:02X}'.format(self.errorFlags,self.temp,self.humidity,self.lux,self.voltsIn,self.optoState1,self.optoState2)
         ss += '  D:{:<2d}  F:{:<4d}  PW:{:<4d} Ind:{:<6d}'.format(self.darkStatus,self.optoFrequency,self.optoPulseWidth,self.recordIndex)
         return ss 
     def GetDataBufferPrintPacket(self):
@@ -219,6 +290,6 @@ class StatusPacket:
         ss = self.packetTime.strftime("%m/%d/%Y,%H:%M:%S,")
         ss+='{:.2f},{:d},'.format(tmp,self.sample)
         ss += '{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},'.format(self.analogValues[0],self.analogValues[1],self.analogValues[2],self.analogValues[3],self.analogValues[4],self.analogValues[5],self.analogValues[6],self.analogValues[7],self.analogValues[8],self.analogValues[9],self.analogValues[10],self.analogValues[11])
-        ss += '{:.2f},{:0.2f},{:d},{:0.2f},'.format(self.temp,self.humidity,self.lux,self.voltsIn)
+        ss += '{:.2f},{:0.2f},{:.2f},{:0.2f},'.format(self.temp,self.humidity,self.lux,self.voltsIn)
         ss += '{:d},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(self.darkStatus,self.optoFrequency,self.optoPulseWidth,self.optoState1,self.optoState2,self.errorFlags,self.recordIndex)
         return ss 
