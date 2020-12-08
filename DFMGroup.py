@@ -252,7 +252,7 @@ class DFMGroup:
             time.sleep(0.10)                
     
     def SetNormalProgramReadInterval(self):
-        if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):
+        if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType==Enums.DFMTYPE.ENVMONV3):
             self.programReadInterval = "normal"
             self.MP.SetReadInterval(5)
         else:
@@ -261,7 +261,7 @@ class DFMGroup:
 
 
     def SetFastProgramReadInterval(self):
-        if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3):
+        if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType==Enums.DFMTYPE.ENVMONV3):
             self.programReadInterval = "fast"
             self.MP.SetReadInterval(0.3)        
         else:
