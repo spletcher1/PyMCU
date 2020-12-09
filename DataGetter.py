@@ -53,7 +53,11 @@ class DataGetter:
         self.theEnvironmentalMonitor = EnvironmentalMonitor.EnvironmentalMonitor(5) 
         self.theReader = Process(target=self.ReadWorker)
         self.theReader.start()
-        self.QueueMessage("Reader started.")   
+        self.QueueMessage("Reader started.")     
+        self.EnvMonV3_Temperature=0.0
+        self.EnvMonV3_Humidity=0.0
+        self.EnvMonV3_LUX=0.0            
+             
       
     #region Functions that can be called from outside the process
 
@@ -119,11 +123,13 @@ class DataGetter:
 
     # Remember that any variables set at the time of process forking can not be changed except
     # Through a queue.
-    def FindDFMInternal(self,maxID): 
+    def FindDFMInternal(self): 
         if(self.theCOMM is None):           
             return []            
         self.DFMInfos.clear()
-        for i in range(1,maxID+1):
+        ## Check for EnvMonV3 first because it needs to be in the list first to update
+        ## the values correctly.    
+        for i in range(1,100):
             if(i==24 and self.COMMType == COMMTYPE.I2C):
                 continue # RTC
             if(i==88 and self.COMMType == COMMTYPE.I2C):
@@ -134,10 +140,16 @@ class DataGetter:
             if(tmp != '' ):                
                 self.DFMInfos.append(DFMInfo(i,tmp))                        
             time.sleep(0.010)
-        if(len(self.DFMInfos) > 0):
+        if(len(self.DFMInfos) > 0):            
+            tmp=self.DFMInfos
+            ## Reverse the list here so if an EnvMonV3 is present, it is queried first.
+            ## This will ensure the environmental info tacked on to the DFM status packets is as
+            ## up to date as possible (although still being updated only every 5sec or so.) For
+            ## finer environmental detail the user will need to look in the EnvMon file.
+            self.DFMInfos.reverse()            
             self.StartReading()
             self.isPaused=False        
-        return self.DFMInfos
+        return tmp
 
     def ClearAnswerQueueInternal(self):
         try:
@@ -175,18 +187,21 @@ class DataGetter:
                     self.theCOMM=COMM.UARTCOMM()
                     self.COMMType = COMMTYPE.UART                    
                     self.refreshRate=0.3
-                    tmp = self.FindDFMInternal(99)  
-                    if(len(tmp)>0):
-                        self.focalDFMs = [tmp[0]]
-                    self.answer_q.put(tmp)
+                    returnList = list(self.FindDFMInternal())
+                    ## Flip the return list so the DFMs are in increasing order in the GUI.
+                    returnList.reverse()                      
+                    if(len(returnList)>0):
+                        self.focalDFMs = [returnList[0]]
+                    self.answer_q.put(returnList)
                 elif(tmp.arguments[0]==COMMTYPE.I2C):
                     self.theCOMM=COMM.I2CCOMM()
                     self.COMMType = COMMTYPE.I2C
                     self.refreshRate=0.2 
-                    tmp = self.FindDFMInternal(99)    
-                    if(len(tmp)>0):
-                        self.focalDFMs = tmp                     
-                    self.answer_q.put(tmp)
+                    returnList = list(self.FindDFMInternal())
+                    returnList.reverse()    
+                    if(len(returnList)>0):
+                        self.focalDFMs = returnList                     
+                    self.answer_q.put(returnList)
                 else:
                     self.answer_q.put([])    
                 self.theEnvironmentalMonitor.Initialize()                           
@@ -278,7 +293,10 @@ class DataGetter:
         return
     
     def ReadValues(self): 
-        currentTime = datetime.datetime.today()        
+        currentTime = datetime.datetime.today()             
+        self.EnvMonV3_Temperature=0.0
+        self.EnvMonV3_Humidity=0.0
+        self.EnvMonV3_LUX=0.0   
         for info in self.focalDFMs:
             try:                 
                 bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)                                                                                                                            
@@ -291,7 +309,7 @@ class DataGetter:
                     self.theCOMM.SendAck(info.ID)                                                     
                 self.data_q.put(packList)                 
             except:                        
-                ss = "Get status exception " + str(id) +"."
+                ss = "Get status exception (" + str(info.ID) +")."
                 print(ss)
                 self.QueueMessage(ss)
             time.sleep(0.002)        
@@ -331,6 +349,13 @@ class DataGetter:
                 tmpPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)  
                 # This gets the startTime of the experiment.  The others get the time of the packet                                       
                 tmpPacket.ProcessStatusPacket(bytesData,self.startTime,i)
+                if(info.DFMType==DFMTYPE.ENVMONV3):
+                    ## This works here because the EnvMon will always be called first each round of read values.
+                    self.EnvMonV3_Temperature=tmpPacket.temp
+                    self.EnvMonV3_Humidity=tmpPacket.humidity
+                    self.EnvMonV3_LUX=tmpPacket.lux     
+                elif(info.DFMType==DFMTYPE.PLETCHERV3):
+                    tmpPacket.AddEnvironmentalInformation(self.EnvMonV3_Temperature,self.EnvMonV3_LUX,self.EnvMonV3_Humidity)
                 currentStatusPackets.append(tmpPacket)        
                 self.currentReadIndex+=1        
             return currentStatusPackets
