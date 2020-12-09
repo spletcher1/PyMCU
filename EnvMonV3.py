@@ -171,8 +171,7 @@ class EnvironmentalMonitorV3:
         if(self.isBufferResetNeeded):                  
             if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False
-                self.sampleIndex=1      
-                print("Reset Buffer")                              
+                self.sampleIndex=1                                                
             else:
                 print("Buffer reset NACKed")                 
         

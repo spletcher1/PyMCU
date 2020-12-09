@@ -33,9 +33,9 @@ class StatusPacket:
             return self.ProcessStatusPacketEnvMonV3(bytesData,startTime,index)
 
     def AddEnvironmentalInformation(self,temp,lux,humid):
-        self.temp = int(temp)
-        self.humidity = int(humid)       
-        self.lux = int(lux)
+        self.temp = temp
+        self.humidity = humid       
+        self.lux = lux
 
     def ProcessStatusPacketSableV2(self,bytesData,currentTime):        
         if(len(bytesData)!=52):
