@@ -234,12 +234,32 @@ class MCUProgram():
                             elif(thesplit[0].lower().strip() == "interval"):
                                 if(currentDFM != -1):
                                     self.theInstructionSets[currentDFM].AddInstructionFromString(thesplit[1].lower().strip())
+                    elif(currentSection.lower()=="envmon"):
+                        thesplit = l.split(":")
+                        if(len(thesplit)==2):
+                            if (thesplit[0].lower().strip() == "id"):
+                                currentDFM = 99
+                                ti = InstructionSet.InstructionSet()
+                                ti.optoDecay = self.optoDecay
+                                ti.optoDelay = self.optoDelay
+                                ti.optoFrequency = self.optoFrequency
+                                ti.optoPulseWidth = self.optoPulseWidth
+                                ti.linkage = self.globalLinkage[:]
+                                ti.maxTimeOn = self.maxTimeOn                                
+                                ti.instructionSetType = self.globalPType
+                                self.theInstructionSets[currentDFM] = ti     
+                            elif(thesplit[0].lower().strip() == "programtype"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].SetProgramTypeFromString(thesplit[1].lower().strip())
+                            elif(thesplit[0].lower().strip() == "interval"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].AddInstructionFromString(thesplit[1].lower().strip())
             if(self.experimentDuration.total_seconds()==0):
                 for key in self.theInstructionSets:
                     if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
                         self.experimentDuration = self.theInstructionSets[key].GetDuration()
             
-            # Get rid of DFMs that are not in the experiment to simply the description textbox.           
+            # Get rid of DFMs that are not in the experiment to simplify the description textbox.           
             tmp ={}
             for key in self.theInstructionSets:
                 a = False

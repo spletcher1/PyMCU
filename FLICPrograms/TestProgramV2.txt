@@ -29,7 +29,12 @@ ID: 4
 ProgramType: Repeating
 Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,10
 
-[DFM]
-ID: 5
+[EnvMon]
+ID: 99
 ProgramType: Repeating
 Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,10
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,10
+Interval: 0,1,0,0,0,0,0,0,0,0,0,0,0,10
+Interval: 0,0,1,0,0,0,0,0,0,0,0,0,0,10
+Interval: 0,0,0,1,0,0,0,0,0,0,0,0,0,10
+Interval: 0,0,0,0,1,0,0,0,0,0,0,0,0,10

@@ -251,7 +251,27 @@ class StatusPacket:
         currentValue += bytesData[(indexer+10)]<<16
         currentValue += bytesData[(indexer+11)]<<8
         currentValue += bytesData[(indexer+12)]
-        self.lux = currentValue/1000.0        
+        self.lux = currentValue/1000.0       
+
+        if(bytesData[(indexer+13)]==0):
+            self.analogValues[0] = 0
+        else
+            self.analogValues[0] = 500
+            
+        if(bytesData[(indexer+14)]==0):
+            self.analogValues[1] = 0
+        else
+            self.analogValues[1] = 500
+
+        if(bytesData[(indexer+15)]==0):
+            self.analogValues[2] = 0
+        else
+            self.analogValues[2] = 500
+
+        if(bytesData[(indexer+16)]==0):
+            self.analogValues[3] = 0
+        else
+            self.analogValues[3] = 500    
 
         self.darkStatus = bytesData[(indexer+46)]
         
