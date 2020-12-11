@@ -91,7 +91,10 @@ class MCUProgram():
             if(len(self.theInstructionSets)>0):
                 for (key, value) in sorted(self.theInstructionSets.items()):
                     s+="\n"
-                    s += "***DFM " + str(key) + "***\n"
+                    if(key==99):
+                        s += "***Env Mon***\n"    
+                    else:                        
+                        s += "***DFM " + str(key) + "***\n"
                     s+=value.ToString(self.experimentDuration, self.startTime)          
             
         else:

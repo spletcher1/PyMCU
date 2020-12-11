@@ -76,7 +76,13 @@ class EnvironmentalMonitorV3:
                 self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
             self.status = newStatus
     #endregion
-
+    def GetLastAnalogData(self,adjustForBaseline):
+        # Adjust for baseline has no effect for EnvMon
+        tmp = self.theData.GetLastDataPoint()
+        if(tmp.sample==0):
+            return None
+        return tmp.analogValues
+        
     #region Packet processing, reading, writing, file methods.  
     def UpdateReportedValues(self, currentStatusPackets):
         self.reportedHumidity = currentStatusPackets[-1].humidity
@@ -171,7 +177,7 @@ class EnvironmentalMonitorV3:
         if(self.isBufferResetNeeded):                  
             if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False
-                self.sampleIndex=1                                                
+                self.sampleIndex=1      
             else:
                 print("Buffer reset NACKed")                 
         

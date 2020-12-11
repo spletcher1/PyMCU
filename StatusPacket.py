@@ -253,25 +253,38 @@ class StatusPacket:
         currentValue += bytesData[(indexer+12)]
         self.lux = currentValue/1000.0       
 
+        for i in range(0,12):
+            self.analogValues[i] = 0
+
         if(bytesData[(indexer+13)]==0):
             self.analogValues[0] = 0
-        else
+        else:
             self.analogValues[0] = 500
             
         if(bytesData[(indexer+14)]==0):
             self.analogValues[1] = 0
-        else
+        else:
             self.analogValues[1] = 500
 
         if(bytesData[(indexer+15)]==0):
             self.analogValues[2] = 0
-        else
+        else:
             self.analogValues[2] = 500
 
         if(bytesData[(indexer+16)]==0):
             self.analogValues[3] = 0
-        else
+        else:
             self.analogValues[3] = 500    
+
+        if(bytesData[(indexer+17)]==0):
+            self.analogValues[4] = 0
+        else:
+            self.analogValues[4] = 500
+
+        if(bytesData[(indexer+18)]==0):
+            self.analogValues[5] = 0
+        else:
+            self.analogValues[5] = 500    
 
         self.darkStatus = bytesData[(indexer+46)]
         
@@ -285,9 +298,7 @@ class StatusPacket:
         
 
         self.voltsIn = 0.0
-        for i in range(0,12):
-            self.analogValues[i] = 0
-
+        
         if(calculatedCheckSum != expectedCheckSum):     
             print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
             self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR

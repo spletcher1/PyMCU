@@ -14,7 +14,7 @@ import Board
 import math
 import OptoLid
 from DataGetter import MP_Command
-
+ 
 class DFM:
     DFM_message = Event.Event()    
     #region Initialization, etc.

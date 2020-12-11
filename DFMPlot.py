@@ -52,7 +52,7 @@ class MyDFMDataPlot(FigureCanvas):
         data = DFM.GetLastAnalogData(True)      
         if(data==None): return
         AData=data[::2]
-        BData=data[1::2]        
+        BData=data[1::2]             
         self.pointsA.set_ydata(AData)
         self.pointsB.set_ydata(BData)
         #self.autolabel(self.rects1)

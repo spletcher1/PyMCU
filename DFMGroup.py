@@ -24,7 +24,8 @@ class DFMGroup:
         self.theBoard=pcb
         self.MP = DataGetter.DataGetter() 
         self.theDFMs = {}
-        DFM.DFM.DFM_message+=self.NewMessageDirect        
+        DFM.DFM.DFM_message+=self.NewMessageDirect  
+        EnvMonV3.EnvironmentalMonitorV3.EM_message+=self.NewMessageDirect
         self.stopReadWorkerSignal = False        
         self.stopProgramWorkerSignal = False    
         self.stopRecordingSignal = False        
