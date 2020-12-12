@@ -205,10 +205,12 @@ class UARTCOMM():
         ba[11]=(anInstruction.maxTimeOn>>8) & 0xFF
         ba[12]=(anInstruction.maxTimeOn) & 0xFF
 
+        ## Note that a -1 for threashold translates to 0xFFFF for this
+        ## two byte instruction, which is 65535.
         for i in range(0,12):
             index=i*2+13
             ba[index] = (anInstruction.adjustedThresholds[i]>>8) & 0xFF            
-            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                     
+            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                  
         self._AddChecksumFourBytes(0,ba)       
       
         encodedba=cobs.encode(ba)        
