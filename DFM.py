@@ -164,23 +164,27 @@ class DFM:
 
     def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                                  
         for j in range(0,len(currentStatusPackets)):                  
-            isSuccess=False       
+            isSuccess=False   
+            if (self.DFMType == Enums.DFMTYPE.PLETCHERV3):
+                theMessageType =  Enums.MESSAGETYPE.NOTICE
+            else:  
+                theMessageType =  Enums.MESSAGETYPE.ERROR
             if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Checksum error".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
                 self.SetStatus(Enums.CURRENTSTATUS.MISSING)
                 s="({:d}) No answer".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Wrong number of bytes:".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Incomplete packet received:".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
             if isSuccess:                                                                                                                                            

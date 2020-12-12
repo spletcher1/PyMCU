@@ -95,9 +95,11 @@ class EnvironmentalMonitorV3:
             self.reportedDarkState = Enums.DARKSTATE.ON
 
         for sp in currentStatusPackets:
-            self.currentDFMErrors.UpdateErrors(sp.errorFlags)
+            self.currentDFMErrors.UpdateErrors(sp.errorFlags) 
+            print(sp.GetConsolePrintPacket())
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero EnvMon error code: {:02X}".format(self.ID,sp.errorFlags)
+                print(s)
                 self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)     
 
     def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                                  
@@ -106,19 +108,19 @@ class EnvironmentalMonitorV3:
             if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Checksum error".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
                 self.SetStatus(Enums.CURRENTSTATUS.MISSING)
                 s="({:d}) No answer".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Wrong number of bytes:".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Incomplete packet received:".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.ERROR)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
             if isSuccess:                                                                                                                                            
@@ -140,7 +142,8 @@ class EnvironmentalMonitorV3:
                     self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)   
                     self.SetStatus(Enums.CURRENTSTATUS.ERROR)                        
   
-                self.UpdateReportedValues(currentStatusPackets) 
+        if(isSuccess):
+            self.UpdateReportedValues(currentStatusPackets) 
 
         self.CheckStatus()
 
@@ -196,6 +199,17 @@ class EnvironmentalMonitorV3:
     
 #region Module Testing
 
+def ErrorTest():
+    dfm = EnvironmentalMonitorV3(3)
+    spList=[]
+    for i in range(0,10):
+        sp = StatusPacket.StatusPacket(i,99,Enums.DFMTYPE.ENVMONV3)
+        if(i==9):
+            sp.errorFlags=64
+        spList.append(sp)
+    dfm.UpdateReportedValues(spList)
+
+
 def ModuleTest():
     Board.BoardSetup()
     #tmp = DFMGroup(COMM.TESTCOMM())
@@ -207,7 +221,7 @@ def ModuleTest():
         print(sp.GetDataBufferPrintPacket())          
        
 if __name__=="__main__" :
-    ModuleTest()   
+    ErrorTest()   
     print("Done!!")     
 
 #endregion
