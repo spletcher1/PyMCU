@@ -309,8 +309,7 @@ class DataGetter:
                     self.theCOMM.SendAck(info.ID)                                                     
                 self.data_q.put(packList)                 
             except:                        
-                ss = "Get status exception (" + str(info.ID) +")."
-                print(ss)
+                ss = "Get status exception (" + str(info.ID) +")."                
                 self.QueueMessage(ss)
             time.sleep(0.002)        
 

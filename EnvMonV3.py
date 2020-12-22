@@ -95,11 +95,9 @@ class EnvironmentalMonitorV3:
             self.reportedDarkState = Enums.DARKSTATE.ON
 
         for sp in currentStatusPackets:
-            self.currentDFMErrors.UpdateErrors(sp.errorFlags) 
-            print(sp.GetConsolePrintPacket())
+            self.currentDFMErrors.UpdateErrors(sp.errorFlags)             
             if(sp.errorFlags!=0):
-                s="({:d}) Non-zero EnvMon error code: {:02X}".format(self.ID,sp.errorFlags)
-                print(s)
+                s="({:d}) Non-zero EnvMon error code: {:02X}".format(self.ID,sp.errorFlags)                
                 self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)     
 
     def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                                  
