@@ -1150,6 +1150,9 @@
               <string>DFM Indicators:</string>
              </property>
              <layout class="QGridLayout" name="gridLayout">
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
               <property name="topMargin">
                <number>6</number>
               </property>
