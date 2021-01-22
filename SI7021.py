@@ -1,12 +1,22 @@
 import adafruit_si7021
 import board
 import time
+import smbus
 
 class SI7021:
     def __init__(self):
-        self.__Initialize()
-    def __Initialize(self):
+        count=0
+        while (count<5):
+            try:
+                self.__Initialize()
+                print("Si7021 Yay")
+                count=5
+            except:
+                count+=1
+                print("Si7021 fail")
+    def __Initialize(self):        
         self.theSensor=adafruit_si7021.SI7021(board.I2C())
+        
     def GetTemperature(self):
         if self.theSensor is None:
             return -1
@@ -29,6 +39,9 @@ class SI7021:
 def ModuleTest():
     try:
         theSensor=adafruit_si7021.SI7021(board.I2C()) 
+    except:
+        theSensor=adafruit_si7021.SI7021(board.I2C()) 
+    try:        
         while(1):
             print(theSensor.temperature)
             print(theSensor.relative_humidity)

@@ -30,12 +30,11 @@ class EnvironmentalMonitor():
             self.humidity=0
             self.temperature=0                   
             if(self.isPresent==False):                  
-                self.i2c = busio.I2C(board.SCL,board.SDA)                
-                time.sleep(0.500)                    
-                self.si =  SI7021.SI7021()                                  
-                time.sleep(1)        
-                self.tsl = TSL2591.TSL2591(self.i2c)                
-                time.sleep(1)                              
+                self.i2c = busio.I2C(board.SCL,board.SDA)                                                  
+                self.si =  SI7021.SI7021()                                                  
+                time.sleep(0.2)        
+                self.tsl = TSL2591.TSL2591(self.i2c)              
+                time.sleep(0.2)                              
                 self.isPresent=True                
         except:            
             self.tsl=None
