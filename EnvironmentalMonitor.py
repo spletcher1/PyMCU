@@ -22,24 +22,25 @@ class EnvironmentalMonitor():
         self.isPresent=False  
         self.Initialize()       
     
-    def Initialize(self):
+    def Initialize(self):   
         try: 
             self.currentState=MonitorState.IDLE               
             self.currentIdleSteps=0
             self.light=0
             self.humidity=0
-            self.temperature=0              
-            if(self.isPresent==False):                    
-                self.i2c = busio.I2C(board.SCL, board.SDA)
-                time.sleep(0.100)                
-                self.tsl = TSL2591.TSL2591(self.i2c)
-                time.sleep(0.500)                
-                self.si =  SI7021.SI7021(self.i2c)                                  
+            self.temperature=0                   
+            if(self.isPresent==False):                  
+                self.i2c = busio.I2C(board.SCL,board.SDA)                
+                time.sleep(0.500)                    
+                self.si =  SI7021.SI7021()                                  
+                time.sleep(1)        
+                self.tsl = TSL2591.TSL2591(self.i2c)                
+                time.sleep(1)                              
                 self.isPresent=True                
         except:            
             self.tsl=None
             self.si = None
-            self.isPresent=False
+            self.isPresent=False            
 
 
     def StepMonitor(self):       
