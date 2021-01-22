@@ -8,12 +8,10 @@ class SI7021:
         count=0
         while (count<5):
             try:
-                self.__Initialize()
-                print("Si7021 Yay")
+                self.__Initialize()                
                 count=5
             except:
-                count+=1
-                print("Si7021 fail")
+                count+=1                
     def __Initialize(self):        
         self.theSensor=adafruit_si7021.SI7021(board.I2C())
         
