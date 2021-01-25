@@ -193,10 +193,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.DeleteProgramButton.setEnabled(True)
         self.SetDateAndTimeButton.setEnabled(True)
 
+
+    def SetStartTimeNow(self):
+        self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))        
+        #self.programStartTime= tmp.toPyDateTime()
+
+
+    def ManualStartTimeChange(self):
+        dt = self.StartTimeEdit.dateTime()
+        dt=dt.toPyDateTime()
+        dt = dt.replace(second=0,microsecond=0)
+        self.SetProgramStartTime(dt)
+
     def SetProgramStartTime(self,theTime):
-        self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)            
-        self.programEndTime = self.programStartTime + self.programDuration        
-        qtDate=QtCore.QDateTime.currentDateTime()    
+        self.programStartTime = theTime            
+        self.programEndTime = self.programStartTime + self.programDuration                
         ss=self.programStartTime.strftime("%m-%d-%Y %H:%M:%S")        
         qtDate = QtCore.QDateTime.fromString(ss,"MM-dd-yyyy HH:mm:ss")        
         self.StartTimeEdit.setDateTime(qtDate)
@@ -209,9 +220,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("Load programs only after DFMs have been defined.",self.statusmessageduration)
             return
         sender = self.sender()
-        tmp = sender.text()
-        #self.programStartTime = datetime.datetime.today() + datetime.timedelta(minutes=1)
-        self.programStartTime = datetime.datetime.today() + datetime.timedelta(seconds=10)
+        tmp = sender.text()      
         if(tmp == "30 min"):
             self.programDuration = datetime.timedelta(minutes=30)          
             self.LoadSimpleProgram()  
@@ -270,6 +279,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
+        self.SetProgramStartTime(datetime.datetime.today() + datetime.timedelta(minutes=1))        
         self.programEndTime = self.programStartTime + self.programDuration
         self.theDFMGroup.currentProgram.CreateSimpleProgram(self.programStartTime,self.programDuration)
         self.UpdateProgramGUI()
@@ -303,6 +313,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CustomButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
         self.StartTimeNowButton.clicked.connect(self.SetStartTimeNow)
+
+        self.StartTimeEdit.dateTimeChanged.connect(self.ManualStartTimeChange)
+
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
         self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
         self.refreshFilesButton.clicked.connect(self.LoadFilesListWidget)
@@ -327,9 +340,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.toggleOutputsState = True
             self.StatusBar.showMessage("Outputs toggled on.",self.statusmessageduration)  
 
-    def SetStartTimeNow(self):
-        self.SetProgramStartTime(datetime.datetime.today())        
-        #self.programStartTime= tmp.toPyDateTime()
+   
 
     def SetTimeDialog(self):
         secs= DateDialog.getDateTime()
