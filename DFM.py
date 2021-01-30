@@ -146,9 +146,10 @@ class DFM:
             self.currentDFMErrors.UpdateErrors(sp.errorFlags)
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero DFM error code: {:02X}".format(self.ID,sp.errorFlags)
-                self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)
+                #self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)
+                self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,s,Enums.MESSAGETYPE.WARNING)
 
-        ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior.
+        ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior. 
         ##if self.isInstructionUpdateNeeded:
         ##    return # This is here to avoid loop 
         ##tmpisInstructionUpdateNeeded=False
@@ -208,7 +209,8 @@ class DFM:
                     self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)   
                     self.SetStatus(Enums.CURRENTSTATUS.ERROR)                        
   
-                self.UpdateReportedValues(currentStatusPackets) 
+        if isSuccess:    
+            self.UpdateReportedValues(currentStatusPackets) 
 
         self.CheckStatus()
 
