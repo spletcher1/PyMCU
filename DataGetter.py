@@ -273,12 +273,14 @@ class DataGetter:
     def ReadWorker(self):
         self.currentReadIndex=1
         self.refreshRate=0.25
+        CommandsInARow=0
         self.isPaused=True      
         self.QueueMessage("Read worker started.")        
         lastTime = time.time()  
         lastTime_Env = time.time()  
         while(True):  
-            if(self.ProcessCommand()==False):                         
+            if(CommandsInARow>12 or self.ProcessCommand()==False):                         
+                CommandsInARow=0
                 if(self.isPaused==False):
                     if(time.time()-lastTime>self.refreshRate):                                                               
                         lastTime = time.time()                             
@@ -286,6 +288,9 @@ class DataGetter:
                 if(time.time()-lastTime_Env>1):
                     self.theEnvironmentalMonitor.StepMonitor()
                     lastTime_Env = time.time()                            
+            else:
+                CommandsInARow+=1
+
             time.sleep(0.002)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
