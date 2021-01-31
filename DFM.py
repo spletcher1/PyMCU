@@ -96,11 +96,9 @@ class DFM:
         self.isInstructionUpdateNeeded=True
         
     def SetStatus(self, newStatus):
-        if(newStatus != self.status):
+        if(newStatus != self.status):            
             if(newStatus == Enums.CURRENTSTATUS.ERROR or newStatus == Enums.CURRENTSTATUS.MISSING):               
-                self.pastStatus = Enums.PASTSTATUS.PASTERROR
-            elif(newStatus == Enums.CURRENTSTATUS.RECORDING):                
-                self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
+                self.pastStatus = Enums.PASTSTATUS.PASTERROR                     
             self.status = newStatus
     #endregion
   
@@ -203,10 +201,9 @@ class DFM:
                     if(self.isCalculatingBaseline):                        
                         self.UpdateBaseline()
                 else :
-                    # It's okay now to receive these because of the fast buffer reset and call.
+                    # It's okay now to receive these because of the fast buffer reset and call. I will not call this an error.                    
                     s="({:d}) Empty packet received".format(self.ID)
-                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)   
-                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)                        
+                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
   
         if isSuccess:    
             self.UpdateReportedValues(currentStatusPackets) 
@@ -242,7 +239,9 @@ class DFM:
         else:
             pass #Sable V2 doesn't need anything here.
 
-    def CheckStatusV2(self):                  
+    def CheckStatusV2(self):    
+        if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.ERROR or self.status == Enums.CURRENTSTATUS.UNDEFINED:
+            return              
         lsp = self.theData.GetLastDataPoint()   
         
         if(lsp.optoFrequency!=self.currentInstruction.frequency):     
@@ -262,7 +261,10 @@ class DFM:
         if(lsp.optoState1!=self.theOptoLid.optoStateCol1 or lsp.optoState2!=self.theOptoLid.optoStateCol2):   
             self.MP.SendOptoState(self.ID,self.theOptoLid.optoStateCol1,self.theOptoLid.optoStateCol2)                 
 
-    def CheckStatusV3(self):             
+    def CheckStatusV3(self):     
+        # To avoid sending repeated instructions to missing DFM that are never acked and therefore continue to be queued and sent.
+        if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.ERROR or self.status == Enums.CURRENTSTATUS.UNDEFINED:            
+            return
         if(self.isBufferResetNeeded):                  
             if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False

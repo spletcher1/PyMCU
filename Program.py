@@ -17,7 +17,7 @@ class MCUProgram():
         return self.GetProgramDescription()
 
     def ClearProgram(self):
-        ddt = datetime.datetime.today()
+        ddt = datetime.datetime.today() + datetime.timedelta(minutes=1)
         self.startTime = datetime.datetime(ddt.year, ddt.month, ddt.day, ddt.hour, ddt.minute, 0)
         self.experimentDuration = datetime.timedelta(minutes=1)
         self.theInstructionSets.clear()

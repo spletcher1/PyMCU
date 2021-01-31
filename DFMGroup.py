@@ -107,7 +107,8 @@ class DFMGroup:
         self.theMessageList.ClearMessages()
         for i in self.theDFMs.values():            
             i.ResetOutputFileStuff()
-            i.SetStatus(Enums.CURRENTSTATUS.RECORDING)            
+            i.pastStatus = Enums.PASTSTATUS.ALLCLEAR
+            i.status=Enums.CURRENTSTATUS.RECORDING            
             i.isBufferResetNeeded=True   
             i.isSetNormalProgramIntervalNeeded=True
             i.SetLinkage(self.currentProgram.GetLinkage(i.ID))            
@@ -369,7 +370,7 @@ class DFMGroup:
         f.close()
         result=self.currentProgram.LoadProgram(lines,self.theDFMs)
         if (result==False):            
-            self.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=180))
+            self.LoadSimpleProgram(datetime.datetime.today() + datetime.timedelta(minutes=1),datetime.timedelta(minutes=180))
         return result  
         
     def LoadSimpleProgram(self,startTime,duration):
@@ -401,7 +402,7 @@ class DFMGroup:
                 d.BaselineDFM()
             else:
                 d.ResetBaseline()   
-        self.SetFastProgramReadInterval()
+        self.SetFastProgramReadInterval()           
         self.StartProgramWorker()                        
     #endregion
 
