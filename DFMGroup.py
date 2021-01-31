@@ -377,8 +377,7 @@ class DFMGroup:
     
     def StopCurrentProgram(self):
         if(len(self.theDFMs)==0):
-            return
-        print("Stopping program.")     
+            return        
         # This is here for V3 to make sure all have nearly the 
         # same number of observations (not off by 5sec)
         self.SetFastProgramReadInterval()
@@ -395,8 +394,7 @@ class DFMGroup:
     def StageCurrentProgram(self):
         if(len(self.theDFMs)==0):
             return
-        self.StopReadWorker()
-        print("Baselining")
+        self.StopReadWorker()        
         self.currentProgram.isActive=True
         for d in self.theDFMs.values():
             if(self.currentProgram.autoBaseline==True):
@@ -404,8 +402,7 @@ class DFMGroup:
             else:
                 d.ResetBaseline()   
         self.SetFastProgramReadInterval()
-        self.StartProgramWorker()
-        print("Staging program.")                           
+        self.StartProgramWorker()                        
     #endregion
 
 #region Module Testing    

@@ -32,7 +32,10 @@ class UARTCOMM():
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         UARTCOMM.UART_message.notify(tmp)      
-    def _WriteByteArray(self,ba,delay=0.005):       
+    def _WriteByteArray(self,ba,delay=0.008):   
+        if (self.thePort.out_waiting>0):
+            print("out waiting")
+            self.thePort.reset_output_buffer()    
         GPIO.output(self.sendPIN,GPIO.HIGH)
         time.sleep(delay)    
         self.thePort.write(ba)   
@@ -168,7 +171,7 @@ class UARTCOMM():
             tmp=self._ReadCOBSPacket(5)                                     
             if(tmp[0]!=Enums.COBSRESULT.OKAY):            
                 return False          
-            tmp = cobs.decode(tmp[1])  
+            tmp = cobs.decode(tmp[1])   
             if(len(tmp)!=1):            
                 return False    
             if(tmp[0]==ID):
@@ -219,7 +222,7 @@ class UARTCOMM():
         self._WriteByteArray(barray,0.002)        
         try:
             tmp=self._ReadCOBSPacket(5)                                     
-            if(tmp[0]!=Enums.COBSRESULT.OKAY):            
+            if(tmp[0]!=Enums.COBSRESULT.OKAY):                        
                 return False     
             tmp = cobs.decode(tmp[1])      
             if(len(tmp)!=1):            
@@ -240,6 +243,7 @@ class UARTCOMM():
         
     def GetStatusPacket(self,ID,dummy,latestOnly):            
         if (self.thePort.in_waiting>0):
+            print("In Waiting")
             self.thePort.reset_input_buffer()
         
         if(latestOnly):            
@@ -250,7 +254,7 @@ class UARTCOMM():
             #start = time.time()
             ## This is set for maxpackets = 60
             tmp = self._ReadCOBSPacket(5000)            
-            if(tmp[0]==Enums.COBSRESULT.NOANSWER):            
+            if(tmp[0]==Enums.COBSRESULT.NOANSWER):                      
                 return -1
             elif(tmp[0]==Enums.COBSRESULT.INCOMPLETEPACKET):  
                 return -2               

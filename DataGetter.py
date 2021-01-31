@@ -68,7 +68,8 @@ class DataGetter:
         try:                
             tmp = self.answer_q.get(block=True,timeout=tout)                              
             return tmp
-        except:                
+        except:           
+            print("get Answer timeout")     
             return None
     def ClearQueues(self):
         self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
@@ -88,15 +89,15 @@ class DataGetter:
     def SendBufferReset(self,ID):
         self.ClearAnswerQueueInternal()
         self.command_q.put(MP_Command(COMMANDTYPE.BUFFER_RESET,[ID]))
-        return self.GetAnswer(1)
+        return self.GetAnswer(3)
     def SendInstruction(self,ID,currentInstruction):
         self.ClearAnswerQueueInternal()
         self.command_q.put(MP_Command(COMMANDTYPE.INSTRUCTION,[ID,currentInstruction]))
-        return self.GetAnswer(2)
+        return self.GetAnswer(3)
     def SendLinkage(self,ID,currentLinkage):
         self.ClearAnswerQueueInternal()
         self.command_q.put(MP_Command(COMMANDTYPE.LINKAGE,[ID,currentLinkage]))
-        return self.GetAnswer(2)
+        return self.GetAnswer(3)
     def SendFrequency(self,ID,frequency):
         self.command_q.put(MP_Command(COMMANDTYPE.SEND_FREQ,[ID,frequency]))        
     def SendPulseWidth(self,ID,pulseWidth):
@@ -231,7 +232,7 @@ class DataGetter:
                 self.answer_q.put([tmp.arguments[0],answer])                
             elif(tmp.commandType==COMMANDTYPE.SET_FOCAL_DFM):
                 if(tmp.arguments[0]==0):
-                    self.focalDFMs = self.DFMInfos
+                    self.focalDFMs = self.DFMInfos                    
                 else:
                     for i in self.DFMInfos:                        
                         if i.ID == tmp.arguments[0]:
@@ -277,16 +278,15 @@ class DataGetter:
         lastTime = time.time()  
         lastTime_Env = time.time()  
         while(True):  
-            #if(self.ProcessCommand()==False):         
-            self.ProcessCommand()
-            if(self.isPaused==False):
-                if(time.time()-lastTime>self.refreshRate):                                                               
-                    lastTime = time.time()                             
-                    self.ReadValues()                                                                                                                                   
-            if(time.time()-lastTime_Env>1):
-                self.theEnvironmentalMonitor.StepMonitor()
-                lastTime_Env = time.time()                            
-            time.sleep(0.001)
+            if(self.ProcessCommand()==False):                         
+                if(self.isPaused==False):
+                    if(time.time()-lastTime>self.refreshRate):                                                               
+                        lastTime = time.time()                             
+                        self.ReadValues()                                                                                                                                   
+                if(time.time()-lastTime_Env>1):
+                    self.theEnvironmentalMonitor.StepMonitor()
+                    lastTime_Env = time.time()                            
+            time.sleep(0.002)
             # Note that when reading is stopped it should stop (especially for V3)
             # after the last DFM in the list, not in the middle somehwere.
         self.QueueMessage("Read worker ended.")                
@@ -303,13 +303,13 @@ class DataGetter:
                 packList=self.ProcessPacket(info,bytesData,currentTime)     
                 tmp = True                    
                 for p in packList:                    
-                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:                                           
+                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:                                    
                         tmp = False                
                 if (tmp):                                        
                     self.theCOMM.SendAck(info.ID)                                                     
                 self.data_q.put(packList)                 
             except:                        
-                ss = "Get status exception (" + str(info.ID) +")."                
+                ss = "Get status exception (" + str(info.ID) +")."                                
                 self.QueueMessage(ss)
             time.sleep(0.002)        
 
@@ -327,7 +327,7 @@ class DataGetter:
         if(bytesData==-1):                            
             currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
             currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER          
-            print("No answer")          
+            print(f"No answer: {info.ID}")                      
             return [currentStatusPacket]      
         elif(bytesData==-2):  
             currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            

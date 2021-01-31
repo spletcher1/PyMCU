@@ -146,8 +146,8 @@ class DFM:
             self.currentDFMErrors.UpdateErrors(sp.errorFlags)
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero DFM error code: {:02X}".format(self.ID,sp.errorFlags)
-                #self.NewMessage(self.ID,sp.packetTime,sp.sample,s,Enums.MESSAGETYPE.WARNING)
-                self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,s,Enums.MESSAGETYPE.WARNING)
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.WARNING)
+                #self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,s,Enums.MESSAGETYPE.WARNING)
 
         ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior. 
         ##if self.isInstructionUpdateNeeded:
@@ -173,19 +173,19 @@ class DFM:
             if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Checksum error".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,theMessageType)                       
-            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
+            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):                
                 self.SetStatus(Enums.CURRENTSTATUS.MISSING)
-                s="({:d}) No answer".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,theMessageType)                       
+                s="({:d}) No answer".format(self.ID)                
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Wrong number of bytes:".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,theMessageType)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Incomplete packet received:".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,self.sampleIndex,s,theMessageType)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
             if isSuccess:                                                                                                                                            
@@ -193,7 +193,7 @@ class DFM:
                     currentStatusPackets[j].sample = self.sampleIndex
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue error".format(self.ID)
-                        self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.ERROR)
+                        self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
                     else:                                  
                         if(saveDataToQueue): 
@@ -206,7 +206,7 @@ class DFM:
                 else :
                     # It's okay now to receive these because of the fast buffer reset and call.
                     s="({:d}) Empty packet received".format(self.ID)
-                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].sample,s,Enums.MESSAGETYPE.NOTICE)   
+                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)   
                     self.SetStatus(Enums.CURRENTSTATUS.ERROR)                        
   
         if isSuccess:    
