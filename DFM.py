@@ -147,7 +147,6 @@ class DFM:
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero DFM error code: {:02X}".format(self.ID,sp.errorFlags)
                 self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.WARNING)
-                #self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,s,Enums.MESSAGETYPE.WARNING)
 
         ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior. 
         ##if self.isInstructionUpdateNeeded:
