@@ -130,6 +130,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MThread.updateGUISignal.connect(self.UpdateGUI)      
         self.MThread.start()
 
+        self.CheckForLowStorageWarning()
+
 
     def device_connected(self,device):        
         if(device.action=="add"):
@@ -377,7 +379,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.3\nIP: " + hostip
+        ss="Version: 1.0.4\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         retval=msg.exec_()           
@@ -490,6 +492,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 os.system("rm -rf FLICData")  
                 self.StatusBar.showMessage("Local data folder has been deleted.",self.statusmessageduration)                              
 
+    def CheckForLowStorageWarning(self):
+        stat = os.statvfs("./MainViewModel.py")
+        availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
+        if(availableMegaBytes>1000):
+            return        
+        msg = QMessageBox()        
+        msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
+        msg.setIcon(QMessageBox.Information)
+        stext = "Warning: Local storage less than 1GB."        
+        msg.setText(stext)
+        msg.setWindowTitle("Low Storage")
+        ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
+        msg.setInformativeText(ss)    
+        retval=msg.exec_()           
+        
     def PowerOff(self):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Question)
