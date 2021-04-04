@@ -1178,7 +1178,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>Interrupt</string>
+                 <string>AI_Int</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1212,7 +1212,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>FERR</string>
+                 <string>P Size</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1229,7 +1229,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>Packet</string>
+                 <string>P Type</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1246,7 +1246,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>OERR</string>
+                 <string>IDERR</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1266,7 +1266,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>DMA_TX</string>
+                 <string>DMA_Tx</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1283,7 +1283,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>PERR</string>
+                 <string>O_Int</string>
                 </property>
                </widget>
               </item>
@@ -1297,7 +1297,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>DMA_RX</string>
+                 <string>DMA_Rx</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
