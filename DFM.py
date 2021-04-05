@@ -143,7 +143,7 @@ class DFM:
         for sp in currentStatusPackets:
             self.currentDFMErrors.UpdateErrors(sp.errorFlags)
             if(sp.errorFlags!=0):
-                s="({:d}) Non-zero DFM code: {:02X}".format(self.ID,sp.errorFlags)
+                s="DFM code: {:02X}".format(sp.errorFlags)
                 self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)
 
         ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior. 
