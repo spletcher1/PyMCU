@@ -379,7 +379,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.4\nIP: " + hostip
+        ss="Version: 1.0.5\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         retval=msg.exec_()           
@@ -621,7 +621,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if(self.activeDFM.currentDFMErrors.GetOERRErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.OERRErrorBox.setChecked(False)
         else:
-            self.OERRErrorBox.setChecked(True)
+            self.OERRErrorBox.setChecked(True) 
          
         if(self.activeDFM.currentDFMErrors.GetPacketErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
             self.PacketErrorBox.setChecked(False)
