@@ -9,6 +9,7 @@ class MessageList():
         self.theMessages = []
         self.OnMessageRaised=Event.Event()
         self.maxMessages=500
+        self.maxMessagesForScreen=100
     def __len__(self):
         return len(self.theMessages)
     def __str__(self):
@@ -16,8 +17,13 @@ class MessageList():
             return "No Messages"
         else:
             ss=""
+            count=0
             for m in self.theMessages:
                 ss+=str(m)+"\n"
+                count+=1
+                if(count>self.maxMessagesForScreen):
+                    ss+="Max messages displayed. Check file for details."
+                    break
             return ss
 
 
@@ -34,7 +40,8 @@ class MessageList():
             s="DFM,Date,Time,Millisecond,Sample,Message,MsgType\n"
             for i in self.theMessages:
                 s+=i.GetMessageStringForFile()
-        return s        
+        return s     
+
     def AddMessage(self,newmessage):
         newmessage.messageNumber = len(self.theMessages)+1
         if(len(self.theMessages)>self.maxMessages):
