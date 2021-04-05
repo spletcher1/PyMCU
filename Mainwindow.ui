@@ -1178,7 +1178,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>AI_Int</string>
+                 <string>AI Int</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1246,7 +1246,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>IDERR</string>
+                 <string>ID Ack</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1266,7 +1266,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>DMA_Tx</string>
+                 <string>DMA Tx</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -1283,7 +1283,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>O_Int</string>
+                 <string>O Int</string>
                 </property>
                </widget>
               </item>
@@ -1297,7 +1297,7 @@
                  </font>
                 </property>
                 <property name="text">
-                 <string>DMA_Rx</string>
+                 <string>DMA Rx</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
