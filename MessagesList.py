@@ -37,6 +37,8 @@ class MessageList():
         return s        
     def AddMessage(self,newmessage):
         newmessage.messageNumber = len(self.theMessages)+1
+        if(len(self.theMessages)>self.maxMessages):
+            return False
         if(len(self.theMessages)==self.maxMessages):
             newmessage.DFMID = 0
             newmessage.messageType=Enums.MESSAGETYPE.NOTICE
@@ -46,6 +48,7 @@ class MessageList():
             self.theMessages.append(newmessage)
         else:
             pass
+        return True
         
     def ClearMessages(self):
         self.theMessages.clear()

@@ -137,7 +137,7 @@ class DataGetter:
                 continue # Light Sensor
             if(i==89 and self.COMMType == COMMTYPE.I2C):
                 continue # Humidity sensor
-            tmp = self.theCOMM.PollSlave(i)            
+            tmp = self.theCOMM.PollSlave(i)                            
             if(tmp != '' ):                
                 self.DFMInfos.append(DFMInfo(i,tmp))                        
             time.sleep(0.010)
@@ -377,11 +377,11 @@ def ModuleTest():
     mp.theCOMM=COMM.UARTCOMM()
     mp.COMMType = COMMTYPE.UART  
     print(mp.FindDFMInternal())
-    for i in range(1,7):
+    for i in range(1,12):
         mp.theCOMM.RequestBufferReset(i)
         time.sleep(0.1)
     time.sleep(1)
-    mp.focalDFMs=mp.DFMInfos[0:6]
+    mp.focalDFMs=mp.DFMInfos[7:8]
     mp.getLatestStatusOnly=False
     for i in range(0,10):
         mp.ReadValues()
@@ -406,5 +406,5 @@ def ModuleTestI2C():
 
 
 if __name__=="__main__" :
-    ModuleTestI2C()
+    ModuleTest()
     

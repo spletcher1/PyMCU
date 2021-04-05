@@ -144,7 +144,7 @@ class DFM:
             self.currentDFMErrors.UpdateErrors(sp.errorFlags)
             if(sp.errorFlags!=0):
                 s="({:d}) Non-zero DFM code: {:02X}".format(self.ID,sp.errorFlags)
-                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.WARNING)
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)
 
         ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior. 
         ##if self.isInstructionUpdateNeeded:
@@ -296,9 +296,8 @@ class DFM:
 def ModuleTest():
     Board.BoardSetup()
     #tmp = DFMGroup(COMM.TESTCOMM())
-    #port = COMM.UARTCOMM()
-    port=COMM.COMM()
-    dfm = DFM(6,port,Enums.DFMTYPE.PLETCHERV2)
+    port = COMM.UARTCOMM()    
+    dfm = DFM(8,Enums.DFMTYPE.PLETCHERV3,'hi')
     dfm.ReadValues(False)  
     for sp in dfm.currentStatusPackets:
         print(sp.GetDataBufferPrintPacket())          

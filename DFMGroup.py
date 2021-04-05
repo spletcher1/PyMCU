@@ -46,13 +46,13 @@ class DFMGroup:
 
 
     def NewMessageDirect(self,newMessage):        
-        self.theMessageList.AddMessage(newMessage)     
-        DFMGroup.DFMGroup_message.notify(newMessage)
+        if(self.theMessageList.AddMessage(newMessage)):
+            DFMGroup.DFMGroup_message.notify(newMessage)
         
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        self.theMessageList.AddMessage(tmp)  
-        DFMGroup.DFMGroup_message.notify(tmp)      
+        if(self.theMessageList.AddMessage(tmp)):
+            DFMGroup.DFMGroup_message.notify(tmp)      
 
 
     def ClearDFMList(self):        
@@ -410,7 +410,7 @@ class DFMGroup:
 def ModuleTest():
     Board.BoardSetup()
     tmp = DFMGroup()
-    tmp.FindDFMs(maxNum=7)    
+    tmp.FindDFMs(maxNum=20)    
     tmp.StopReadWorker()
     time.sleep(1)
     while tmp.MP.message_q.empty() != True:

@@ -355,10 +355,8 @@ class I2CCOMM():
 def ModuleTest2(dfmID):
     Board.BoardSetup()
     theCOMM = UARTCOMM()    
-    print(theCOMM.RequestBufferReset(dfmID))
-    return
-
-    tmp = theCOMM.GetStatusPacket(dfmID,0,True)  
+   
+    tmp = theCOMM.GetStatusPacket(dfmID,0,False)  
 
     sp=StatusPacket.StatusPacket(6,6,Enums.DFMTYPE.PLETCHERV3)
     sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
@@ -370,7 +368,7 @@ def ModuleTest2(dfmID):
 
     
 
-def ModuleTest():
+def ModuleTest(id):
     Board.BoardSetup()
     theCOMM = UARTCOMM()    
 
@@ -381,29 +379,39 @@ def ModuleTest():
 
     #print(theCOMM.GetStatusPacket(6,0))
     #return
-    print(theCOMM.RequestBufferReset(99))
+    time.sleep(1)
+    print(theCOMM.RequestBufferReset(id))
     #return
-    time.sleep(0.5)
+    time.sleep(1)
     #DFMs = [1,2,3,4,5,6]
-    DFMs=[99]
-    for i in range(0,10):
+    DFMs=[id]
+    for i in range(0,20):
         for jj in DFMs:
-            tmp = theCOMM.GetStatusPacket(jj,1,False)                    
-            if(len(tmp)>0):
-                theCOMM.SendAck(99)   
-                numpackets = int(len(tmp)/66)            
+            tmp = theCOMM.GetStatusPacket(jj,1,False)                                
+            if(len(tmp)>0):                
+                theCOMM.SendAck(id)                                   
+                numpackets = int(len(tmp)/56)            
                 for j in range(0,numpackets):
-                    sp=StatusPacket.StatusPacket(6,jj,Enums.DFMTYPE.ENVMONV3)
+                    sp=StatusPacket.StatusPacket(6,jj,Enums.DFMTYPE.PLETCHERV3)
                     sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
                     if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
                         print(sp.processResult)                       
                     print(sp.GetConsolePrintPacket())
+            else:
+                print("NA")
             time.sleep(0.002)
         time.sleep(1)
         print('*')
     return
     
-
+def AckTest(id):
+    Board.BoardSetup()
+    theCOMM = UARTCOMM()        
+    for i in range(0,20):        
+        theCOMM.SendAck(id)                         
+        time.sleep(1)
+        print('*')
+    return
 
 def SimpleTest():
     Board.BoardSetup()
@@ -415,7 +423,8 @@ def SimpleTest():
 
 
 if __name__=="__main__" :
-    ModuleTest()
-    #ModuleTest2(1)
+    #ModuleTest()
+    ModuleTest(8)
+    #AckTest(8)
    
 #endregion
