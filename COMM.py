@@ -1,19 +1,15 @@
-import time
-import _thread 
-import socketserver 
-from random import seed
-from random import randint
-import array
-import StatusPacket
 import platform
-import serial
 import Event
 import Message
 import datetime
 import Instruction
 import Enums
 import Board
+import smbus2
+import time
+import serial
 from cobs import cobs
+import StatusPacket
 
 if(platform.system()!="Windows"):
     import serial.tools.list_ports
@@ -21,127 +17,27 @@ if(platform.system()!="Windows"):
 if("MCU" in platform.node()):        
     import RPi.GPIO as GPIO
 
-#region TESTCOMM
-class TESTCOMM():
-    UART_message = Event.Event()
-    def __init__(self):
-        self.recordIndex=1
-    def NewMessage(self,ID, errorTime, sample,  message,mt):
-        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        TESTCOMM.UART_message.notify(tmp)   
-    def _DoNothing(self):
-        a=1
-    def PollSlave(self,ID):
-        return True
-    def RequestStatus(self,ID):
-        self._DoNothing()
-    def SendOptoState(self, os1, os2,ID):
-        self._DoNothing()
-    def SendPulseWidth(self, pw,ID):
-        self._DoNothing()
-    def SendFrequency(self,freq,ID):
-        self._DoNothing()
-    def GoDark(self,ID):
-        self._DoNothing()
-    def ExitDark(self,ID):
-        self._DoNothing()
-    def SendInstruction(self,ID,anInstruction):
-        return True
-    def RequestBufferReset(self,ID):
-        return True
-    def _CreateFakeStatusPacket(self,ID):
-        tmp = StatusPacket.StatusPacket(0)
-        ba = bytearray(66*5)       
-       
-        for j in range(0,5):           
-            baseindexer = (j*66)
-            ba[baseindexer]=ID 
-            indexer=baseindexer+1
-            ba[indexer]=0x00 #Error flaj 
-            for i in range(0,12):
-                analog=50+randint(0,20)
-                analog *=128
-                ba[(3*i)+(indexer+1)]=analog >> 16
-                ba[(3*i)+(indexer+2)]=(analog >> 8) & 0xFF
-                ba[(3*i)+(indexer+3)]=analog & 0xFF
-            
-            voltsin = int((2.5/3.3)*1024*128)
-            ba[(indexer+37)] = voltsin>>16
-            ba[(indexer+38)] = (voltsin>>8) & 0xFF
-            ba[(indexer+39)] = voltsin & 0xFF
-                
-            ba[(indexer+40)]=0x00 #OS1
-            ba[(indexer+41)]=0x00 #OS2
-
-            ba[(indexer+42)]=0x00 #Freq
-            ba[(indexer+43)]=0x28
-
-            ba[(indexer+44)]=0x00 #PW
-            ba[(indexer+45)]=0x08
-
-            ba[(indexer+46)]=0x00 # Dark mode
-
-            tmp = 18 + randint(0,10) 
-            tmp*=1000
-            ba[(indexer+47)] = tmp>>24
-            ba[(indexer+48)] = (tmp>>16) & 0xFF
-            ba[(indexer+49)] = (tmp>>8) & 0xFF
-            ba[(indexer+50)] = tmp & 0xFF
-
-            tmp = 45 + randint(0,20) 
-            tmp*=1000
-            ba[(indexer+51)] = tmp>>24
-            ba[(indexer+52)] = (tmp>>16) & 0xFF
-            ba[(indexer+53)] = (tmp>>8) & 0xFF
-            ba[(indexer+54)] = tmp & 0xFF
-
-            tmp = 500 + randint(0,80) 
-            ba[(indexer+55)] = (tmp>>8) & 0xFF
-            ba[(indexer+56)] = tmp & 0xFF
-
-            tmp = self.recordIndex
-            ba[(indexer+57)] = tmp>>24
-            ba[(indexer+58)]  = (tmp>>16) & 0xFF
-            ba[(indexer+59)] = (tmp>>8) & 0xFF
-            ba[(indexer+60)] = tmp & 0xFF
-            
-            calculatedCheckSum=0
-            for cs in range(baseindexer,baseindexer+62) :
-                calculatedCheckSum+=ba[cs]
-            calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
-            ba[(indexer+61)] = calculatedCheckSum>>24
-            ba[(indexer+62)] = (calculatedCheckSum>>16) & 0xFF
-            ba[(indexer+63)] = (calculatedCheckSum>>8) & 0xFF
-            ba[(indexer+64)] = calculatedCheckSum & 0xFF
-
-            self.recordIndex+=1
-        return ba
-    def GetStatusPacket(self,ID):        
-        tmp = self._CreateFakeStatusPacket(ID) 
-        return tmp
-#endregion
 
 class UARTCOMM():    
     UART_message = Event.Event()
     #region Core read/write functions
     def __init__(self):
-        ## The timeout here is tricky.  For 15 packets to be sent, it seems to
-        ## take about 0.150 seconds, so the timeout has to be larger than this
+        ## The timeout here is tricky.  For 60 packets to be sent, it seems to
+        ## take about 0.250 seconds, but sometimes over 0.3. So the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',115200,timeout=.3)           
-        self.sendPIN = 17
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=1)           
+        self.sendPIN = 17        
         GPIO.setup(self.sendPIN,GPIO.OUT)        
         GPIO.output(self.sendPIN,GPIO.LOW)
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        UARTCOMM.UART_message.notify(tmp)   
-    def _Write(self,s,delay=0.005):
-        GPIO.output(self.sendPIN,GPIO.HIGH)       
-        self.thePort.write(s.encode())               
-        time.sleep(delay)     
-        GPIO.output(self.sendPIN,GPIO.LOW)
-    def _WriteByteArray(self,ba,delay=0.005):       
+        UARTCOMM.UART_message.notify(tmp)      
+    def _WriteByteArray(self,ba,delay=0.008):   
+        if (self.thePort.out_waiting>0):
+            print("out waiting")
+            self.thePort.reset_output_buffer()    
         GPIO.output(self.sendPIN,GPIO.HIGH)
+        time.sleep(delay)    
         self.thePort.write(ba)   
         time.sleep(delay)             
         GPIO.output(self.sendPIN,GPIO.LOW)
@@ -149,11 +45,19 @@ class UARTCOMM():
         result=self.thePort.read(numBytes)
         return result
     def _ReadCOBSPacket(self, maxBytes):
+        cobsResult = Enums.COBSRESULT.OKAY        
         term = bytearray(1)
         term[0]=0x00
-        result = self.thePort.read_until(term,maxBytes)
+        result = self.thePort.read_until(term,maxBytes)      
+        if(len(result)==0):         
+            cobsResult = Enums.COBSRESULT.NOANSWER
+            return (cobsResult,result)
+        if(result[-1]!=0):
+            cobsResult = Enums.COBSRESULT.INCOMPLETEPACKET          
+            return (cobsResult,result)
         result = result[:-1]        
-        return result
+        return (cobsResult,result)
+        
     #endregion
 
     #region Misc Functions
@@ -185,8 +89,7 @@ class UARTCOMM():
     #endregion
 
     #region Specific DFM calls     
-    def RequestStatus(self,ID):
-                 
+    def RequestStatus(self,ID):      
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFC # Indicates status request
@@ -194,11 +97,38 @@ class UARTCOMM():
         
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
-        barray.append(0x00)                 
-        self._WriteByteArray(barray,0.001)
+        barray.append(0x00)                        
+        self._WriteByteArray(barray,0.002)        
+
+    def RequestLatestStatus(self,ID):                 
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xEA # Indicates latest status request
+        ba[2]=ID
+        
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)                        
+        self._WriteByteArray(barray,0.002)
     
-    def RequestBufferReset(self,ID):        
-        self.thePort.reset_input_buffer()
+    def SendAck(self,ID):        
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xFA # Indicates ACK        
+        ba[2]=ID
+    
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)            
+        self._WriteByteArray(barray,0.002)
+
+    def RequestBufferReset(self,ID):         
+        if (self.thePort.in_waiting>0):
+            self.thePort.reset_input_buffer()
+               
+        #self.thePort.reset_input_buffer()  
+        tmpOut = self.thePort.timeout
+        self.thePort.timeout = 0.03  
         ba = bytearray(3)
         ba[0]=ID
         ba[1]=0xFE # Indicates buffer reset        
@@ -206,18 +136,26 @@ class UARTCOMM():
     
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
-        barray.append(0x00)            
-        self._WriteByteArray(barray,0.001)
-       
-        tmp=self._Read(2) 
-       
-        if(len(tmp)!=2):            
+        barray.append(0x00)                      
+        self._WriteByteArray(barray,0.003)        
+        try:
+            tmp=self._ReadCOBSPacket(5)                         
+            self.thePort.timeout = tmpOut
+            if(tmp[0]!=Enums.COBSRESULT.OKAY):            
+                return False
+            tmp = cobs.decode(tmp[1])                        
+            if(tmp[0]==ID):
+                return True
+            else:
+                return False    
+        except: 
+            self.thePort.timeout = tmpOut             
             return False
-        if(tmp[0]==ID):
-            return True
-        else:
-            return False    
+
     def SendLinkage(self,ID,linkage):
+        if (self.thePort.in_waiting>0):
+            self.thePort.reset_input_buffer()
+        
         ba = bytearray(18)
         ba[0]=ID
         ba[1]=0xFB
@@ -227,16 +165,26 @@ class UARTCOMM():
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)        
-        self._WriteByteArray(barray,0.006)        
-        tmp=self._Read(2)
-        if(len(tmp)!=2):            
-            return False
-        if(tmp[0]==ID):
-            return True 
-        else:            
-            return False    
+        self._WriteByteArray(barray,0.002)
 
-    def SendInstruction(self,ID,anInstruction):          
+        try:
+            tmp=self._ReadCOBSPacket(5)                                     
+            if(tmp[0]!=Enums.COBSRESULT.OKAY):            
+                return False          
+            tmp = cobs.decode(tmp[1])   
+            if(len(tmp)!=1):            
+                return False    
+            if(tmp[0]==ID):
+                return True
+            else:
+                return False    
+        except:
+            return False 
+
+    def SendInstruction(self,ID,anInstruction):           
+        if (self.thePort.in_waiting>0):
+            self.thePort.reset_input_buffer()
+                 
         ba = bytearray(41)           
         ba[0]=ID
         ba[1]=0xFD
@@ -260,117 +208,223 @@ class UARTCOMM():
         ba[11]=(anInstruction.maxTimeOn>>8) & 0xFF
         ba[12]=(anInstruction.maxTimeOn) & 0xFF
 
+        ## Note that a -1 for threashold translates to 0xFFFF for this
+        ## two byte instruction, which is 65535.
         for i in range(0,12):
             index=i*2+13
             ba[index] = (anInstruction.adjustedThresholds[i]>>8) & 0xFF            
-            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                     
+            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                  
         self._AddChecksumFourBytes(0,ba)       
-        
+      
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)         
+        self._WriteByteArray(barray,0.002)        
+        try:
+            tmp=self._ReadCOBSPacket(5)                                     
+            if(tmp[0]!=Enums.COBSRESULT.OKAY):                        
+                return False     
+            tmp = cobs.decode(tmp[1])      
+            if(len(tmp)!=1):            
+                return False
+            if(tmp[0]==ID):
+                return True
+            else:
+                return False    
+        except:
+            return False  
 
-        # Using the RT patched linus, it appears that 
-        # a delay of 0.005 is just enough to transmit 43 bytes.
-        self._WriteByteArray(barray,0.006)        
-        tmp=self._Read(2)
-        if(len(tmp)!=2):            
-            return False
-        if(tmp[0]==ID):
-            return True 
-        else:            
-            return False    
-
-    def GetStatusPacket(self,ID):                      
-        start = time.time()
-        self.RequestStatus(ID)
-        end=time.time()
-        if ((end-start)>0.010) :
-            print("Request time: "+str(end-start))        
+    def GetSomething(self,chars):
+        tmp=self._ReadCOBSPacket(4000)                                     
+        if(tmp[0]!=Enums.COBSRESULT.OKAY):            
+            return False     
+        tmp=cobs.decode(tmp[1])
+        return tmp
+        
+    def GetStatusPacket(self,ID,dummy,latestOnly):            
+        if (self.thePort.in_waiting>0):
+            print("In Waiting")
+            self.thePort.reset_input_buffer()
+        
+        if(latestOnly):            
+            self.RequestLatestStatus(ID)
+        else:
+            self.RequestStatus(ID)        
         try:      
-            #tmp = self._ReadCOBSPacket(1050)
-            #print(str(len(tmp)))
-            #return cobs.decode(tmp)
-            return cobs.decode(self._ReadCOBSPacket(1050))
+            #start = time.time()
+            ## This is set for maxpackets = 60
+            tmp = self._ReadCOBSPacket(5000)            
+            if(tmp[0]==Enums.COBSRESULT.NOANSWER):                      
+                return -1
+            elif(tmp[0]==Enums.COBSRESULT.INCOMPLETEPACKET):  
+                return -2               
+            tmp=cobs.decode(tmp[1])
+            #end=time.time()
+            #if ((end-start)>0.030) :
+            #    print("Status time: "+str(end-start))        
+            ## Ack is now sent after packet processing.
+            ## So bad packets are resent.
+            return tmp
         except:
             return ''
-    def PollSlave(self,ID):                     
-        return self.RequestBufferReset(ID)   
+    def PollSlave(self,ID): 
+        if self.RequestBufferReset(ID):    
+            if(ID==99):
+                return Enums.DFMTYPE.ENVMONV3
+            else:                  
+                return Enums.DFMTYPE.PLETCHERV3
+        else:
+            return ''
     #endregion     
        
 
 
-#region Module Testing
-def ModuleTest3():
-    Board.BoardSetup()
-    p=UARTCOMM()   
-    linkage=array.array("i",[1,1,1,1,1,6,7,8,9,10,11,1])
-    result=p.SendLinkage(5,linkage)
-    print(result)
-    #counter = 0
-    #while counter<1000000:
-    #    counter+=1
+class I2CCOMM():      
+    def __init__(self):
+        self.i2cbus = smbus2.SMBus(1)
+      
+    def PollSlave(self,ID):
+        bytestoget = 64         
+        try:
+            tmpAddr = 0x50+ID         
+            msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
+            self.i2cbus.i2c_rdwr(msg)       
+            tmp=list(msg)
+            if((tmp[60]+tmp[61]+tmp[62]+tmp[63])==0):
+                return Enums.DFMTYPE.SABLEV2
+            else:
+                return Enums.DFMTYPE.PLETCHERV2
+        except:
+            return ''
+        
+    def GetStatusPacket(self,ID,DFMType,dummy):             
+        if(DFMType == Enums.DFMTYPE.PLETCHERV2):             
+            bytestoget = 64               
+        elif(DFMType == Enums.DFMTYPE.SABLEV2):             
+            bytestoget = 52               
+        else:
+            bytestoget = 64               
+        try:                            
+            tmpAddr = 0x50+ID         
+            msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
+            self.i2cbus.i2c_rdwr(msg)            
+            return list(msg)                
+        except:            
+            return ''   
 
-    #print(result)
-    #while result!=True:
-    #    time.sleep(1)
-    #    result=p.RequestBufferReset(1)
-    #    print(result)
-    
-    
-    #tmp=p.GetStatusPacket(1)            
-    #tmp2 = ((len(tmp)-69)/65)+1
-    #print(tmp2)
+    def SendDark(self,ID,darkstate):
+        try:
+            tmpAddr = 0x50+ID   
+            buffer = [darkstate]
+            self.i2cbus.write_i2c_block_data(tmpAddr,1,buffer)                  
+            return True
+        except:
+            return False
 
-def ModuleTest2():
+    def SendOptoState(self, ID, os1, os2):
+        try:
+            tmpAddr = 0x50+ID   
+            buffer=[os1,os2]
+            self.i2cbus.write_i2c_block_data(tmpAddr,2,buffer)            
+            return True
+        except:
+            return False
+
+    def SendFrequency(self, ID, freq):
+        try:
+            tmpAddr = 0x50+ID         
+            buffer = [freq]
+            self.i2cbus.write_i2c_block_data(tmpAddr,4,buffer)                 
+            return True
+        except:
+            return False
+
+    def SendPulseWidth(self,ID,pw):
+        try:
+            tmpAddr = 0x50+ID         
+            buffer = [pw]
+            self.i2cbus.write_i2c_block_data(tmpAddr,5,buffer)                 
+            return True
+        except:
+            return False
+    
+    def SendAck(self,ID):
+        pass
+
+#region Testing       
+def ModuleTest2(dfmID):
     Board.BoardSetup()
-    p=UARTCOMM()
-    counter=0
-    totalpackets=0
-    tmp=p.GetStatusPacket(5)
-    theResults = self.ProcessPackets(tmp,self.bufferResetTime)            
-    print(len(tmp))
+    theCOMM = UARTCOMM()    
+   
+    tmp = theCOMM.GetStatusPacket(dfmID,0,False)  
+
+    sp=StatusPacket.StatusPacket(6,6,Enums.DFMTYPE.PLETCHERV3)
+    sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
+    if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
+        print(sp.processResult)
+    else:
+        print(sp.GetConsolePrintPacket())
+
+
+    
+
+def ModuleTest(id):
+    Board.BoardSetup()
+    theCOMM = UARTCOMM()    
+
+    #for i in range(1,16):
+    #    print(theCOMM.RequestBufferReset(i))
+    #    time.sleep(.3)
+    #return
+
+    #print(theCOMM.GetStatusPacket(6,0))
+    #return
     time.sleep(1)
-    start = time.time()
-    while counter<12:
-        tmp=p.GetStatusPacket(5)
-        #tmp2 = ((len(tmp)-69)/65)+1
-        #totalpackets+=tmp2
-        print(tmp)
+    print(theCOMM.RequestBufferReset(id))
+    #return
+    time.sleep(1)
+    #DFMs = [1,2,3,4,5,6]
+    DFMs=[id]
+    for i in range(0,20):
+        for jj in DFMs:
+            tmp = theCOMM.GetStatusPacket(jj,1,False)                                
+            if(len(tmp)>0):                
+                theCOMM.SendAck(id)                                   
+                numpackets = int(len(tmp)/56)            
+                for j in range(0,numpackets):
+                    sp=StatusPacket.StatusPacket(6,jj,Enums.DFMTYPE.PLETCHERV3)
+                    sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
+                    if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
+                        print(sp.processResult)                       
+                    print(sp.GetConsolePrintPacket())
+            else:
+                print("NA")
+            time.sleep(0.002)
         time.sleep(1)
-        counter+=1
-    end=time.time()
-    print("Time: "+str(end-start))
-
-def ModuleTest():
-    Board.BoardSetup()
-    p=UARTCOMM()
-    inst = Instruction.DFMInstruction()
-    inst.frequency=2
-    inst.pulseWidth=500
-    inst.maxTimeOn=1000
-    inst.decay=2500
-    inst.delay=1234
-    for i in range(0,12):
-        inst.SetOptoValueWell(i,i*3)
-    print(p.SendInstruction(1,inst))    
-    time.sleep(2)
+        print('*')
     return
-    for i in range(0,12):
-        inst.optoValues[i]=-1
-    print(p.SendInstruction(1,inst))    
-    time.sleep(2)
-    for i in range(0,12):
-        inst.optoValues[i]=100
-    inst.frequency=2
-    inst.pulseWidth=500
-    inst.maxTimeOn=1000
-    print(p.SendInstruction(1,inst)        )
-
     
+def AckTest(id):
+    Board.BoardSetup()
+    theCOMM = UARTCOMM()        
+    for i in range(0,20):        
+        theCOMM.SendAck(id)                         
+        time.sleep(1)
+        print('*')
+    return
+
+def SimpleTest():
+    Board.BoardSetup()
+    theCOMM = UARTCOMM()  
+    print("Getting...")
+    for i in range(0,10):
+        print(theCOMM.GetSomething(20))
+    print("Done")
+
 
 if __name__=="__main__" :
-    ModuleTest2()   
-    print("Done!!")     
-
+    #ModuleTest()
+    ModuleTest(8)
+    #AckTest(8)
+   
 #endregion

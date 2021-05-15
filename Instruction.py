@@ -3,7 +3,7 @@ import array
 import datetime
 
 class DFMInstruction:
-    def __init__(self,darkstate=Enums.DARKSTATE.UNCONTROLLED,freq=40,pw=8,decay=0,delay=0,maxTime=0,dur=datetime.timedelta(minutes=180),startt=datetime.timedelta(seconds=0)):
+    def __init__(self,darkstate=Enums.DARKSTATE.OFF,freq=40,pw=8,decay=0,delay=0,maxTime=0,dur=datetime.timedelta(minutes=180),startt=datetime.timedelta(seconds=0)):
         self.optoValues = array.array("i",(-1 for i in range(0,12)))
         self.baseline = array.array("i",(0 for i in range(0,12)))
         self.adjustedThresholds = array.array("i",(-1 for i in range(0,12)))
@@ -57,8 +57,8 @@ class DFMInstruction:
             s="Dark Off,"
         elif(self.theDarkState==Enums.DARKSTATE.ON):
             s="Dark On,"
-        elif(self.theDarkState==Enums.DARKSTATE.UNCONTROLLED):
-            s="Dark Uncontrolled,"
+        else:
+            s="Dark Off,"
         
         for i in self.adjustedThresholds:
             s+=str(i)+","

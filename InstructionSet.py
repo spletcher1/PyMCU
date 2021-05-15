@@ -1,6 +1,6 @@
 import Instruction
 from Enums import INSTRUCTIONSETTYPE
-from Enums import DARKSTATE
+import Enums
 import datetime
 import array
 
@@ -94,11 +94,9 @@ class InstructionSet:
         ss = s.split(",")
         if(len(ss)==14):
             if(int(ss[0]) == 0):
-                ds = DARKSTATE.OFF
+                ds = Enums.DARKSTATE.OFF
             elif(int(ss[0])==1):
-                ds= DARKSTATE.ON
-            else:
-                ds=DARKSTATE.UNCONTROLLED           
+                ds= Enums.DARKSTATE.ON            
             ov = array.array("i",(-1 for jj in range(0,12)))
             for x in range(0,12):
                 ov[x]=int(ss[x+1])
@@ -174,7 +172,7 @@ class InstructionSet:
                 s+=str(i)+"\n"
 
         return s
-
+#region Testing
 def ModuleTest():
     tmp = InstructionSet()
     tmp.instructionSetType = INSTRUCTIONSETTYPE.CIRCADIAN
@@ -191,7 +189,7 @@ def ModuleTest():
 
 if __name__=="__main__" :
     ModuleTest()    
-
+#endregion
 
 
 

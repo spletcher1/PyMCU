@@ -17,7 +17,7 @@ class MCUProgram():
         return self.GetProgramDescription()
 
     def ClearProgram(self):
-        ddt = datetime.datetime.today()
+        ddt = datetime.datetime.today() + datetime.timedelta(minutes=1)
         self.startTime = datetime.datetime(ddt.year, ddt.month, ddt.day, ddt.hour, ddt.minute, 0)
         self.experimentDuration = datetime.timedelta(minutes=1)
         self.theInstructionSets.clear()
@@ -91,7 +91,10 @@ class MCUProgram():
             if(len(self.theInstructionSets)>0):
                 for (key, value) in sorted(self.theInstructionSets.items()):
                     s+="\n"
-                    s += "***DFM " + str(key) + "***\n"
+                    if(key==99):
+                        s += "***Env Mon***\n"    
+                    else:                        
+                        s += "***DFM " + str(key) + "***\n"
                     s+=value.ToString(self.experimentDuration, self.startTime)          
             
         else:
@@ -116,7 +119,7 @@ class MCUProgram():
         return s
 
     def CreateSimpleProgram(self,starttime,dur):
-        # This will create a "linear" experiment with uncontrolled Opto with the current begin time and duration.
+        # This will create a "linear" experiment with the current begin time and duration.
         self.ClearProgram()
         self.startTime=starttime
         self.experimentDuration=dur
@@ -132,7 +135,7 @@ class MCUProgram():
         instruct.linkage = self.globalLinkage[:]
         instruct.maxTimeOn = self.maxTimeOn
         instruct.instructionSetType = self.globalPType
-        instruct.AddSimpleInstruction(Enums.DARKSTATE.UNCONTROLLED,dur,datetime.timedelta(seconds=0))        
+        instruct.AddSimpleInstruction(Enums.DARKSTATE.OFF,dur,datetime.timedelta(seconds=0))        
         self.theInstructionSets[dfmid]=instruct
     
     def SetLinkageFromString(self,lk):
@@ -234,16 +237,36 @@ class MCUProgram():
                             elif(thesplit[0].lower().strip() == "interval"):
                                 if(currentDFM != -1):
                                     self.theInstructionSets[currentDFM].AddInstructionFromString(thesplit[1].lower().strip())
+                    elif(currentSection.lower()=="envmon"):
+                        thesplit = l.split(":")
+                        if(len(thesplit)==2):
+                            if (thesplit[0].lower().strip() == "id"):
+                                currentDFM = 99
+                                ti = InstructionSet.InstructionSet()
+                                ti.optoDecay = self.optoDecay
+                                ti.optoDelay = self.optoDelay
+                                ti.optoFrequency = self.optoFrequency
+                                ti.optoPulseWidth = self.optoPulseWidth
+                                ti.linkage = self.globalLinkage[:]
+                                ti.maxTimeOn = self.maxTimeOn                                
+                                ti.instructionSetType = self.globalPType
+                                self.theInstructionSets[currentDFM] = ti     
+                            elif(thesplit[0].lower().strip() == "programtype"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].SetProgramTypeFromString(thesplit[1].lower().strip())
+                            elif(thesplit[0].lower().strip() == "interval"):
+                                if(currentDFM != -1):
+                                    self.theInstructionSets[currentDFM].AddInstructionFromString(thesplit[1].lower().strip())
             if(self.experimentDuration.total_seconds()==0):
                 for key in self.theInstructionSets:
                     if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
                         self.experimentDuration = self.theInstructionSets[key].GetDuration()
             
-            # Get rid of DFMs that are not in the experiment to simply the description textbox.           
+            # Get rid of DFMs that are not in the experiment to simplify the description textbox.           
             tmp ={}
             for key in self.theInstructionSets:
                 a = False
-                for d in dfmList:
+                for d in dfmList.values():
                     if d.ID == key:
                         a = True
                 if a==True:
@@ -251,7 +274,7 @@ class MCUProgram():
 
             self.theInstructionSets = tmp
             
-            for d in dfmList:                
+            for d in dfmList.values():                
                 if(d.ID in self.theInstructionSets.keys()):
                     pass
                 else :
@@ -340,10 +363,7 @@ class MCUProgram():
 
     
 
-
-
-
-
+#region Testing
 def ModuleTest():
     tmp = MCUProgram()
     #tmp.AddSimpleProgram(1,datetime.timedelta(minutes=120))
@@ -360,5 +380,5 @@ def ModuleTest():
 
 if __name__=="__main__" :
     ModuleTest()        
-
+#endregion
 

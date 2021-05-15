@@ -10,7 +10,7 @@ class DFMErrors:
 
     def GetI2CErrorStatus(self):
         return self.currentErrorStatuses[0]
-    def GetUARTErrorStatus(self):
+    def GetOERRErrorStatus(self):
         return self.currentErrorStatuses[1]
     def GetPacketErrorStatus(self):
         return self.currentErrorStatuses[2]
@@ -18,9 +18,9 @@ class DFMErrors:
         return self.currentErrorStatuses[3]
     def GetTSL2591ErrorStatus(self):
         return self.currentErrorStatuses[4]
-    def GetConfigErrorStatus(self):
+    def GetFERRErrorStatus(self):
         return self.currentErrorStatuses[5]
-    def GetBufferErrorStatus(self):
+    def GetInterruptErrorStatus(self):
         return self.currentErrorStatuses[6]
     def GetMiscErrorStatus(self):
         return self.currentErrorStatuses[7]
