@@ -1,0 +1,14 @@
+[General]
+ExpDurationMin: 180
+OptoFrequency: 1
+OptoPW:900
+#OptoDelay: 0 
+#OptoDecay: 0 
+#StartTime: 1:00:13
+Baseline: Yes
+
+[DFM]
+ID: 1
+OptoLid: One
+ProgramType: Linear
+Interval: 0,1000,1000,20,1000,1000,1000,1000,1000,1000,1000,1000,1000,180
