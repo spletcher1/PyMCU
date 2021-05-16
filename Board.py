@@ -18,7 +18,7 @@ class BoardSetup():
         GPIO.setup(self.ledPIN,GPIO.OUT)
         GPIO.setup(self.relayPIN,GPIO.OUT)
         #GPIO.setup(self.cameraPin,GPIO.IN,pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self.cameraPin,GPIO.IN)
+        GPIO.setup(self.cameraPin,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
         GPIO.output(self.relayPIN,GPIO.HIGH)
         GPIO.output(self.ledPIN,GPIO.HIGH) 
     
