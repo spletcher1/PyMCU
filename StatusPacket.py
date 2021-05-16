@@ -21,6 +21,7 @@ class StatusPacket:
         self.DFMID=DFMID
         self.processResult=''
         self.DFMType=DFMType
+        self.indicator=0
 
     def ProcessStatusPacket(self,bytesData,startTime,index=0):     
         if(self.DFMType==DFMTYPE.SABLEV2):           

@@ -17,7 +17,7 @@ import EnvMonV3
 class DFMGroup:
     DFMGroup_message = Event.Event()
     DFMGroup_updatecomplete = Event.Event()
-    DFMGroup_programEnded = Event.Event()
+    DFMGroup_programEnded = Event.Event()    
 
     #region Initialization, Messaging, and DFMlist Management
     def __init__(self,pcb):
@@ -46,9 +46,17 @@ class DFMGroup:
 
         Board.BoardSetup.Camera_message+=self.NewCameraMessage  
         self.cameraRecordState=False
+        self.eventCounter=0
+        self.inEvent=False
 
     def NewCameraMessage(self,cameraRecordState):        
         self.cameraRecordState = cameraRecordState
+        if(self.cameraRecordState==True):   
+            if(self.inEvent==False):                         
+                self.eventCounter+=1
+                self.inEvent=True            
+        else:                     
+            self.inEvent=False                
 
     def NewMessageDirect(self,newMessage):        
         if(self.theMessageList.AddMessage(newMessage)):
@@ -128,7 +136,9 @@ class DFMGroup:
         self.stopRecordingSignal=False        
         self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
         self.WriteStarter()     
-        self.SetNormalProgramReadInterval()
+        ## This is set to fast intervals for the trigger version
+        ## self.SetNormalProgramReadInterval()
+        self.SetFastProgramReadInterval()
         self.MP.StartReading()     
         return True
 
@@ -285,11 +295,20 @@ class DFMGroup:
         # Now clear out the buffers so that you can view the data before recording starts
         # which itself will clear out the buffer.
         for i in self.theDFMs.values():       
-             i.isBufferResetNeeded=True              
+             i.isBufferResetNeeded=True        
+        self.eventCounter=0        
+        self.cameraRecordState = self.theBoard.GetCameraState()
+        if(self.cameraRecordState):
+            self.eventCounter+=1
+            self.inEvent=True        
+        else:
+            self.inEvent=False            
         while True:   
             try: 
-                tmp = self.MP.data_q.get(block=False)                     
-                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)    
+                tmp = self.MP.data_q.get(block=False)    
+                ## This is changed here to ensure only camera triggered events are saved.                 
+                ##self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,self.isWriting)     
+                self.theDFMs[tmp[0].DFMID].ProcessPackets(tmp,(self.cameraRecordState and self.isWriting),self.eventCounter)     
                 if(tmp[0].DFMID == self.activeDFM.ID):
                     DFMGroup.DFMGroup_updatecomplete.notify()         
             except:
@@ -298,7 +317,7 @@ class DFMGroup:
                 # be updated before another call to CheckStatus. 
                 # Leave it up to the PacketProcess function to do this.
                 # But that's okay because those come every 0.2 sec
-                # V3 calls come only every 5 sec so need to update BufferReset
+                # V3 calls come only every 5 sec so need to update BufferReset 
                 # Linkage and Instuction as often as possible.
                 if(self.activeDFM.DFMType == Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType == Enums.DFMTYPE.ENVMONV3):              
                     for value in self.theDFMs.values():                   
@@ -353,9 +372,7 @@ class DFMGroup:
                 for d in self.theDFMs.values():
                     if d.isCalculatingBaseline:
                         isBaselineing = True
-                if(isBaselineing): 
-                    for d in self.theDFMs:
-                        self.activeDFM.ReadValues(False)  
+                if(isBaselineing):                     
                     return
                 else:                   
                     self.StartRecording()                    

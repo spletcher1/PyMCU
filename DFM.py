@@ -161,7 +161,7 @@ class DFM:
         ##if(tmpisInstructionUpdateNeeded):
         ##   self.isInstructionUpdateNeeded=True
 
-    def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                                  
+    def ProcessPackets(self,currentStatusPackets,saveDataToQueue,eventNumber=None):                                  
         for j in range(0,len(currentStatusPackets)):                  
             isSuccess=False   
             if (self.DFMType == Enums.DFMTYPE.PLETCHERV3):
@@ -187,8 +187,11 @@ class DFM:
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
             if isSuccess:                                                                                                                                            
-                if (currentStatusPackets[j].recordIndex>0):                                                   
-                    currentStatusPackets[j].sample = self.sampleIndex
+                if (currentStatusPackets[j].recordIndex>0):          
+                    if(eventNumber is None):                                         
+                        currentStatusPackets[j].sample = self.sampleIndex
+                    else:
+                        currentStatusPackets[j].sample = eventNumber
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue full".format(self.ID)
                         self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)

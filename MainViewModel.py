@@ -42,6 +42,7 @@ class GUIUpdateThread(QtCore.QThread):
         self.keepRunning = False
 
 class MyMainWindow(QtWidgets.QMainWindow):
+    triggerTriggered = pyqtSignal(bool)
     def __init__( self,pcb ):   
         self.theBoard=pcb    
         self.theDFMGroup = DFMGroup.DFMGroup(self.theBoard)
@@ -87,8 +88,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.SetProgramStartTime(datetime.datetime.today())
 
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
-        DFMGroup.DFMGroup.DFMGroup_programEnded+=self.ProgramEnded
-        DFMGroup.DFMGroup.DFMGroup_message+=self.NewDFMMessage
+        DFMGroup.DFMGroup.DFMGroup_programEnded+=self.ProgramEnded        
+        Board.BoardSetup.Camera_message+=self.NewCameraMessage  
         self.toggleOutputsState=False
 
         self.FilesListWidget.currentItemChanged.connect(self.ProgramFileChoiceChanged)
@@ -111,6 +112,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         self.isDataTransferring=False
         self.isMessageUpdateNeeded=False
+        
+        self.triggerTriggered.connect(self.ShowTriggerMessage)
 
         ## Check for USB upon startup
         try:
@@ -132,6 +135,15 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         self.CheckForLowStorageWarning()
 
+    def ShowTriggerMessage(self, state):
+        if(state):
+            self.StatusBar.showMessage("Indicator Triggered On...",2000)
+        else:
+            self.StatusBar.showMessage("Indicator Triggered Off...",2000)
+
+    def NewCameraMessage(self,cameraRecordState):   
+        # This is needed to allow the showmessage timer to work correctly.
+        self.triggerTriggered.emit(cameraRecordState)        
 
     def device_connected(self,device):        
         if(device.action=="add"):
@@ -379,7 +391,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.5\nIP: " + hostip
+        ss="Version: 1.0.5 (Triggered)\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         retval=msg.exec_()           
@@ -670,7 +682,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.UpdateProgramStatus()         
             self.DisableButtons()
             if(self.theDFMGroup.isWriting):
-                self.fastUpdateCheckBox.setEnabled(True)
+                ## This is always disabled for Triggered MCU
+                self.fastUpdateCheckBox.setEnabled(False)
             else:
                 self.fastUpdateCheckBox.setEnabled(False)
 
