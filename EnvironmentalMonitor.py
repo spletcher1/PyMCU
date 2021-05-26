@@ -2,6 +2,7 @@ import busio
 import board
 import time
 import TSL2591
+import TSL2561
 import SI7021
 from enum import Enum
 
@@ -15,6 +16,7 @@ class MonitorState(Enum):
 # Packages required for Environmental Monitor
 # pip3 install adafruit-blinka
 # pip3 install adafruit-circuitpython-tsl2591
+# pip3 install adafruit-circuitpython-tsl2561
 # pip3 install adafruit-circuitpython-si7021
 class EnvironmentalMonitor():
     def __init__(self,stepsinidle): 
@@ -33,7 +35,8 @@ class EnvironmentalMonitor():
                 self.i2c = busio.I2C(board.SCL,board.SDA)                                                  
                 self.si =  SI7021.SI7021()                                                  
                 time.sleep(0.2)        
-                self.tsl = TSL2591.TSL2591(self.i2c)              
+                #self.tsl = TSL2591.TSL2591(self.i2c)              
+                self.tsl = TSL2561.TSL2561(self.i2c)              
                 time.sleep(0.2)                              
                 self.isPresent=True                
         except:            
