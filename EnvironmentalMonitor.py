@@ -2,6 +2,8 @@ import busio
 import board
 import time
 import TSL2591
+# Uncomment to enable TSL2561
+#import TSL2561
 import SI7021
 from enum import Enum
 
@@ -34,6 +36,8 @@ class EnvironmentalMonitor():
                 self.si =  SI7021.SI7021()                                                  
                 time.sleep(0.2)        
                 self.tsl = TSL2591.TSL2591(self.i2c)              
+                # Uncomment to enable TSL2561
+                #self.tsl = TSL2561.TSL2561(self.i2c)              
                 time.sleep(0.2)                              
                 self.isPresent=True                
         except:            
