@@ -64,7 +64,6 @@ class PIPulser:
 
 
 
-
 def ModuleTest():
     pp = PIPulser()
     pp.StartPulsing()

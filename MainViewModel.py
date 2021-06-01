@@ -23,6 +23,7 @@ import glob
 import shutil
 import FLICDataCopy
 from TimeInputDialog import DateDialog
+import PIPulser
 
 if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
@@ -131,7 +132,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MThread.start()
 
         self.CheckForLowStorageWarning()
-
 
     def device_connected(self,device):        
         if(device.action=="add"):
@@ -329,6 +329,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.zoomPlotCheckBox.stateChanged.connect(self.ZoomPlotChanged)
 
         self.SetDateAndTimeButton.clicked.connect(self.SetTimeDialog)
+
+        ## Pulser buttons
+        self.PulserPageButton.clicked.connect(self.GotoPulserPage)
+        self.ExitPulserPageButton.clicked.connect(self.ExitPulserPage)
+        self.Start1Button.clicked.connect(self.StartLight1Pulser)
+        self.Start2Button.clicked.connect(self.StartLight2Pulser)
+        self.StartBothButton.clicked.connect(self.StartLightBothPulser)
+        self.StopPulsingButton.clicked.connect(self.StopPulsing)
+        self.Freq0Slider.valueChanged.connect(self.Freq0Update)
+        self.DC0Slider.valueChanged.connect(self.DC0Update)
+        self.Freq1Slider.valueChanged.connect(self.Freq1Update)
+        self.DC1Slider.valueChanged.connect(self.DC1Update)
 
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -896,7 +908,56 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.GotoDFMPage()                                           
         except:
             pass
+#region Pulser 
+
+    def ExitPulserPage(self):
+        self.theBoard.StopPulsing()        
+        self.GotoDFMPage()  
+
+    def StartLight1Pulser(self):
+        self.theBoard.StartPulsing(1)
+
+    def StartLight2Pulser(self):
+        self.theBoard.StartPulsing(2)
+       
+    def StartLightBothPulser(self):
+        self.theBoard.StartPulsing(3)
+
+    def StopPulsing(self):
+        self.theBoard.StopPulsing()
+
+    def Freq0Update(self):    
+        tmp = self.Freq0Slider.value()    
+        self.Freq0Label.setText(str(tmp)+"Hz")
+        self.theBoard.SetFrequency(tmp,0)
+
+    def DC0Update(self): 
+        tmp = self.DC0Slider.value()         
+        self.DC0Label.setText(str(tmp)+"%")
+        self.theBoard.SetDC(tmp,0)
+
+    def Freq1Update(self):     
+        tmp = self.Freq1Slider.value()     
+        self.Freq1Label.setText(str(tmp)+"Hz")
+        self.theBoard.SetFrequency(tmp,1)
+
+    def DC1Update(self):    
+        tmp = self.DC1Slider.value()       
+        self.DC1Label.setText(str(tmp)+"%")
+        self.theBoard.SetDC(tmp,1)
+
+    def GotoPulserPage(self):
+        self.StackedPages.setCurrentIndex(5)
+        self.UpdateMCUForPulser()
         
+    def UpdateMCUForPulser(self):
+        self.Freq0Update()
+        self.DC0Update()
+        self.Freq1Update()
+        self.DC1Update()        
+        
+        
+#end region     
 
 
     
