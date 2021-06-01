@@ -1755,7 +1755,7 @@
                  </widget>
                 </item>
                 <item row="0" column="1">
-                 <widget class="QSlider" name="horizontalSlider">
+                 <widget class="QSlider" name="Freq0Slider">
                   <property name="maximum">
                    <number>100</number>
                   </property>
@@ -1780,7 +1780,7 @@
                  </widget>
                 </item>
                 <item row="2" column="1">
-                 <widget class="QSlider" name="horizontalSlider_2">
+                 <widget class="QSlider" name="DC0Slider">
                   <property name="maximum">
                    <number>100</number>
                   </property>
@@ -1864,7 +1864,7 @@
                  </widget>
                 </item>
                 <item row="0" column="1">
-                 <widget class="QSlider" name="horizontalSlider_3">
+                 <widget class="QSlider" name="Freq1Slider">
                   <property name="maximum">
                    <number>100</number>
                   </property>
@@ -1886,7 +1886,7 @@
                  </widget>
                 </item>
                 <item row="2" column="1">
-                 <widget class="QSlider" name="horizontalSlider_4">
+                 <widget class="QSlider" name="DC1Slider">
                   <property name="maximum">
                    <number>100</number>
                   </property>
@@ -1999,7 +1999,7 @@
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="StopButton">
+            <widget class="QPushButton" name="StopPulsingButton">
              <property name="minimumSize">
               <size>
                <width>0</width>
