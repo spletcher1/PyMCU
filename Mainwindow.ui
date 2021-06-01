@@ -51,7 +51,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>4</number>
+       <number>5</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -1956,7 +1956,7 @@
            </size>
           </property>
           <property name="title">
-           <string>Pulser Control</string>
+           <string>Light Control</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_13">
            <item>
@@ -1968,7 +1968,7 @@
               </size>
              </property>
              <property name="text">
-              <string>Pulse #1</string>
+              <string>Light #1 On</string>
              </property>
             </widget>
            </item>
@@ -1981,7 +1981,7 @@
               </size>
              </property>
              <property name="text">
-              <string>Pulse #2</string>
+              <string>Light #2 On</string>
              </property>
             </widget>
            </item>
@@ -1994,7 +1994,7 @@
               </size>
              </property>
              <property name="text">
-              <string>Pulse Both</string>
+              <string>Both On</string>
              </property>
             </widget>
            </item>
@@ -2007,7 +2007,20 @@
               </size>
              </property>
              <property name="text">
-              <string>Stop</string>
+              <string>Both Off</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="pushButton">
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>50</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Exit </string>
              </property>
             </widget>
            </item>
