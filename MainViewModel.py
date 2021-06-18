@@ -235,14 +235,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
         elif(tmp == "6 hours"):
             self.programDuration = datetime.timedelta(minutes=60*6)
             self.LoadSimpleProgram()
-        elif(tmp == "12 hours"):
-            self.programDuration = datetime.timedelta(minutes=60*12)
-            self.LoadSimpleProgram()
         elif(tmp == "24 hours"):
             self.programDuration = datetime.timedelta(minutes=60*24)
             self.LoadSimpleProgram()
-        elif(tmp == "5 days"):
-            self.programDuration = datetime.timedelta(minutes=60*24*5)
+        elif(tmp == "8 days"):
+            self.programDuration = datetime.timedelta(minutes=60*24*8)
+            self.LoadSimpleProgram()
+        elif(tmp == "14 days"):
+            self.programDuration = datetime.timedelta(minutes=60*24*14)
             self.LoadSimpleProgram()    
         elif(tmp == "Custom"):
             return
