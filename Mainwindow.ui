@@ -301,7 +301,7 @@
                </sizepolicy>
               </property>
               <property name="text">
-               <string>8 Days</string>
+               <string>8 days</string>
               </property>
               <property name="flat">
                <bool>false</bool>
