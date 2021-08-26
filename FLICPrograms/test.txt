@@ -1,0 +1,38 @@
+﻿[General]
+ExpDurationMin: 3
+OptoFrequency: 40
+#OptoDecay: 1000 
+#StartTime: 14:00:00
+Baseline: No 
+
+[DFM]
+ID: 3
+OptoLid: Twelve
+ProgramType: Linear
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,1
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
+
+[DFM]
+ID: 4
+OptoLid: Twelve
+ProgramType: Linear
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,1
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
+
+[DFM]
+ID: 5
+OptoLid: Twelve
+ProgramType: Linear
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,1
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
+
+[DFM]
+ID: 6
+OptoLid: Twelve
+ProgramType: Linear
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,1
+Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1
