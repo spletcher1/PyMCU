@@ -28,6 +28,7 @@ class DFM:
         self.pastStatus = Enums.PASTSTATUS.ALLCLEAR        
         self.theData = DataBuffer.DataBuffer()             
         self.sampleIndex=1
+        self.lastDFMIndex=0
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))      
         self.currentLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])    
         self.baselineSamples=0
@@ -188,6 +189,11 @@ class DFM:
             if isSuccess:                                                                                                                                            
                 if (currentStatusPackets[j].recordIndex>0):                                                   
                     currentStatusPackets[j].sample = self.sampleIndex
+                    if(currentStatusPackets[j].recordIndex != (self.lastDFMIndex+1)):
+                        s="({:d}) Skipped index:".format(self.ID)
+                        self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
+                        self.SetStatus(Enums.CURRENTSTATUS.ERROR)                     
+                    self.lastDFMIndex = currentStatusPackets[j].recordIndex
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue full".format(self.ID)
                         self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
@@ -269,7 +275,8 @@ class DFM:
         if(self.isBufferResetNeeded):                  
             if(self.MP.SendBufferReset(self.ID)):                    
                 self.isBufferResetNeeded=False
-                self.sampleIndex=1                    
+                self.sampleIndex=1      
+                self.lastDFMIndex=0;              
             else:
                 print("Buffer reset NACKed")                 
         
