@@ -188,11 +188,7 @@ class DFM:
                 isSuccess=True
             if isSuccess:                                                                                                                                            
                 if (currentStatusPackets[j].recordIndex>0):                                                   
-                    currentStatusPackets[j].sample = self.sampleIndex
-                    if(currentStatusPackets[j].recordIndex != (self.lastDFMIndex+1)):
-                        s="({:d}) Skipped index:".format(self.ID)
-                        self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
-                        self.SetStatus(Enums.CURRENTSTATUS.ERROR)                     
+                    currentStatusPackets[j].sample = self.sampleIndex                                      
                     self.lastDFMIndex = currentStatusPackets[j].recordIndex
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue full".format(self.ID)
@@ -200,6 +196,10 @@ class DFM:
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
                     else:                                  
                         if(saveDataToQueue): 
+                            if(currentStatusPackets[j].recordIndex != (self.lastDFMIndex+1)):
+                                s="({:d}) Skipped index:".format(self.ID)
+                                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
+                                self.SetStatus(Enums.CURRENTSTATUS.ERROR)  
                             self.sampleIndex+=1                                                       
                             self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
                         else:
