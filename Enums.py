@@ -76,6 +76,7 @@ class MESSAGETYPE(Enum):
     NOTICE=1
     WARNING=2
     ERROR=3
+    ANNOTATION=4
 
 class OPTOTYPE(Enum):
     ALLON=1

@@ -72,11 +72,11 @@ class DFMGroup:
                     if(i.ID!=99):        
                         self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
                         s = "DFM "+str(i.ID)+" found"
-                        self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                        self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.ANNOTATION)               
                     else:
                         self.theDFMs[i.ID]=EnvMonV3.EnvironmentalMonitorV3(self.MP)
                         s = "Environmental monitor found"
-                        self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                        self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.ANNOTATION)               
                 self.currentDFMKeysList = list(self.theDFMs.keys())
                 self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
                 self.SetFastProgramReadInterval()            
@@ -89,7 +89,7 @@ class DFMGroup:
                 for i in tmpDMFList:                                   
                     self.theDFMs[i.ID]=DFM.DFM(i.ID,i.DFMType,self.MP)
                     s = "DFM "+str(i.ID)+" found"
-                    self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.NOTICE)               
+                    self.NewMessage(i.ID, datetime.datetime.today(), 0, s, Enums.MESSAGETYPE.ANNOTATION)               
                 self.currentDFMKeysList = list(self.theDFMs.keys())
                 self.activeDFM = self.theDFMs[self.currentDFMKeysList[0]]
                 self.SetFastProgramReadInterval()
@@ -121,7 +121,7 @@ class DFMGroup:
         # To allow everyone to reset and set slow read interval
         time.sleep(0.5)         
         self.stopRecordingSignal=False        
-        self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.NOTICE)
+        self.NewMessage(0, datetime.datetime.today(), 0, "Recording started", Enums.MESSAGETYPE.ANNOTATION)
         self.WriteStarter()     
         self.SetNormalProgramReadInterval()
         self.MP.StartReading()     
@@ -206,7 +206,7 @@ class DFMGroup:
             if(ss!=""):               
                 self.theFiles[key].write(ss)
                 self.theFiles[key].close()                
-        self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.NOTICE)        
+        self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.ANNOTATION)        
         self.WriteMessages()
         self.isWriting=False      
         for d in self.theDFMs.values():

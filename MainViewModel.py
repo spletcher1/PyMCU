@@ -826,9 +826,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             
             QApplication.processEvents()
             if returnVal==QMessageBox.Ok:   
+                self.DisableButtons()
                 self.GoToMessagesPage()                            
                 self.StatusBar.showMessage("Copying data files...",120000)      
-                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.NOTICE)          
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)          
                 self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
                 QApplication.processEvents()              
                 destPath = subfolders[0]+'/FLICData'    
@@ -841,10 +842,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
                     time.sleep(0.2)      
                 if(tmp.copySuccess):
                     self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
-                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.NOTICE)  
+                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.ANNOTATION)  
                 else:
                     self.StatusBar.showMessage("Data copy failed.",self.statusmessageduration)  
-                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)                  
+                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)    
+                self.EnableButtons()              
             else:
                 self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
         try:
@@ -854,6 +856,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.saveDataAction.setEnabled(False)
             self.MoveProgramButton.setEnabled(False)
             QApplication.processEvents()
+            self.StatusBar.showMessage("USB unmounted. Ready to remove.",self.statusmessageduration)    
         except:
             print("Except: Problem saving data to USB.")
             return

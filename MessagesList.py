@@ -13,19 +13,18 @@ class MessageList():
     def __len__(self):
         return len(self.theMessages)
     def __str__(self):
-        if(self.GetErrorCount()==0):
-            return "No error messages"
-        else:
-            ss=""
-            count=0
-            for m in self.theMessages:
-                if(m.messageType == Enums.MESSAGETYPE.ERROR):
-                    ss+=str(m)+"\n"
-                    count+=1
-                    if(count>self.maxMessagesForScreen):
-                        ss+="Max messages displayed. Check file for details."
-                        break
-            return ss
+        ss="No messages"
+        count=0
+        for m in self.theMessages:
+            if(m.messageType == Enums.MESSAGETYPE.ERROR or m.messageType == Enums.MESSAGETYPE.ANNOTATION):
+                if(count==0):
+                    ss=""            
+                ss+=str(m)+"\n"
+                count+=1
+                if(count>self.maxMessagesForScreen):
+                    ss+="Max messages displayed. Check file for details."
+                    break
+        return ss
 
 
     def GetErrorCount(self):
