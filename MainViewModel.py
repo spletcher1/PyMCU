@@ -379,7 +379,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.6b\nIP: " + hostip
+        ss="Version: 1.0.6\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         retval=msg.exec_()           
@@ -892,7 +892,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 command = "/bin/tar -C /home/pi/PyMCU/PyMCU -xvf " + "\""+files[0]+"\""                        
                 os.system(command)            
                 self.StatusBar.showMessage("Update complete. Rebooting. Remove USB.",self.statusmessageduration)                                    
-                time.sleep(3)
+                time.sleep(5)
                 os.system("sudo shutdown -r now")
             else:            
                 self.StatusBar.showMessage("Update failed.",self.statusmessageduration)       
