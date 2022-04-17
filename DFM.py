@@ -142,10 +142,11 @@ class DFM:
             self.reportedDarkState = Enums.DARKSTATE.ON
 
         for sp in currentStatusPackets:
-            self.currentDFMErrors.UpdateErrors(sp.errorFlags)
-            if(sp.errorFlags!=0):
-                s="DFM code: {:02X}".format(sp.errorFlags)
-                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)
+            if(sp.processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
+                self.currentDFMErrors.UpdateErrors(sp.errorFlags)
+                if(sp.errorFlags!=0):
+                    s="DFM code: {:02X}".format(sp.errorFlags)
+                    self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)
 
         ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior. 
         ##if self.isInstructionUpdateNeeded:
@@ -178,11 +179,11 @@ class DFM:
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Packet size mismatch:".format(self.ID)
+                s="({:d}) Packet size mismatch".format(self.ID)
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Incomplete packet received:".format(self.ID)
+                s="({:d}) Incomplete packet received".format(self.ID)
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
