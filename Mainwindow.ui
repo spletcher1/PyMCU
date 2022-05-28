@@ -1784,19 +1784,13 @@
    <addaction name="programAction"/>
    <addaction name="messagesAction"/>
    <addaction name="clearMessagesAction"/>
-   <addaction name="separator"/>
    <addaction name="findDFMAction"/>
    <addaction name="clearDFMAction"/>
-   <addaction name="separator"/>
    <addaction name="saveDataAction"/>
    <addaction name="deleteDataAction"/>
-   <addaction name="separator"/>
    <addaction name="toggleOutputsAction"/>
-   <addaction name="separator"/>
    <addaction name="powerOffAction"/>
-   <addaction name="separator"/>
    <addaction name="aboutMCUAction"/>
-   <addaction name="separator"/>
   </widget>
   <action name="powerOffAction">
    <property name="icon">
