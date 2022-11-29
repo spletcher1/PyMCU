@@ -195,7 +195,7 @@ class StatusPacket:
         currentValue += bytesData[(indexer+48)]<<16
         currentValue += bytesData[(indexer+49)]<<8
         currentValue += bytesData[(indexer+50)]
-        self.recordIndex = currentValue        
+        self.recordIndex = currentValue         
         self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
         #self.packetTime = datetime.datetime.today()
 

@@ -196,12 +196,13 @@ class DFM:
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
                     else:                                  
                         if(saveDataToQueue): 
-                            if(currentStatusPackets[j].recordIndex != (self.lastDFMIndex+1)):
-                                s="({:d}) Skipped index: ({:d}) ".format(currentStatusPackets[j].recordIndex,self.lastDFMIndex)
-                                #s="({:d}) Skipped index:".format(self.ID)                                
-                                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
-                                self.SetStatus(Enums.CURRENTSTATUS.ERROR)  
-                            self.lastDFMIndex = currentStatusPackets[j].recordIndex
+                            if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
+                                if(currentStatusPackets[j].recordIndex != (self.lastDFMIndex+1)):
+                                    s="({:d}) Skipped index: ({:d}) ".format(currentStatusPackets[j].recordIndex,self.lastDFMIndex)
+                                    #s="({:d}) Skipped index:".format(self.ID)                                
+                                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
+                                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)  
+                                self.lastDFMIndex = currentStatusPackets[j].recordIndex
                             self.sampleIndex+=1                                                       
                             self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
                         else:
