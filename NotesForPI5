@@ -4,4 +4,4 @@ See https://www.tomshardware.com/how-to/install-python-modules-raspberry-pi
 In the virtual environment, install required python packages: cobs, matplotlib, pyudev, smbus2, pyserial,adafruit-blinka,
         adafruit-circuitpython-tsl2591,adafruit-circuitpython-si7021
 
-Note that GPIO is not available on the PI5.  Need to change to allow modifications on the pins.
+Note that GPIO is not available on the PI5.  Need to change to allow modifications on the pins. This has been updated on the PI5Dev branch.
