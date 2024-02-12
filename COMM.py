@@ -15,7 +15,7 @@ if(platform.system()!="Windows"):
     import serial.tools.list_ports
 
 if("MCU" in platform.node()):        
-    import RPi.GPIO as GPIO
+    from gpiozero import LED
 
 
 class UARTCOMM():    
@@ -26,9 +26,9 @@ class UARTCOMM():
         ## take about 0.250 seconds, but sometimes over 0.3. So the timeout has to be larger than this
         ## or the packet gets cut off.
         self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=2)           
-        self.sendPIN = 17        
-        GPIO.setup(self.sendPIN,GPIO.OUT)        
-        GPIO.output(self.sendPIN,GPIO.LOW)
+        self.sendPIN = 17    
+        self.SendPin = LED(self.sendPIN)            
+        self.SendPin.off();            
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         UARTCOMM.UART_message.notify(tmp)      
@@ -36,11 +36,11 @@ class UARTCOMM():
         if (self.thePort.out_waiting>0):
             print("out waiting")
             self.thePort.reset_output_buffer()    
-        GPIO.output(self.sendPIN,GPIO.HIGH)
+        self.SendPin.on()
         time.sleep(delay)    
         self.thePort.write(ba)   
         time.sleep(delay)             
-        GPIO.output(self.sendPIN,GPIO.LOW)
+        self.SendPin.off()
     def _Read(self,numBytes):
         result=self.thePort.read(numBytes)
         return result
@@ -369,7 +369,8 @@ def ModuleTest2(dfmID):
     
 
 def ModuleTest(id):
-    Board.BoardSetup()
+    tmp=Board.BoardSetup()
+    time.sleep(5)
     theCOMM = UARTCOMM()    
 
     #for i in range(1,16):
@@ -414,7 +415,7 @@ def AckTest(id):
     return
 
 def SimpleTest():
-    Board.BoardSetup()
+    tmp=Board.BoardSetup()   
     theCOMM = UARTCOMM()  
     print("Getting...")
     for i in range(0,10):
@@ -424,7 +425,8 @@ def SimpleTest():
 
 if __name__=="__main__" :
     #ModuleTest()
-    ModuleTest(8)
+    #SimpleTest()
+    ModuleTest(1)
     #AckTest(8)
    
 #endregion

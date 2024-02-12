@@ -15,6 +15,7 @@ class BoardSetup():
         self.relay = LED(self.relayPIN)
         self.BoardID = InputDevice(pin=self.boardIDPin, pull_up=False)
         
+        self.TurnOnDFMPower()
 
     def IsDFMV3Board(self):
         if (self.GetBoardVersion()=="V3"):
@@ -44,6 +45,5 @@ class BoardSetup():
 
 if __name__=="__main__" :
     tmp = BoardSetup()
-    print(tmp.GetBoardVersion())
-    tmp.TurnOnDFMPower()   
+    print(tmp.GetBoardVersion())  
     time.sleep(10) 
