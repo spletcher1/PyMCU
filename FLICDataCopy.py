@@ -89,9 +89,27 @@ class FLICDataCopy(object):
         return
     
 
-if __name__ == "__main__":
+def Test():
+    if(os.path.isdir("/media/pi")):
+        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+    elif (os.path.isdir("/media/scott")):
+        subfolders = [f.path for f in os.scandir("/media/scott") if f.is_dir()]               
+    else:
+        print("USB not found1.")  
+        return        
+    print(subfolders) 
+    if len(subfolders)==0:  
+        print("USB not found2.")              
+        return
+    destPath = subfolders[0]+'/FLICData'    
+    sourcePath="/home/pi/PyMCU/PyMCU/FLICData"                
+    tmp=FLICDataCopy("Copying files: ")                
+    tmp.StartDataTransfer(sourcePath,destPath)     
+
+def Test2():
     tmp = FLICDataCopy("Copying files: ")
     subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+    print(subfolders)
     destPath = subfolders[0]+'/FLICData'  
     print(destPath)  
     #destPath="/home/pi/FLICData"
@@ -100,3 +118,6 @@ if __name__ == "__main__":
     while(tmp.isDataTransferring):
         #print(tmp.GetProgressString())
         time.sleep(0.2)
+
+if __name__ == "__main__":
+    Test()

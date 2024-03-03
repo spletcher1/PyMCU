@@ -121,7 +121,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.saveDataAction.setEnabled(True)
                 self.MoveProgramButton.setEnabled(True)
                 self.updateButton.setEnabled(True)
-                QApplication.processEvents()
+                for i in range(10):
+                    QApplication.processEvents()
         except:
             print("Normal except: No usb on startup.")
             pass
@@ -436,11 +437,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
     def FindDFMs(self):   
-        self.ClearDFM()
-        self.StatusBar.showMessage("Searching for DFMs. This can take up to 3 seconds.",self.statusmessageduration)     
-        QApplication.processEvents()
-        self.ClearMessages()
-        self.theDFMGroup.FindDFMs()                      
+        self.ClearDFM()       
+        self.StatusBar.showMessage("Searching for DFMs. This can take up to 3 seconds.",self.statusmessageduration)    
+        for i in range(10):      
+            QApplication.processEvents()                                 
+        self.ClearMessages()        
+        self.theDFMGroup.FindDFMs()                                    
         if(len(self.theDFMGroup.theDFMs)==0):
             self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
             return
@@ -739,34 +741,23 @@ class MyMainWindow(QtWidgets.QMainWindow):
                     self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration) 
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)      
-
-    ## This function is not used anymore.
-    def LoadFilesListWidgetDEPRICATED(self):
-        self.FilesListWidget.clear()   
-        try:    
-            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-            if len(subfolders)==0:
-                self.currentProgramFileDirectory = "/media/pi/FLICPrograms/"
-            else:
-                self.currentProgramFileDirectory = subfolders[0]+"/FLICPrograms/"    
-
-            files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
-            for f in files:
-                h, t = os.path.split(f)
-                self.FilesListWidget.insertItem(0,t)
-            if(len(files)>0):
-                self.FilesListWidget.setCurrentRow(0)
-        except:
-            self.StatusBar.showMessage("Problem loading program. Is USB connected?",self.statusmessageduration)  
     
     def MoveProgramFilesToLocal(self):
         self.StatusBar.showMessage("Moving programs from USB...",self.statusmessageduration)  
-        try:    
+        if(os.path.isdir("/media/pi")):
             subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-            if len(subfolders)==0:
-                sourceDirectory = "/media/pi/FLICPrograms/"
-            else:
-                sourceDirectory = subfolders[0]+"/FLICPrograms/"    
+        elif (os.path.isdir("/media/scott")):
+            subfolders = [f.path for f in os.scandir("/media/scott") if f.is_dir()]            
+        else:
+            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
+            return        
+        
+        if len(subfolders)==0:        
+            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
+            return
+        
+        try:    
+            sourceDirectory = subfolders[0]+"/FLICPrograms/"            
             targetDirectory ="./FLICPrograms/"    
             files=(glob.glob(sourceDirectory+"*.txt"))
             if(len(files)>0):
@@ -778,6 +769,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         except:
             print("Normal except: problem moving program")
             self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)  
+
         sss="Move complete. {:d} program files moved.".format(len(files))
         self.StatusBar.showMessage(sss,self.statusmessageduration)  
         self.LoadCustomProgram()
@@ -799,66 +791,72 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.GotoProgramLoadPage()
         return
 
-    def DataTransferFunction(self):
-        self.isDataTransferring=True
-        try:
-            command = 'cp -r FLICData/ "' + subfolders[0] +'"'   
-            os.system(command)        
-        except:
-            print("Except: problem in DataTransferFunction")
-            self.isDataTransferring=False
-        self.isDataTransferring=False
-
     def SaveDataToUSB( self ):
-        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        if len(subfolders)==0:
+        useScott = False
+        if(os.path.isdir("/media/pi")):
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+            useScott = False
+        elif (os.path.isdir("/media/scott")):
+            subfolders = [f.path for f in os.scandir("/media/scott") if f.is_dir()]            
+            useScott = True
+        else:
+            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
+            return        
+        if len(subfolders)==0:        
             self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
             return
-        else:                                      
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
-            msg.setText("Do not remove USB until copy is noted as complete.")
-            msg.setWindowTitle("Data Transfer")
-            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
-            ss="This may take several minutes.\nPress Okay to begin."
-            msg.setInformativeText(ss)    
-            returnVal=msg.exec_()  
-            
+                                                               
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText("Do not remove USB until copy is noted as complete.")
+        msg.setWindowTitle("Data Transfer")
+        msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
+        ss="This may take several minutes.\nPress Okay to begin."
+        msg.setInformativeText(ss)    
+        returnVal=msg.exec_()  
+        for i in range(10):
             QApplication.processEvents()
-            if returnVal==QMessageBox.Ok:   
-                self.DisableButtons()
-                self.GoToMessagesPage()                            
-                self.StatusBar.showMessage("Copying data files...",120000)      
-                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)          
-                self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
+        if returnVal==QMessageBox.Ok:   
+            self.DisableButtons()
+            self.GoToMessagesPage()                            
+            self.StatusBar.showMessage("Copying data files...",120000)      
+            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)          
+            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))    
+            for i in range(10):     
                 QApplication.processEvents()              
-                destPath = subfolders[0]+'/FLICData'    
-                sourcePath="/home/pi/PyMCU/PyMCU/FLICData"                
-                tmp=FLICDataCopy.FLICDataCopy("Copying files: ")                
-                tmp.StartDataTransfer(sourcePath,destPath)     
-                while(tmp.isDataTransferring):
-                    self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
-                    QApplication.processEvents()  
-                    time.sleep(0.2)      
-                if(tmp.copySuccess):
-                    self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
-                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.ANNOTATION)  
-                else:
-                    self.StatusBar.showMessage("Data copy failed.",self.statusmessageduration)  
-                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)    
-                self.EnableButtons()              
+            destPath = subfolders[0]+'/FLICData'    
+            if(useScott):
+                sourcePath="/home/scott/Python/PyMCU/PyMCU/FLICData"                
             else:
-                self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
+                sourcePath="/home/pi/Python/PyMCU/PyMCU/FLICData"                
+            tmp=FLICDataCopy.FLICDataCopy("Copying files: ")                
+            tmp.StartDataTransfer(sourcePath,destPath)     
+            while(tmp.isDataTransferring):
+                self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
+                for i in range(10):
+                    QApplication.processEvents()  
+                time.sleep(0.2)      
+            if(tmp.copySuccess):
+                self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.ANNOTATION)  
+            else:
+                self.StatusBar.showMessage("Data copy failed.",self.statusmessageduration)  
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)    
+            self.EnableButtons()              
+        else:
+            self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
         try:
             command = "umount " + '"'+subfolders[0]+'"'
             os.system(command)    
             self.isUSBAttached=False            
             self.saveDataAction.setEnabled(False)
             self.MoveProgramButton.setEnabled(False)
-            QApplication.processEvents()
+            for i in range(10):
+                QApplication.processEvents()
             self.StatusBar.showMessage("USB unmounted. Ready to remove.",self.statusmessageduration)    
         except:
             print("Except: Problem saving data to USB.")
+            self.StatusBar.showMessage("Problem saving data to USB.",self.statusmessageduration)    
             return
 
     def ZoomPlotChanged(self):

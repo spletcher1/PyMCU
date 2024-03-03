@@ -5,3 +5,8 @@ In the virtual environment, install required python packages: cobs, matplotlib, 
         adafruit-circuitpython-tsl2591,adafruit-circuitpython-si7021
 
 Note that GPIO is not available on the PI5.  Need to change to allow modifications on the pins. This has been updated on the PI5Dev branch.
+
+Also needed to update the RunMCU.sh script to activate the python environment.
+
+https://github.com/seffs/wayfire-plugins-extra-raspbian
+https://github.com/seffs/wayfire-plugins-extra-raspbian/releases
