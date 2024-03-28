@@ -741,10 +741,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def DeleteProgramFile(self):
         if(self.currentChosenProgramFile!=""):
             msg = QMessageBox()
+            msg.setParent(self)
             msg.setIcon(QMessageBox.Question)
             msg.setText("Are you sure that you would like to delete this program file?")
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             msg.setWindowTitle("Delete Program")
+            msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)      
             retval=msg.exec_()
             if(retval==QMessageBox.Yes):
                 fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
@@ -823,12 +825,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
             return
                                                                
         msg = QMessageBox()
+        msg.setParent(self)
         msg.setIcon(QMessageBox.Warning)
         msg.setText("Do not remove USB until copy is noted as complete.")
         msg.setWindowTitle("Data Transfer")
         msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
         ss="This may take several minutes.\nPress Okay to begin."
-        msg.setInformativeText(ss)    
+        msg.setInformativeText(ss)   
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)       
         returnVal=msg.exec_()  
         for i in range(10):
             QApplication.processEvents()
