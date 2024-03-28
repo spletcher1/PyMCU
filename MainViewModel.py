@@ -682,6 +682,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             #print("Plotting time: "+str(end-start))    
     
     def UpdateGUI(self):     
+
         if (self.theDFMGroup.currentProgram.isActive):           
             self.theDFMGroup.UpdateProgramStatus()         
             self.DisableButtons()

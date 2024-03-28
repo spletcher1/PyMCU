@@ -55,16 +55,11 @@ sudo ln -s /home/scott /home/pi
 
 6) Add the following lines to the ~/.config/wayfire.ini file 
 
+[idle]
+dpms_timeout=10
+
 [autostart]
 mcu = /home/pi/PyMCU/PyMCU/RunMCU.sh
-
-[core]
-plugins = \
-	hide-cursor \ 
-	autostart
-
-[idle]
-dpms_timeout = 60
 
 7) Open file manager preferences and uncheck "Show available options for mountable media"
 8) Right click on taskbar and edit plug ins.  Remove ejector and updater.
@@ -87,6 +82,8 @@ dpms_timeout = 60
 	xserver-command=X -nocursor 
 
 11) Make sure to set visual window preferences for a black background, small taskbar and no desktop icons.  Also set the hots name to FLICMCU.
+
+
 
 
 
