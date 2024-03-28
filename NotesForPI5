@@ -90,6 +90,7 @@ mcu = /home/pi/PyMCU/PyMCU/RunMCU.sh
 At this point, I was still having some issues with the wayland manager and the borders of dialog boxes. See below at **** for programmatic fixes.
 
 I got everything working (I think) except making the initial cursor invisible at startup before the user touches the screen.
+I'd also like to blank the console during boot up and power down.
 
  
 
