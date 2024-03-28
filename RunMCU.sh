@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/pi/Python
+cd /home/pi/PyMCU
 source bin/activate
-cd PyMCU/PyMCU
+cd PyMCU
 python3 MainViewModel.py

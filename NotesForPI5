@@ -10,3 +10,93 @@ Also needed to update the RunMCU.sh script to activate the python environment.
 
 https://github.com/seffs/wayfire-plugins-extra-raspbian
 https://github.com/seffs/wayfire-plugins-extra-raspbian/releases
+
+
+
+
+Detailed step by step:
+
+a) enable i2c, spi, and remote GPIO from raspberry pi config.
+b) set the timezone and adjust the background to be black and minimal.
+c) enable screen blanking from raspiconfig
+d) change the duration in the wayfire.ini file to 60
+
+
+1) Install PyQt5
+
+sudo apt update
+
+sudo apt-get install qtbase5-dev qtchooser
+## qt creator is not really needed.
+sudo apt-get install qtcreator
+sudo apt install pyqt5 pyqt5-dev pyqt5-dev-tools
+
+2) create the python virtual environment in the ~/PyMCU directory: 
+
+python -m venv PyMCU --system-site-packages
+
+3) Clone the PyMCU source there. 
+
+cd PyMCU
+git clone https://github.com/spletcher1/PyMCU
+
+4) Activate the python environment and install required packages.
+
+cd ~/PyMCU
+source bin/activate
+
+cd PyMCU
+pip3 install cobs matplotlib pyudev smbus2 pyserial
+pip3 install adafruit-blinka adafruit-circuitpython-tsl2591 adafruit-circuitpython-si7021
+
+5) Create pi symlink 
+
+sudo ln -s /home/scott /home/pi
+
+6) Add the following lines to the ~/.config/wayfire.ini file 
+
+[autostart]
+mcu = /home/pi/PyMCU/PyMCU/RunMCU.sh
+
+[core]
+plugins = \
+	hide-cursor \ 
+	autostart
+
+[idle]
+dpms_timeout = 60
+
+7) Open file manager preferences and uncheck "Show available options for mountable media"
+8) Right click on taskbar and edit plug ins.  Remove ejector and updater.
+
+At this point, I was still having some issues with the wayland manager and the borders of dialog boxes, but with the new PI OS, these seem to have been fixed, except for the appearance of the 
+Cursor when the program starts (it disappears when the screen is touched).
+also screen blanking does not work with the full screen qt app.  It does in general, however. I just can't seem to fix this, and it's a show stopper.  Looks like I will have to go back to the 
+X server implementation.  I will keep the original wayland config bit described above, in case that gets fixed.
+
+Note that the line 
+myapp.showFullScreen() in MainViewModel.py is the culprit.  If I instead show a borderless window maximized by replacing that command with 
+
+myapp.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+myapp.showMaximized()
+
+The blanking works, but dialog boxes now can sneak behind the main window somehow.
+
+It seems in Wayland you need to specify a parent to make the dialog modal.  This keeps it in front, but also allows the other buttons to work.
+Need to set the parent (self) for all dialog boxes (clear messages, power off, about)
+A workaround may be to disable buttons
+
+I found a way to fix this issue, assuming the main app frameless and maximized, rather than full screen. 
+
+When showing a message box, you must set the parent
+
+msg.setParent(self)  
+
+and must also set window flags
+
+msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)      
+
+note that the self.windowFlags() sets the default for the parent.  This works.  Substituting msg.windowFlags() doesn't, although
+it seems like it should.
+
+At this point, I think I have this wayland version functioning as intended.

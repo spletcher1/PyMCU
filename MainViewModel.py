@@ -368,6 +368,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip="unknown"
         
         msg = QMessageBox()
+        msg.setParent(self)
         tmpButton = QPushButton("Settings")
         if(self.theDFMGroup.currentProgram.isActive):
             tmpButton.setEnabled(False)
@@ -382,7 +383,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setWindowTitle("About MCU")
         ss="Version: 1.0.61\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
-        msg.setInformativeText(ss)    
+        msg.setInformativeText(ss)            
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
         retval=msg.exec_()           
         if(retval==0):
             self.GotoSettingsPage()
@@ -478,17 +480,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def DeleteDataFolder(self):
         msg = QMessageBox()
+        msg.setParent(self)
         msg.setIcon(QMessageBox.Question)
         msg.setText("Are you sure that you would like to delete all data?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         msg.setWindowTitle("Delete Data")
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             msg2 = QMessageBox()
+            msg2.setParent(self)
             msg2.setIcon(QMessageBox.Question)
             msg2.setText("Are you REALLY sure ?")
             msg2.setWindowTitle("Delete Data")
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg2.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 os.system("rm -rf FLICData")  
@@ -499,7 +505,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
         if(availableMegaBytes>1000):
             return        
-        msg = QMessageBox()        
+        msg = QMessageBox()    
+        msg.setParent(self)    
         msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
         stext = "Warning: Local storage less than 1GB."        
@@ -507,21 +514,26 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setWindowTitle("Low Storage")
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
         retval=msg.exec_()           
         
     def PowerOff(self):
         msg = QMessageBox()
+        msg.setParent(self)
         msg.setIcon(QMessageBox.Question)
         msg.setText("Are you sure that you would like to power off?")
         msg.setWindowTitle("Power Off")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             msg2 = QMessageBox()
+            msg2.setParent(self)
             msg2.setIcon(QMessageBox.Question)
             msg2.setWindowTitle("Power Off")
             msg2.setText("Are you REALLY sure that you would like to power off?")
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg2.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 print("Shutting down")  
@@ -531,10 +543,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def AssureClearMessages(self):
         msg = QMessageBox()
+        ## Needed for Wayland now
+        msg.setParent(self)       
         msg.setIcon(QMessageBox.Question)
         msg.setWindowTitle("Clear Messages")
         msg.setText("Are you sure that you would like to clear messages?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        ## These mods were for wayland.        
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)                
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             self.ClearMessages()
@@ -942,7 +958,9 @@ def main():
     app = QtWidgets.QApplication(sys.argv)    
     myapp = MyMainWindow(theBoard)    
     #ModuleTest()    
-    myapp.showFullScreen()
+    #myapp.showFullScreen()
+    myapp.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+    myapp.showMaximized()
     sys.exit(app.exec_()) 
     print("Done")
     
