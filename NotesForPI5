@@ -92,7 +92,9 @@ At this point, I was still having some issues with the wayland manager and the b
 I got everything working (I think) except making the initial cursor invisible at startup before the user touches the screen.
 I'd also like to blank the console during boot up and power down.
 
+ 3/27/24: At this point I will save the first image. 
  
+ MCU_PI5Image_03_27_2024.img
 
 
 ****
