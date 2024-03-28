@@ -68,8 +68,36 @@ dpms_timeout = 60
 
 7) Open file manager preferences and uncheck "Show available options for mountable media"
 8) Right click on taskbar and edit plug ins.  Remove ejector and updater.
+9) Right click on taskbar, choose notifications, and turn off show notifications.
 
-At this point, I was still having some issues with the wayland manager and the borders of dialog boxes, but with the new PI OS, these seem to have been fixed, except for the appearance of the 
+10) we will also configure for x-server, although we aren't planning on using it. Switching between X11 and Wayland can be done through the 
+	advanced options in Rapsi-config.
+10a) Copy the file /etc/xdg/lxsession/LXDE-pi/autostart to /home/pi/.config/lxsession/LXDE-pi/autostart (Create directories as needed)
+	
+	And add the following two line to this file directly above the @xscreensaver line:	
+	@lxterminal -e /home/pi/PyMCU/PyMCU/RunMCU.sh
+
+10b) Edit the file /etc/lightdm/lightdm.conf by, for example using nano:
+	# nano /etc/lightdm/lightdm.conf
+	First find the line xserver-command=X, you can do this in nano using:
+	ctrl+w xserver-command=X
+	uncomment the line and add:
+	-nocursor    
+	So it looks like this:
+	xserver-command=X -nocursor 
+
+11) Make sure to set visual window preferences for a black background, small taskbar and no desktop icons.  Also set the hots name to FLICMCU.
+
+
+
+At this point, I was still having some issues with the wayland manager and the borders of dialog boxes. See below at **** for programmatic fixes.
+
+
+
+ 
+
+
+****
 Cursor when the program starts (it disappears when the screen is touched).
 also screen blanking does not work with the full screen qt app.  It does in general, however. I just can't seem to fix this, and it's a show stopper.  Looks like I will have to go back to the 
 X server implementation.  I will keep the original wayland config bit described above, in case that gets fixed.
