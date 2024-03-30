@@ -847,9 +847,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 QApplication.processEvents()              
             destPath = subfolders[0]+'/FLICData'    
             if(useScott):
-                sourcePath="/home/scott/Python/PyMCU/PyMCU/FLICData"                
+                sourcePath="/home/scott/PyMCU/PyMCU/FLICData"                
             else:
-                sourcePath="/home/pi/Python/PyMCU/PyMCU/FLICData"                
+                sourcePath="/home/pi/PyMCU/PyMCU/FLICData"                
             tmp=FLICDataCopy.FLICDataCopy("Copying files: ")                
             tmp.StartDataTransfer(sourcePath,destPath)     
             while(tmp.isDataTransferring):

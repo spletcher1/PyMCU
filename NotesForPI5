@@ -96,6 +96,8 @@ I'd also like to blank the console during boot up and power down.
  
  MCU_PI5Image_03_27_2024.img
 
+ Note that this image forgot to set the serial port to active (and serial console to inactive) in raspi-config.
+
 
 ****
 Cursor when the program starts (it disappears when the screen is touched).
