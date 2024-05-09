@@ -123,7 +123,7 @@ class MCUProgram():
         self.ClearProgram()
         self.startTime=starttime
         self.experimentDuration=dur
-        for i in range(0,16):
+        for i in range(0,99):
             self.AddSimpleProgram(i,dur)
         
     def AddSimpleProgram(self,dfmid,dur):
