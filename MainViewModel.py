@@ -381,7 +381,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.61\nIP: " + hostip
+        ss="Version: 1.0.7\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)            
         msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     

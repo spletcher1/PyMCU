@@ -62,6 +62,7 @@ class DFMGroup:
         self.theDFMs.clear()
         self.activeDFM=None
         self.MP.StopReading()
+        self.currentProgram.ClearProgram()
 
     def FindDFMs(self): 
         self.theDFMs.clear()       
