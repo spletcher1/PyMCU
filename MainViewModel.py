@@ -379,7 +379,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.7\nIP: " + hostip
+        ss="Version: 2.0.0\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         retval=msg.exec_()           
@@ -591,6 +591,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.DarkModeLabel.setText("No")
         self.FrequencyLabel.setText("{:d}Hz".format(self.activeDFM.reportedOptoFrequency))
         self.PulseWidthLabel.setText("{:d}ms".format(self.activeDFM.reportedOptoPulsewidth))
+
+        self.FirmwareLabel.setText(self.activeDFM.firmwareVersion)
 
         if (self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType==Enums.DFMTYPE.ENVMONV3):          
             self.OptoStateLabel.setText("0x{:03X}".format(self.activeDFM.reportedOptoStateCol1))

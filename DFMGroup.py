@@ -43,6 +43,7 @@ class DFMGroup:
         self.currentDFMIndex=0                
         self.currentDFMKeysList=[]
         self.programReadInterval=""
+        self.firmwareVersion="0.0.0"
 
 
     def NewMessageDirect(self,newMessage):        

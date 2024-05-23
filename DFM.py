@@ -47,6 +47,7 @@ class DFM:
         self.reportedHumidity=1.0
         self.reportedLUX=0
         self.reportedVoltsIn=1.0                        
+        self.firmwareVersion="0.0.0"
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
             self.theOptoLid = OptoLid.OptoLid()       
 
