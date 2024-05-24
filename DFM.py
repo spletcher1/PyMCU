@@ -22,6 +22,8 @@ class DFM:
         self.MP = mp
         self.ID=id             
         self.DFMType = dfmType   
+        ## Set this to 1.5 and only change if found to be needed.
+        self.DFMSubType = Enums.DFMSUBTYPE.V1_5
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
@@ -36,6 +38,7 @@ class DFM:
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
+        self.isVersionGetNeeded = True
         self.isLinkageSetNeeded=False
         self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
@@ -283,13 +286,30 @@ class DFM:
                 self.lastDFMIndex=0;              
             else:
                 print("Buffer reset NACKed")                 
-        
-        if(self.isInstructionUpdateNeeded):            
-            if(self.MP.SendInstruction(self.ID, self.currentInstruction)):                       
-                self.isInstructionUpdateNeeded=False
-            else:
-                print("Instruction update NACKed")            
+        if(self.isInstructionUpdateNeeded):      
+            if(self.DFMSubType == Enums.DFMSUBTYPE.V1_5):      
+                if(self.MP.SendInstructionDFMV1_5(self.ID, self.currentInstruction)):                       
+                    self.isInstructionUpdateNeeded=False
+                else:
+                    print("Instruction update NACKed")            
+            elif (self.DFMSubType == Enums.DFMSUBTYPE.V2):                              
+                if(self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)):                       
+                    self.isInstructionUpdateNeeded=False
+                else:
+                    print("Instruction update NACKed")      
            
+        if(self.isVersionGetNeeded):
+            v = self.MP.GetVersion(self.ID)
+            if(v[0]==self.ID):        
+                v2 = v[1].decode("utf-8")
+                self.firmwareVersion = v2
+                if(v2 == "2.0.0"):
+                    self.DFMSubType = Enums.DFMSUBTYPE.V2
+                else:
+                    self.DFMSubType = Enums.DFMSUBTYPE.V1_5
+                self.isVersionGetNeeded = False
+            
+
         if(self.isLinkageSetNeeded):                       
             if(self.MP.SendLinkage(self.ID,self.currentLinkage)):                       
                 self.isLinkageSetNeeded=False

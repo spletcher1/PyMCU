@@ -90,9 +90,13 @@ class DataGetter:
         self.ClearAnswerQueueInternal()
         self.command_q.put(MP_Command(COMMANDTYPE.BUFFER_RESET,[ID]))
         return self.GetAnswer(3)
-    def SendInstruction(self,ID,currentInstruction):
+    def SendInstructionDFMV2_0(self,ID,currentInstruction):        
         self.ClearAnswerQueueInternal()
-        self.command_q.put(MP_Command(COMMANDTYPE.INSTRUCTION,[ID,currentInstruction]))
+        self.command_q.put(MP_Command(COMMANDTYPE.INSTRUCTION_V2,[ID,currentInstruction]))
+        return self.GetAnswer(3)
+    def SendInstructionDFMV1_5(self,ID,currentInstruction):
+        self.ClearAnswerQueueInternal()
+        self.command_q.put(MP_Command(COMMANDTYPE.INSTRUCTION_V1_5,[ID,currentInstruction]))
         return self.GetAnswer(3)
     def SendLinkage(self,ID,currentLinkage):
         self.ClearAnswerQueueInternal()
@@ -111,11 +115,14 @@ class DataGetter:
     def SetFocusDFM(self,dfmid):  
         self.command_q.put(MP_Command(COMMANDTYPE.SET_FOCAL_DFM,[dfmid]))    
     def SetStatusRequestType(self,requestType):
-
         if(requestType==STATUSREQUESTTYPE.LATESTONLY):
             self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_LATESTSTATUS,''))
         else:
             self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_NORMALSTATUS,''))
+    def GetVersion(self,ID):
+        self.ClearAnswerQueueInternal()
+        self.command_q.put(MP_Command(COMMANDTYPE.GET_VERSION,[ID]))
+        return self.GetAnswer(3)
     def SetStartTime(self):
         self.command_q.put(MP_Command(COMMANDTYPE.SET_STARTTIME,[datetime.datetime.today()]))
                   
@@ -229,6 +236,9 @@ class DataGetter:
                 self.refreshRate = tmp.arguments[0]                                          
             elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                             
                 answer=self.theCOMM.RequestBufferReset(tmp.arguments[0])                                    
+                self.answer_q.put([tmp.arguments[0],answer])      
+            elif(tmp.commandType==COMMANDTYPE.GET_VERSION):                             
+                answer=self.theCOMM.GetVersion(tmp.arguments[0])                                    
                 self.answer_q.put([tmp.arguments[0],answer])                
             elif(tmp.commandType==COMMANDTYPE.SET_FOCAL_DFM):
                 if(tmp.arguments[0]==0):
@@ -242,6 +252,12 @@ class DataGetter:
                 self.answer_q.put([tmp.arguments[0],answer])
             elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):                
                 answer=self.theCOMM.SendInstruction(tmp.arguments[0],tmp.arguments[1])
+                self.answer_q.put([tmp.arguments[0],answer])
+            elif(tmp.commandType==COMMANDTYPE.INSTRUCTION_V1_5):                
+                answer=self.theCOMM.SendInstructionDFMV1_5(tmp.arguments[0],tmp.arguments[1])
+                self.answer_q.put([tmp.arguments[0],answer])
+            elif(tmp.commandType==COMMANDTYPE.INSTRUCTION_V2):                
+                answer=self.theCOMM.SendInstructionDFMV2_0(tmp.arguments[0],tmp.arguments[1])
                 self.answer_q.put([tmp.arguments[0],answer])
             elif(tmp.commandType==COMMANDTYPE.SEND_DARK):                                       
                 self.theCOMM.SendDark(tmp.arguments[0],tmp.arguments[1])
