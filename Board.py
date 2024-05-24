@@ -1,23 +1,21 @@
 import platform
+import time
 if("MCU" in platform.node()):
-    import RPi.GPIO as GPIO
+    from gpiozero import LED, InputDevice
 
 
 class BoardSetup():
-    def __init__(self):
-        GPIO.setwarnings(False)
-        GPIO.setmode(GPIO.BCM)
+    def __init__(self):        
 
         self.ledPIN=13
         self.relayPIN=6
         self.boardIDPin=5
 
-        GPIO.setup(self.ledPIN,GPIO.OUT)
-        GPIO.setup(self.relayPIN,GPIO.OUT)
-        GPIO.output(self.relayPIN,GPIO.HIGH)
-        GPIO.output(self.ledPIN,GPIO.HIGH) 
-    
-        GPIO.setup(self.boardIDPin,GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        self.Led = LED(self.ledPIN)
+        self.relay = LED(self.relayPIN)
+        self.BoardID = InputDevice(pin=self.boardIDPin, pull_up=False)
+        
+        self.TurnOnDFMPower()
 
     def IsDFMV3Board(self):
         if (self.GetBoardVersion()=="V3"):
@@ -32,18 +30,20 @@ class BoardSetup():
             return False
         
     def GetBoardVersion(self):
-        if(GPIO.input(self.boardIDPin)):
+        if(self.BoardID.value):
             return "V3"
         else:
             return "V2"
 
-
+    def TurnOnDFMPower(self):
+        self.relay.on()
+        self.Led.on()       
 
     def TurnOffDFMPower(self):
-        GPIO.output(self.relayPIN,GPIO.LOW)
-        GPIO.output(self.ledPIN,GPIO.LOW)
-
+        self.relay.off()
+        self.Led.off()        
 
 if __name__=="__main__" :
     tmp = BoardSetup()
-    print(tmp.GetBoardVersion())
+    print(tmp.GetBoardVersion())  
+    time.sleep(10) 
