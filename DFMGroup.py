@@ -378,6 +378,15 @@ class DFMGroup:
     def LoadSimpleProgram(self,startTime,duration):
         self.currentProgram.CreateSimpleProgram(startTime,duration)
     
+
+    def CheckProgramCompatibility(self):
+        for d in self.theDFMs.values():  
+            if(d.DFMSubType == Enums.DFMSUBTYPE.V1_5):
+                tmp = self.currentProgram.theInstructionSets.get(d.ID,'None')
+                if(tmp.IsVersion1_5Compatible()==False):
+                    return False
+        return True
+
     def StopCurrentProgram(self):
         if(len(self.theDFMs)==0):
             return        

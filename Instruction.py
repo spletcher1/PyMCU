@@ -12,9 +12,19 @@ class DFMInstruction:
         self.elapsedStart = startt
         self.pulseWidth=pw
         self.frequency=freq
-        self.decay=decay
+        self.decay=decay        
         self.delay=delay
         self.maxTimeOn=maxTime                
+
+
+    def IsVersion1_5Compatible(self):
+        if(self.decay>>16 != 0):
+            return False
+        if(self.delay>>16 != 0):
+            return False
+        if(self.maxTimeOn>>16 != 0):
+            return False
+        return true
 
     def SetOptoValues(self,vals):
         for i in range(0,12):
