@@ -374,9 +374,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
         if(self.theBoard.IsDFMV2Board()):
-            stext = "Flidea Master Control Unit (V2; P4)"
+            stext = "Flidea Master Control Unit (V2; P5)"
         else:
-            stext = "Flidea Master Control Unit (V3; P4)"        
+            stext = "Flidea Master Control Unit (V3; P5)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
         ss="Version: 2.0.0\nIP: " + hostip
