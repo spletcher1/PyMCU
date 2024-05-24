@@ -100,6 +100,17 @@ class UARTCOMM():
         barray.append(0x00)                        
         self._WriteByteArray(barray,0.002)        
 
+    def GetVersion(self,ID):      
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xEB # Indicates status request
+        ba[2]=ID
+        
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)                        
+        self._WriteByteArray(barray,0.002)        
+
     def RequestLatestStatus(self,ID):                 
         ba = bytearray(3)
         ba[0]=ID
@@ -180,11 +191,10 @@ class UARTCOMM():
                 return False    
         except:
             return False 
-
-    def SendInstruction(self,ID,anInstruction):           
+        
+    def SendInstructionDFMV1_5(self,ID,anInstruction):           
         if (self.thePort.in_waiting>0):
-            self.thePort.reset_input_buffer()
-                 
+            self.thePort.reset_input_buffer()     
         ba = bytearray(41)           
         ba[0]=ID
         ba[1]=0xFD
@@ -233,6 +243,65 @@ class UARTCOMM():
                 return False    
         except:
             return False  
+        
+    def SendInstructionDFMV2_0(self,ID,anInstruction):   
+        if (self.thePort.in_waiting>0):
+            self.thePort.reset_input_buffer()
+        
+        ba = bytearray(47)           
+        ba[0]=ID
+        ba[1]=0xFD
+       
+        if(anInstruction.theDarkState==Enums.DARKSTATE.ON):
+            ba[2]=1
+        else:
+            ba[2]=0
+        ba[3]=(anInstruction.frequency>>8) & 0xFF
+        ba[4]=(anInstruction.frequency) & 0xFF
+
+        ba[5]=(anInstruction.pulseWidth>>8) & 0xFF
+        ba[6]=(anInstruction.pulseWidth) & 0xFF
+
+        ba[7]=(anInstruction.decay>>24) & 0xFF
+        ba[8]=(anInstruction.decay>>16) & 0xFF
+        ba[9]=(anInstruction.decay>>8) & 0xFF
+        ba[10]=(anInstruction.decay) & 0xFF
+    
+        ba[11]=(anInstruction.delay>>24) & 0xFF
+        ba[12]=(anInstruction.delay>>16) & 0xFF
+        ba[13]=(anInstruction.delay>>8) & 0xFF
+        ba[14]=(anInstruction.delay) & 0xFF
+
+        ba[15]=(anInstruction.maxTimeOn>>24) & 0xFF
+        ba[16]=(anInstruction.maxTimeOn>>16) & 0xFF
+        ba[17]=(anInstruction.maxTimeOn>>8) & 0xFF
+        ba[18]=(anInstruction.maxTimeOn) & 0xFF
+
+        ## Note that a -1 for threashold translates to 0xFFFF for this
+        ## two byte instruction, which is 65535.
+        for i in range(0,12):
+            index=i*2+19
+            ba[index] = (anInstruction.adjustedThresholds[i]>>8) & 0xFF            
+            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                  
+        self._AddChecksumFourBytes(0,ba)       
+        
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)         
+        self._WriteByteArray(barray,0.002)        
+        try:
+            tmp=self._ReadCOBSPacket(5)                                     
+            if(tmp[0]!=Enums.COBSRESULT.OKAY):                        
+                return False     
+            tmp = cobs.decode(tmp[1])      
+            if(len(tmp)!=1):            
+                return False
+            if(tmp[0]==ID):
+                return True
+            else:
+                return False    
+        except:
+            return False  
 
     def GetSomething(self,chars):
         tmp=self._ReadCOBSPacket(4000)                                     
@@ -240,7 +309,29 @@ class UARTCOMM():
             return False     
         tmp=cobs.decode(tmp[1])
         return tmp
+
+    def GetVersion(self,ID):      
+        ba = bytearray(3)
+        ba[0]=ID
+        ba[1]=0xEB # Indicates status request
+        ba[2]=ID
         
+        encodedba=cobs.encode(ba)        
+        barray = bytearray(encodedba)
+        barray.append(0x00)                        
+        self._WriteByteArray(barray,0.002)   
+
+        try:
+            tmp = self._ReadCOBSPacket(50)      
+            if(tmp[0]==Enums.COBSRESULT.NOANSWER):                      
+                return b'1.5.0'
+            elif(tmp[0]==Enums.COBSRESULT.INCOMPLETEPACKET):  
+                return b'1.5.0'
+            tmp=cobs.decode(tmp[1])
+            return tmp
+        except:
+            return b'1.5.0'
+
     def GetStatusPacket(self,ID,dummy,latestOnly):            
         if (self.thePort.in_waiting>0):
             print("In Waiting")
@@ -415,18 +506,20 @@ def AckTest(id):
     return
 
 def SimpleTest():
-    tmp=Board.BoardSetup()   
+    tmp=Board.BoardSetup()
+    time.sleep(3)   
     theCOMM = UARTCOMM()  
     print("Getting...")
-    for i in range(0,10):
-        print(theCOMM.GetSomething(20))
+    #for i in range(0,10):
+    #    print(theCOMM.GetSomething(20))
+    print(theCOMM.GetVersion(1))
     print("Done")
 
 
 if __name__=="__main__" :
     #ModuleTest()
-    #SimpleTest()
-    ModuleTest(1)
+    SimpleTest()
+    #ModuleTest(1)
     #AckTest(8)
    
 #endregion

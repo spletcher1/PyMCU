@@ -121,8 +121,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.saveDataAction.setEnabled(True)
                 self.MoveProgramButton.setEnabled(True)
                 self.updateButton.setEnabled(True)
-                for i in range(10):
-                    QApplication.processEvents()
+                QApplication.processEvents()
         except:
             print("Normal except: No usb on startup.")
             pass
@@ -368,7 +367,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip="unknown"
         
         msg = QMessageBox()
-        msg.setParent(self)
         tmpButton = QPushButton("Settings")
         if(self.theDFMGroup.currentProgram.isActive):
             tmpButton.setEnabled(False)
@@ -381,10 +379,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.7\nIP: " + hostip
+        ss="Version: 2.0.0\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
-        msg.setInformativeText(ss)            
-        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
+        msg.setInformativeText(ss)    
         retval=msg.exec_()           
         if(retval==0):
             self.GotoSettingsPage()
@@ -439,12 +436,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
     def FindDFMs(self):   
-        self.ClearDFM()       
-        self.StatusBar.showMessage("Searching for DFMs. This can take up to 3 seconds.",self.statusmessageduration)    
-        for i in range(10):      
-            QApplication.processEvents()                                 
-        self.ClearMessages()        
-        self.theDFMGroup.FindDFMs()                                    
+        self.ClearDFM()
+        self.StatusBar.showMessage("Searching for DFMs. This can take up to 3 seconds.",self.statusmessageduration)     
+        QApplication.processEvents()
+        self.ClearMessages()
+        self.theDFMGroup.FindDFMs()                      
         if(len(self.theDFMGroup.theDFMs)==0):
             self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
             return
@@ -480,21 +476,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def DeleteDataFolder(self):
         msg = QMessageBox()
-        msg.setParent(self)
         msg.setIcon(QMessageBox.Question)
         msg.setText("Are you sure that you would like to delete all data?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         msg.setWindowTitle("Delete Data")
-        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             msg2 = QMessageBox()
-            msg2.setParent(self)
             msg2.setIcon(QMessageBox.Question)
             msg2.setText("Are you REALLY sure ?")
             msg2.setWindowTitle("Delete Data")
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msg2.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 os.system("rm -rf FLICData")  
@@ -505,8 +497,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
         if(availableMegaBytes>1000):
             return        
-        msg = QMessageBox()    
-        msg.setParent(self)    
+        msg = QMessageBox()        
         msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
         stext = "Warning: Local storage less than 1GB."        
@@ -514,26 +505,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setWindowTitle("Low Storage")
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
-        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
         retval=msg.exec_()           
         
     def PowerOff(self):
         msg = QMessageBox()
-        msg.setParent(self)
         msg.setIcon(QMessageBox.Question)
         msg.setText("Are you sure that you would like to power off?")
         msg.setWindowTitle("Power Off")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             msg2 = QMessageBox()
-            msg2.setParent(self)
             msg2.setIcon(QMessageBox.Question)
             msg2.setWindowTitle("Power Off")
             msg2.setText("Are you REALLY sure that you would like to power off?")
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msg2.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 print("Shutting down")  
@@ -543,14 +529,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def AssureClearMessages(self):
         msg = QMessageBox()
-        ## Needed for Wayland now
-        msg.setParent(self)       
         msg.setIcon(QMessageBox.Question)
         msg.setWindowTitle("Clear Messages")
         msg.setText("Are you sure that you would like to clear messages?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        ## These mods were for wayland.        
-        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)                
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             self.ClearMessages()
@@ -609,6 +591,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.DarkModeLabel.setText("No")
         self.FrequencyLabel.setText("{:d}Hz".format(self.activeDFM.reportedOptoFrequency))
         self.PulseWidthLabel.setText("{:d}ms".format(self.activeDFM.reportedOptoPulsewidth))
+
+        self.FirmwareLabel.setText(self.activeDFM.firmwareVersion)
 
         if (self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType==Enums.DFMTYPE.ENVMONV3):          
             self.OptoStateLabel.setText("0x{:03X}".format(self.activeDFM.reportedOptoStateCol1))
@@ -682,7 +666,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
             #print("Plotting time: "+str(end-start))    
     
     def UpdateGUI(self):     
-
         if (self.theDFMGroup.currentProgram.isActive):           
             self.theDFMGroup.UpdateProgramStatus()         
             self.DisableButtons()
@@ -742,12 +725,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def DeleteProgramFile(self):
         if(self.currentChosenProgramFile!=""):
             msg = QMessageBox()
-            msg.setParent(self)
             msg.setIcon(QMessageBox.Question)
             msg.setText("Are you sure that you would like to delete this program file?")
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             msg.setWindowTitle("Delete Program")
-            msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)      
             retval=msg.exec_()
             if(retval==QMessageBox.Yes):
                 fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
@@ -760,23 +741,34 @@ class MyMainWindow(QtWidgets.QMainWindow):
                     self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration) 
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)      
+
+    ## This function is not used anymore.
+    def LoadFilesListWidgetDEPRICATED(self):
+        self.FilesListWidget.clear()   
+        try:    
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+            if len(subfolders)==0:
+                self.currentProgramFileDirectory = "/media/pi/FLICPrograms/"
+            else:
+                self.currentProgramFileDirectory = subfolders[0]+"/FLICPrograms/"    
+
+            files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
+            for f in files:
+                h, t = os.path.split(f)
+                self.FilesListWidget.insertItem(0,t)
+            if(len(files)>0):
+                self.FilesListWidget.setCurrentRow(0)
+        except:
+            self.StatusBar.showMessage("Problem loading program. Is USB connected?",self.statusmessageduration)  
     
     def MoveProgramFilesToLocal(self):
         self.StatusBar.showMessage("Moving programs from USB...",self.statusmessageduration)  
-        if(os.path.isdir("/media/pi")):
-            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        elif (os.path.isdir("/media/scott")):
-            subfolders = [f.path for f in os.scandir("/media/scott") if f.is_dir()]            
-        else:
-            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
-            return        
-        
-        if len(subfolders)==0:        
-            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
-            return
-        
         try:    
-            sourceDirectory = subfolders[0]+"/FLICPrograms/"            
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+            if len(subfolders)==0:
+                sourceDirectory = "/media/pi/FLICPrograms/"
+            else:
+                sourceDirectory = subfolders[0]+"/FLICPrograms/"    
             targetDirectory ="./FLICPrograms/"    
             files=(glob.glob(sourceDirectory+"*.txt"))
             if(len(files)>0):
@@ -788,7 +780,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         except:
             print("Normal except: problem moving program")
             self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)  
-
         sss="Move complete. {:d} program files moved.".format(len(files))
         self.StatusBar.showMessage(sss,self.statusmessageduration)  
         self.LoadCustomProgram()
@@ -810,74 +801,66 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.GotoProgramLoadPage()
         return
 
+    def DataTransferFunction(self):
+        self.isDataTransferring=True
+        try:
+            command = 'cp -r FLICData/ "' + subfolders[0] +'"'   
+            os.system(command)        
+        except:
+            print("Except: problem in DataTransferFunction")
+            self.isDataTransferring=False
+        self.isDataTransferring=False
+
     def SaveDataToUSB( self ):
-        useScott = False
-        if(os.path.isdir("/media/pi")):
-            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-            useScott = False
-        elif (os.path.isdir("/media/scott")):
-            subfolders = [f.path for f in os.scandir("/media/scott") if f.is_dir()]            
-            useScott = True
-        else:
-            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
-            return        
-        if len(subfolders)==0:        
+        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+        if len(subfolders)==0:
             self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
             return
-                                                               
-        msg = QMessageBox()
-        msg.setParent(self)
-        msg.setIcon(QMessageBox.Warning)
-        msg.setText("Do not remove USB until copy is noted as complete.")
-        msg.setWindowTitle("Data Transfer")
-        msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
-        ss="This may take several minutes.\nPress Okay to begin."
-        msg.setInformativeText(ss)   
-        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)       
-        returnVal=msg.exec_()  
-        for i in range(10):
+        else:                                      
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("Do not remove USB until copy is noted as complete.")
+            msg.setWindowTitle("Data Transfer")
+            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
+            ss="This may take several minutes.\nPress Okay to begin."
+            msg.setInformativeText(ss)    
+            returnVal=msg.exec_()  
+            
             QApplication.processEvents()
-        if returnVal==QMessageBox.Ok:   
-            self.DisableButtons()
-            self.GoToMessagesPage()                            
-            self.StatusBar.showMessage("Copying data files...",120000)      
-            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)          
-            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))    
-            for i in range(10):     
+            if returnVal==QMessageBox.Ok:   
+                self.DisableButtons()
+                self.GoToMessagesPage()                            
+                self.StatusBar.showMessage("Copying data files...",120000)      
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)          
+                self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
                 QApplication.processEvents()              
-            destPath = subfolders[0]+'/FLICData'    
-            if(useScott):
-                sourcePath="/home/scott/PyMCU/PyMCU/FLICData"                
-            else:
+                destPath = subfolders[0]+'/FLICData'    
                 sourcePath="/home/pi/PyMCU/PyMCU/FLICData"                
-            tmp=FLICDataCopy.FLICDataCopy("Copying files: ")                
-            tmp.StartDataTransfer(sourcePath,destPath)     
-            while(tmp.isDataTransferring):
-                self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
-                for i in range(10):
+                tmp=FLICDataCopy.FLICDataCopy("Copying files: ")                
+                tmp.StartDataTransfer(sourcePath,destPath)     
+                while(tmp.isDataTransferring):
+                    self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
                     QApplication.processEvents()  
-                time.sleep(0.2)      
-            if(tmp.copySuccess):
-                self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
-                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.ANNOTATION)  
+                    time.sleep(0.2)      
+                if(tmp.copySuccess):
+                    self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
+                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.ANNOTATION)  
+                else:
+                    self.StatusBar.showMessage("Data copy failed.",self.statusmessageduration)  
+                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)    
+                self.EnableButtons()              
             else:
-                self.StatusBar.showMessage("Data copy failed.",self.statusmessageduration)  
-                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)    
-            self.EnableButtons()              
-        else:
-            self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
+                self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
         try:
             command = "umount " + '"'+subfolders[0]+'"'
             os.system(command)    
             self.isUSBAttached=False            
             self.saveDataAction.setEnabled(False)
             self.MoveProgramButton.setEnabled(False)
-            for i in range(10):
-                QApplication.processEvents()
+            QApplication.processEvents()
             self.StatusBar.showMessage("USB unmounted. Ready to remove.",self.statusmessageduration)    
         except:
             print("Except: Problem saving data to USB.")
-            self.StatusBar.showMessage("Problem saving data to USB.",self.statusmessageduration)    
             return
 
     def ZoomPlotChanged(self):
@@ -963,9 +946,7 @@ def main():
     app = QtWidgets.QApplication(sys.argv)    
     myapp = MyMainWindow(theBoard)    
     #ModuleTest()    
-    #myapp.showFullScreen()
-    myapp.setWindowFlag(QtCore.Qt.FramelessWindowHint)
-    myapp.showMaximized()
+    myapp.showFullScreen()
     sys.exit(app.exec_()) 
     print("Done")
     
