@@ -324,13 +324,13 @@ class UARTCOMM():
         try:
             tmp = self._ReadCOBSPacket(50)      
             if(tmp[0]==Enums.COBSRESULT.NOANSWER):                      
-                return b'1.5.0'
+                return b'1.0.5'
             elif(tmp[0]==Enums.COBSRESULT.INCOMPLETEPACKET):  
-                return b'1.5.0'
+                return b'1.0.5'
             tmp=cobs.decode(tmp[1])
             return tmp
         except:
-            return b'1.5.0'
+            return b'1.0.5'
 
     def GetStatusPacket(self,ID,dummy,latestOnly):            
         if (self.thePort.in_waiting>0):

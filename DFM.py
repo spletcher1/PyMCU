@@ -38,6 +38,7 @@ class DFM:
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
+        # This is true because we need to get this ASAP for each DFM upon connection.
         self.isVersionGetNeeded = True
         self.isLinkageSetNeeded=False
         self.currentDFMErrors = DFMErrors.DFMErrors()
@@ -235,7 +236,6 @@ class DFM:
     #endregion
 
     #region Updating                
- 
     def UpdateInstruction(self,instruct,useBaseline):                      
         if(instruct is self.currentInstruction):            
             return 

@@ -374,9 +374,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
         if(self.theBoard.IsDFMV2Board()):
-            stext = "Flidea Master Control Unit (V2)"
+            stext = "Flidea Master Control Unit (V2; P4)"
         else:
-            stext = "Flidea Master Control Unit (V3)"        
+            stext = "Flidea Master Control Unit (V3; P4)"        
         msg.setText(stext)
         msg.setWindowTitle("About MCU")
         ss="Version: 2.0.0\nIP: " + hostip
@@ -713,6 +713,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 if(self.theDFMGroup.LoadTextProgram(fn)):
                     self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration) 
                     self.GoToProgramPage()
+                    if(self.theDFMGroup.CheckProgramCompatibility()==False):
+                        msg = QMessageBox()
+                        msg.setIcon(QMessageBox.Information)
+                        msg.setText("Warning: Check program compatibility!")
+                        msg.setWindowTitle("Compatibility Check")
+                        msg.setInformativeText("Version 1.5 DFM are not compatible with decay, delay, or maxtime values > 65536!")    
+                        retval=msg.exec_()           
                 else:  
                     self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)   
                 self.UpdateProgramGUI() 

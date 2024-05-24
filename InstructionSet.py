@@ -58,6 +58,13 @@ class InstructionSet:
             return self._GetInstruction(datetime.timedelta(seconds=diff))
         else:
             return None
+    
+    def IsVersion1_5Compatible(self):
+        for i in self.instructions:
+            if(i.IsVersion1_5Compatible() == False):
+                return False            
+        return True
+
 
     def Validate(self):
         if(self.instructionSetType==INSTRUCTIONSETTYPE.CIRCADIAN):
