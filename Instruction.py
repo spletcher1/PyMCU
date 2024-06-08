@@ -24,7 +24,7 @@ class DFMInstruction:
             return False
         if(self.maxTimeOn>>16 != 0):
             return False
-        return true
+        return True
 
     def SetOptoValues(self,vals):
         for i in range(0,12):
