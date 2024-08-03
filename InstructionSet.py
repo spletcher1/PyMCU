@@ -110,11 +110,29 @@ class InstructionSet:
             for ii in range(0,12):
                 if(ov[ii]>1023): 
                     ov[ii]=-1          
-            dur = datetime.timedelta(seconds=(float(ss[13])*60))
-            # For now, we assume that freq, pw, decay, delay and maxtime are set only at the level of the whole
-            # instruction set, as it was for the DFM V2 software. 
-            # TODO: loosen this and make each adjustable from the program for each instruction.
+            dur = datetime.timedelta(seconds=(float(ss[13])*60))            
             tmp = Instruction.DFMInstruction(ds,self.optoFrequency,self.optoPulseWidth,self.optoDecay,self.optoDelay,self.maxTimeOn,dur,0)
+            tmp.SetOptoValues(ov)
+            self.AddInstruction(tmp)
+        ## If Freq, PW, Decay, Delay, and MaxTime are also defined
+        elif(len(ss)==19):
+            if(int(ss[0]) == 0):
+                ds = Enums.DARKSTATE.OFF
+            elif(int(ss[0])==1):
+                ds= Enums.DARKSTATE.ON            
+            ov = array.array("i",(-1 for jj in range(0,12)))
+            for x in range(0,12):
+                ov[x]=int(ss[x+1])
+            for ii in range(0,12):
+                if(ov[ii]>1023): 
+                    ov[ii]=-1       
+            freq = int(ss[13])
+            pw = int(ss[14])
+            decay = int(ss[15])
+            delay = int(ss[16])
+            maxTime = int(ss[17])   
+            dur = datetime.timedelta(seconds=(float(ss[18])*60))            
+            tmp = Instruction.DFMInstruction(ds,freq,pw,decay,delay,maxTime,dur,0)
             tmp.SetOptoValues(ov)
             self.AddInstruction(tmp)
         else:
@@ -185,12 +203,12 @@ def ModuleTest():
     tmp.instructionSetType = INSTRUCTIONSETTYPE.CIRCADIAN
     tmp.AddDefaultInstruction()
     tmp.AddDefaultInstruction()  
-    tmp2 = Instruction.DFMInstruction(dur=datetime.timedelta(minutes=60))
-    tmp.AddInstruction(tmp2)
-    tmp.AddInstructionFromString("1,10,11,12,13,14,15,16,17,18,19,20,21,30")
+    #tmp2 = Instruction.DFMInstruction(dur=datetime.timedelta(minutes=60))
+    #tmp.AddInstruction(tmp2)
+    tmp.AddInstructionFromString("1,10,11,12,13,14,15,16,17,18,19,20,21,30,12,1000,0,0,30,2")
     tmp.SetProgramTypeFromString("circadian")
     tmp.SetLinkageFromString("1,2,3,1,5,6,7,1,9,10,1,12")
-    print(tmp.ToString(datetime.timedelta(minutes=200),datetime.datetime.today()-datetime.timedelta(minutes=200)))
+    print(tmp.ToString(datetime.timedelta(minutes=800),datetime.datetime.today()-datetime.timedelta(minutes=800)))
     
 
 

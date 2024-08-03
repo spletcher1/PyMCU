@@ -301,8 +301,7 @@ class MCUProgram():
         except:
             ss="General program load failure"
             self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)   
-            return False      
-
+            return False  
 
     def UpdateStartAndEndTime(self,sTime,eTime):
         if(eTime<sTime): # This is a mistake to just update start time.

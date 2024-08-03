@@ -25,6 +25,13 @@ class DFMInstruction:
         if(self.maxTimeOn>>16 != 0):
             return False
         return True
+    
+    def SetBehaviorParameters(self, freq, pw, decay, delay, maxTime):
+        self.decay = decay
+        self.frequency = freq
+        self.pulseWidth = pw
+        self.delay=delay
+        self.maxTimeOn = maxTime
 
     def SetOptoValues(self,vals):
         for i in range(0,12):
@@ -72,6 +79,8 @@ class DFMInstruction:
         
         for i in self.adjustedThresholds:
             s+=str(i)+","
+
+        s+= "F:" + str(self.frequency) +",P:" + str(self.pulseWidth) + ",D:" + str(self.decay) +",L:" + str(self.delay) + ",M:" + str(self.maxTimeOn) +","
         
         s+=str(self.duration.total_seconds()/60) +"min."
         return s
