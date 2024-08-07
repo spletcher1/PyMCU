@@ -197,7 +197,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
     def SetStartTimeNow(self):
-        self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))        
+        ##self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))        
+        ## For Debugging
+        self.SetProgramStartTime(datetime.datetime.today())        
         #self.programStartTime= tmp.toPyDateTime()
 
 

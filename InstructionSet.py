@@ -137,6 +137,7 @@ class InstructionSet:
             self.AddInstruction(tmp)
         else:
             self.RaiseError("Wrong instruction string length.")
+            raise Exception("Wrong instruction string length.")
 
     def SetProgramTypeFromString(self,pt):
         if(pt.lower()=="linear"):

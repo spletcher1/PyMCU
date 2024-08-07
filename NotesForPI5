@@ -49,9 +49,10 @@ cd PyMCU
 pip3 install cobs matplotlib pyudev smbus2 pyserial
 pip3 install adafruit-blinka adafruit-circuitpython-tsl2591 adafruit-circuitpython-si7021
 
-5) Create pi symlink 
+5) Create pi symlinks
 
 sudo ln -s /home/scott /home/pi
+sudo ln -s /media/scott /media/pi
 
 6) Add the following lines to the ~/.config/wayfire.ini file 
 
