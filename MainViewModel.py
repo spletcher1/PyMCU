@@ -197,9 +197,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
 
     def SetStartTimeNow(self):
-        ##self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))        
+        self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))        
         ## For Debugging
-        self.SetProgramStartTime(datetime.datetime.today())        
+        ##self.SetProgramStartTime(datetime.datetime.today())        
         #self.programStartTime= tmp.toPyDateTime()
 
 
@@ -955,7 +955,10 @@ def main():
     app = QtWidgets.QApplication(sys.argv)    
     myapp = MyMainWindow(theBoard)    
     #ModuleTest()    
-    myapp.showFullScreen()
+    ##myapp.showFullScreen()
+    myapp.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+    myapp.showMaximized()
+
     sys.exit(app.exec_()) 
     print("Done")
     
