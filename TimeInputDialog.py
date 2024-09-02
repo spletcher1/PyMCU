@@ -35,6 +35,7 @@ class DateDialog(QDialog):
     @staticmethod
     def getDateTime(parent = None):
         dialog = DateDialog(parent)
+        dialog.setWindowFlags(parent.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)   
         result = dialog.exec_()
         date = dialog.dateTime()
         if result==QDialog.Accepted:

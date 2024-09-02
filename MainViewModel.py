@@ -347,7 +347,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
    
 
     def SetTimeDialog(self):
-        secs= DateDialog.getDateTime()
+        secs= DateDialog.getDateTime(self)
         if(secs==0):
             return
         ss1 = "'@"+str(secs)+"'"
@@ -369,6 +369,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             hostip="unknown"
         
         msg = QMessageBox()
+        msg.setParent(self)    
         tmpButton = QPushButton("Settings")
         if(self.theDFMGroup.currentProgram.isActive):
             tmpButton.setEnabled(False)
@@ -384,6 +385,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         ss="Version: 2.0.0\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)      
         retval=msg.exec_()           
         if(retval==0):
             self.GotoSettingsPage()
@@ -478,17 +480,21 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def DeleteDataFolder(self):
         msg = QMessageBox()
+        msg.setParent(self)    
         msg.setIcon(QMessageBox.Question)
         msg.setText("Are you sure that you would like to delete all data?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         msg.setWindowTitle("Delete Data")
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             msg2 = QMessageBox()
+            msg2.setParent(self)    
             msg2.setIcon(QMessageBox.Question)
             msg2.setText("Are you REALLY sure ?")
             msg2.setWindowTitle("Delete Data")
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg2.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)      
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 os.system("rm -rf FLICData")  
@@ -499,7 +505,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
         if(availableMegaBytes>1000):
             return        
-        msg = QMessageBox()        
+        msg = QMessageBox()  
+        msg.setParent(self)          
         msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
         msg.setIcon(QMessageBox.Information)
         stext = "Warning: Local storage less than 1GB."        
@@ -507,21 +514,26 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg.setWindowTitle("Low Storage")
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)      
         retval=msg.exec_()           
         
     def PowerOff(self):
         msg = QMessageBox()
+        msg.setParent(self)        
         msg.setIcon(QMessageBox.Question)
         msg.setText("Are you sure that you would like to power off?")
         msg.setWindowTitle("Power Off")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)    
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             msg2 = QMessageBox()
+            msg2.setParent(self)       
             msg2.setIcon(QMessageBox.Question)
             msg2.setWindowTitle("Power Off")
             msg2.setText("Are you REALLY sure that you would like to power off?")
             msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg2.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)  
             retval=msg2.exec_()
             if(retval==QMessageBox.Yes):
                 print("Shutting down")  
@@ -531,10 +543,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def AssureClearMessages(self):
         msg = QMessageBox()
+        msg.setParent(self)  
         msg.setIcon(QMessageBox.Question)
         msg.setWindowTitle("Clear Messages")
         msg.setText("Are you sure that you would like to clear messages?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)
         retval=msg.exec_()
         if(retval==QMessageBox.Yes):
             self.ClearMessages()
@@ -717,10 +731,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
                     self.GoToProgramPage()
                     if(self.theDFMGroup.CheckProgramCompatibility()==False):
                         msg = QMessageBox()
+                        msg.setParent(self)    
                         msg.setIcon(QMessageBox.Information)
                         msg.setText("Warning: Check program compatibility!")
                         msg.setWindowTitle("Compatibility Check")
                         msg.setInformativeText("Version 1.5 DFM are not compatible with decay, delay, or maxtime values > 65536!")    
+                        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)     
                         retval=msg.exec_()           
                 else:  
                     self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)   
@@ -734,10 +750,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def DeleteProgramFile(self):
         if(self.currentChosenProgramFile!=""):
             msg = QMessageBox()
+            msg.setParent(self)
             msg.setIcon(QMessageBox.Question)
             msg.setText("Are you sure that you would like to delete this program file?")
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             msg.setWindowTitle("Delete Program")
+            msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint) 
             retval=msg.exec_()
             if(retval==QMessageBox.Yes):
                 fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
