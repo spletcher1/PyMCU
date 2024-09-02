@@ -827,12 +827,14 @@ class MyMainWindow(QtWidgets.QMainWindow):
             return
         else:                                      
             msg = QMessageBox()
+            msg.setParent(self)        
             msg.setIcon(QMessageBox.Warning)
             msg.setText("Do not remove USB until copy is noted as complete.")
             msg.setWindowTitle("Data Transfer")
             msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
             ss="This may take several minutes.\nPress Okay to begin."
-            msg.setInformativeText(ss)    
+            msg.setInformativeText(ss) 
+            msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)          
             returnVal=msg.exec_()  
             
             QApplication.processEvents()
@@ -955,9 +957,9 @@ def main():
     app = QtWidgets.QApplication(sys.argv)    
     myapp = MyMainWindow(theBoard)    
     #ModuleTest()    
-    ##myapp.showFullScreen()
-    myapp.setWindowFlag(QtCore.Qt.FramelessWindowHint)
-    myapp.showMaximized()
+    myapp.showFullScreen()
+    #myapp.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+    #myapp.showMaximized()
 
     sys.exit(app.exec_()) 
     print("Done")
