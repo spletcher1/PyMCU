@@ -839,11 +839,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.isDataTransferring=False
 
     def SaveDataToUSB( self ):
-        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        if len(subfolders)==0:
-            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
-            return
-        else:                                      
+        try:
+            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
+            if len(subfolders)==0:
+                self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
+                return
+                                            
             msg = QMessageBox()
             msg.setParent(self)        
             msg.setIcon(QMessageBox.Warning)
@@ -880,7 +881,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.EnableButtons()              
             else:
                 self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
-        try:
+            
             command = "umount " + '"'+subfolders[0]+'"'
             os.system(command)    
             self.isUSBAttached=False            
