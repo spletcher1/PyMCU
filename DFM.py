@@ -194,7 +194,7 @@ class DFM:
                 isSuccess=True
             if isSuccess:        
                 ## If there are readings sent multiple times, don't add them to the data file, but let us know they occured. 
-                if (currentStatusPackets[j].recordIndex<=self.lastDFMIndex):
+                if (currentStatusPackets[j].recordIndex<=self.lastDFMIndex and currentStatusPackets[j].recordIndex>0):
                     s="({:d}) Repeated index: ({:d}) ".format(currentStatusPackets[j].recordIndex,self.lastDFMIndex)                           
                     self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)  
                 elif (currentStatusPackets[j].recordIndex>0):                                                   
