@@ -192,8 +192,12 @@ class DFM:
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
-            if isSuccess:                                                                                                                                            
-                if (currentStatusPackets[j].recordIndex>0):                                                   
+            if isSuccess:        
+                ## If there are readings sent multiple times, don't add them to the data file, but let us know they occured. 
+                if (currentStatusPackets[j].recordIndex<=self.lastDFMIndex):
+                    s="({:d}) Repeated index: ({:d}) ".format(currentStatusPackets[j].recordIndex,self.lastDFMIndex)                           
+                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)  
+                elif (currentStatusPackets[j].recordIndex>0):                                                   
                     currentStatusPackets[j].sample = self.sampleIndex                                                          
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
                         s="({:d}) Data queue full".format(self.ID)

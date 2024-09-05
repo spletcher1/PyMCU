@@ -258,7 +258,7 @@ class DFMGroup:
     def SetNormalProgramReadInterval(self):
         if(self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType==Enums.DFMTYPE.ENVMONV3):
             self.programReadInterval = "normal"
-            self.MP.SetReadInterval(6)
+            self.MP.SetReadInterval(5)
         else:
             self.programReadInterval = "normal"
             self.MP.SetReadInterval(0.2)
