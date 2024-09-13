@@ -361,7 +361,7 @@ class DataGetter:
                 currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
                 currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
                 print("Wrong num bytes: " + str(numPacketsReceived))
-                print(bytesData)
+                ##print(bytesData)
                 return [currentStatusPacket]
             else:
                 numPacketsReceived = int(numPacketsReceived)                                
