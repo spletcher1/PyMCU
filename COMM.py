@@ -25,14 +25,14 @@ class UARTCOMM():
         ## The timeout here is tricky.  For 60 packets to be sent, it seems to
         ## take about 0.250 seconds, but sometimes over 0.3. So the timeout has to be larger than this
         ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=2)           
+        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=2)                   
         self.sendPIN = 17    
         self.SendPin = LED(self.sendPIN)            
         self.SendPin.off();            
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
         UARTCOMM.UART_message.notify(tmp)      
-    def _WriteByteArray(self,ba,delay=0.008):   
+    def _WriteByteArray(self,ba,delay=0.002):   
         if (self.thePort.out_waiting>0):
             print("out waiting")
             self.thePort.reset_output_buffer()    
@@ -148,7 +148,7 @@ class UARTCOMM():
         encodedba=cobs.encode(ba)        
         barray = bytearray(encodedba)
         barray.append(0x00)                      
-        self._WriteByteArray(barray,0.003)        
+        self._WriteByteArray(barray,0.002)        
         try:
             tmp=self._ReadCOBSPacket(5)                         
             self.thePort.timeout = tmpOut
