@@ -170,6 +170,8 @@ class StatusPacket:
             currentValue += bytesData[baseindex+1]<<8
             currentValue += bytesData[baseindex+2]
             self.analogValues[i] = currentValue >>7
+            if(self.analogValues[i]) > 40000:
+                self.analogValues[i]=self.analogValues[i]-65536
            
         currentValue = bytesData[(indexer+37)]<<16
         currentValue += bytesData[(indexer+38)]<<8
