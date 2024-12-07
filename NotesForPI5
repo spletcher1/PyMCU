@@ -131,3 +131,13 @@ note that the self.windowFlags() sets the default for the parent.  This works.  
 it seems like it should.
 
 At this point, I think I have this wayland version functioning as intended.
+
+
+****
+12/7/24
+I updated to Qt6 and created a new branch.  When using the new branch you need to update 
+
+pip3 install PyQt6
+
+This needs to be done in the active PyMCU environment.
+It looks like I tested this in PyQt6.7.1
