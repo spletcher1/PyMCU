@@ -3,8 +3,9 @@ import os
 import random
 import matplotlib
 # Make sure that we are using QT5
-matplotlib.use('Qt5Agg')
-from PyQt5 import QtCore, QtWidgets
+matplotlib.use('QtAgg')
+from PyQt6 import QtCore, QtWidgets
+import matplotlib.colors as mcolors
 
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -27,13 +28,33 @@ class MyDFMDataPlot(FigureCanvas):
         self.fig.patch.set_facecolor(self.backgroundColor)
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
-
-        FigureCanvas.setSizePolicy(self,
-                                   QtWidgets.QSizePolicy.Expanding,
-                                   QtWidgets.QSizePolicy.Expanding)
+        self.set_axis_label_color()
+        self.set_frame_color()
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)        
+        FigureCanvas.setSizePolicy(self, size_policy)
         FigureCanvas.updateGeometry(self)
         self.compute_initial_figure()
-      
+    
+    def set_axis_label_color(self):
+        # Check if the background color is dark
+        if self.is_dark_theme(self.backgroundColor):
+            self.axes.xaxis.label.set_color('white')
+            self.axes.yaxis.label.set_color('white')
+            self.axes.tick_params(axis='x', colors='white')
+            self.axes.tick_params(axis='y', colors='white')
+
+    def set_frame_color(self):
+        # Check if the background color is dark
+        if self.is_dark_theme(self.backgroundColor):
+            for spine in self.axes.spines.values():
+                spine.set_edgecolor('white')
+
+    def is_dark_theme(self, color):
+        # Convert color to RGB and check if it is dark
+        rgb = mcolors.to_rgb(color)
+        luminance = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+        return luminance < 0.5
+
     def compute_initial_figure(self):      
         self.axes.set_ylabel('Signal')        
         self.axes.set_xlabel('DFM Row')     

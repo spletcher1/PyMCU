@@ -3,6 +3,19 @@ import time
 if("MCU" in platform.node()):
     from gpiozero import LED, InputDevice
 
+class BoardMock():
+    def __init__(self):
+        pass
+    def IsDFMV3Board(self):
+        return True
+    def IsDFMV2Board(self):
+        return False
+    def GetBoardVersion(self):
+        return "V3"
+    def TurnOnDFMPower(self):
+        pass
+    def TurnOffDFMPower(self):
+        pass
 
 class BoardSetup():
     def __init__(self):        
