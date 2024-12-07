@@ -20,8 +20,8 @@ class DateDialog(QDialog):
 
         # OK and Cancel buttons
         self.buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
-            Qt.Horizontal, self)
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            Qt.Orientation.Horizontal, self)
         layout.addWidget(self.buttons)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
@@ -35,20 +35,20 @@ class DateDialog(QDialog):
     @staticmethod
     def getDateTime(parent = None):
         dialog = DateDialog(parent)
-        dialog.setWindowFlags(parent.windowFlags() & ~QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint)   
-        result = dialog.exec_()
+        dialog.setWindowFlags(parent.windowFlags() & ~QtCore.Qt.WindowType.FramelessWindowHint | QtCore.Qt.WindowType.WindowStaysOnTopHint)   
+        result = dialog.exec()
         date = dialog.dateTime()
-        if result==QDialog.Accepted:
+        if result==QtWidgets.QDialog.DialogCode.Accepted:
             return(date.toSecsSinceEpoch())
         else:
             return 0
-        return (date.date(), date.time(), result == QDialog.Accepted)
+        return (date.date(), date.time(), result == QtWidgets.QDialog.DialogCode.Accepted)
 
 def main():
     app = QApplication([])
     date, time, ok = DateDialog.getDateTime()
     print("{} {} {}".format(date, time, ok))
-    app.exec_()
+    app.exec()
 
 if __name__ == "__main__":
     main()

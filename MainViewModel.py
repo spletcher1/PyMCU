@@ -390,8 +390,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
         msg.setInformativeText(ss)    
         msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowType.FramelessWindowHint | QtCore.Qt.WindowType.WindowStaysOnTopHint)      
-        retval=msg.exec()           
-        if(retval==0):
+        retval=msg.exec()          
+        print(retval) 
+        if(retval==2):
             self.GotoSettingsPage()
 
     def SetActiveDFM(self,num):       
