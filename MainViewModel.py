@@ -137,7 +137,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         
         self.CheckForLowStorageWarning()
         
+        self.firstThemeCheck=True
         self.darkThemeCheckBox.setChecked(is_theme_dark)
+        
 
     def device_connected(self,device):        
         if(device.action=="add"):
@@ -909,6 +911,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMDataPlot.UpdateYAxisRange(0,1000)
 
     def ThemeChanged(self):
+        if(self.firstThemeCheck):
+            self.firstThemeCheck=False
+            return
         if(self.darkThemeCheckBox.isChecked()):            
             with open('theme.txt', 'w') as file:
                 file.write("dark")            
