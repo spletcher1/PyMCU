@@ -466,7 +466,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             tmp.setFlat(False)            
             tmp.setMinimumHeight(45)
             #tmp.setMaximumWidth(88)
-            self.DFMListLayout2.setAlignment(Qt.AlignTop)
+            self.DFMListLayout2.setAlignment(Qt.AlignmentFlag.AlignTop)
             self.DFMListLayout2.addWidget(tmp)            
             self.DFMButtons[key]=tmp
         
