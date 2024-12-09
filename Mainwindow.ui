@@ -51,7 +51,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>4</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="ProgramPage">
        <property name="toolTipDuration">
@@ -89,8 +89,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>580</width>
-             <height>384</height>
+             <width>98</width>
+             <height>88</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -446,8 +446,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>100</width>
-                <height>30</height>
+                <width>116</width>
+                <height>336</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -461,7 +461,7 @@
                 <number>2</number>
                </property>
                <property name="rightMargin">
-                <number>6</number>
+                <number>2</number>
                </property>
                <property name="bottomMargin">
                 <number>3</number>

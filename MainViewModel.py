@@ -138,6 +138,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.CheckForLowStorageWarning()
         
         self.firstThemeCheck=True
+        self.is_theme_dark=is_theme_dark
         self.darkThemeCheckBox.setChecked(is_theme_dark)
         
 
@@ -415,26 +416,48 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.UpdateDFMButtonTextColors()
 
     def UpdateDFMButtonTextColors(self):        
-        for key, value in self.theDFMGroup.theDFMs.items():
-            if(self.activeDFMNum==key):
-                ss = 'QPushButton {font-weight:bold;'
-            else:
-                ss = 'QPushButton {'
-            if(value.status==Enums.CURRENTSTATUS.READING):               
-                ss+= 'color: black}' 
-                self.DFMButtons[key].setStyleSheet(ss)                                
-            elif(value.status==Enums.CURRENTSTATUS.RECORDING):
-                ss+= 'color: green}' 
-                self.DFMButtons[key].setStyleSheet(ss)
-            elif(value.status==Enums.CURRENTSTATUS.ERROR):
-                ss+= 'color: red}' 
-                self.DFMButtons[key].setStyleSheet(ss)
-            elif(value.status==Enums.CURRENTSTATUS.MISSING):
-                ss+= 'color: blue}' 
-                self.DFMButtons[key].setStyleSheet(ss)
-            else:
-                ss+= 'color: orange}' 
-                self.DFMButtons[key].setStyleSheet(ss)                
+        if(self.is_theme_dark):
+            for key, value in self.theDFMGroup.theDFMs.items():
+                if(self.activeDFMNum==key):
+                    ss = 'QPushButton {font-weight:bold;'
+                else:
+                    ss = 'QPushButton {'
+                if(value.status==Enums.CURRENTSTATUS.READING):               
+                    ss+= 'color: white}' 
+                    self.DFMButtons[key].setStyleSheet(ss)                                
+                elif(value.status==Enums.CURRENTSTATUS.RECORDING):
+                    ss+= 'color: green}' 
+                    self.DFMButtons[key].setStyleSheet(ss)
+                elif(value.status==Enums.CURRENTSTATUS.ERROR):
+                    ss+= 'color: red}' 
+                    self.DFMButtons[key].setStyleSheet(ss)
+                elif(value.status==Enums.CURRENTSTATUS.MISSING):
+                    ss+= 'color: blue}' 
+                    self.DFMButtons[key].setStyleSheet(ss)
+                else:
+                    ss+= 'color: orange}' 
+                    self.DFMButtons[key].setStyleSheet(ss)                
+        else:
+            for key, value in self.theDFMGroup.theDFMs.items():
+                if(self.activeDFMNum==key):
+                    ss = 'QPushButton {font-weight:bold;'
+                else:
+                    ss = 'QPushButton {'
+                if(value.status==Enums.CURRENTSTATUS.READING):               
+                    ss+= 'color: black}' 
+                    self.DFMButtons[key].setStyleSheet(ss)                                
+                elif(value.status==Enums.CURRENTSTATUS.RECORDING):
+                    ss+= 'color: green}' 
+                    self.DFMButtons[key].setStyleSheet(ss)
+                elif(value.status==Enums.CURRENTSTATUS.ERROR):
+                    ss+= 'color: red}' 
+                    self.DFMButtons[key].setStyleSheet(ss)
+                elif(value.status==Enums.CURRENTSTATUS.MISSING):
+                    ss+= 'color: blue}' 
+                    self.DFMButtons[key].setStyleSheet(ss)
+                else:
+                    ss+= 'color: orange}' 
+                    self.DFMButtons[key].setStyleSheet(ss)                
 
 
     def DFMButtonClicked(self):
