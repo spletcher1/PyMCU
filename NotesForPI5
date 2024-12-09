@@ -48,6 +48,10 @@ source bin/activate
 cd PyMCU
 pip3 install cobs matplotlib pyudev smbus2 pyserial
 pip3 install adafruit-blinka adafruit-circuitpython-tsl2591 adafruit-circuitpython-si7021
+pip3 install PyQt6
+pip3 install PyQt5
+
+For now, we need to install Qt5 for the MonitorObserver
 
 5) Create pi symlinks
 

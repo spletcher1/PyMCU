@@ -68,7 +68,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         
         self.StackedPages.setCurrentIndex(1)
 
-    def __init__( self,pcb ):   
+    def __init__( self,pcb,is_theme_dark):   
         self.theBoard=pcb    
         self.theDFMGroup = DFMGroup.DFMGroup(self.theBoard)
         super(MyMainWindow,self).__init__()     
@@ -116,6 +116,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.isDataTransferring=False
         self.isMessageUpdateNeeded=False
 
+        
         ## Check for USB upon startup
         try:
             subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
@@ -133,9 +134,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.MThread = GUIUpdateThread()
         self.MThread.updateGUISignal.connect(self.UpdateGUI)      
         self.MThread.start()
-
+        
         self.CheckForLowStorageWarning()
-
+        
+        self.darkThemeCheckBox.setChecked(is_theme_dark)
 
     def device_connected(self,device):        
         if(device.action=="add"):
@@ -335,6 +337,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.zoomPlotCheckBox.stateChanged.connect(self.ZoomPlotChanged)
 
         self.SetDateAndTimeButton.clicked.connect(self.SetTimeDialog)
+        
+        self.darkThemeCheckBox.stateChanged.connect(self.ThemeChanged)
 
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
@@ -904,6 +908,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.theDFMDataPlot.UpdateYAxisRange(0,1000)
 
+    def ThemeChanged(self):
+        if(self.darkThemeCheckBox.isChecked()):            
+            with open('theme.txt', 'w') as file:
+                file.write("dark")            
+            self.StatusBar.showMessage("Dark theme will activate next boot.",self.statusmessageduration)        
+        else:
+            with open('theme.txt', 'w') as file:
+                file.write("normal")     
+            self.StatusBar.showMessage("Light theme will activate next boot.",self.statusmessageduration)        
+        
+            
     def FastUpdatesChanged(self):
         if(self.theDFMGroup.isWriting==False):
             ## This shouldn't happen.  Just here to catch strange event.
@@ -974,6 +989,18 @@ def main2():
     files.sort(reverse=True)   
     print(files)
 
+def check_theme(app):
+    try:
+        with open('theme.txt', 'r') as file:
+            first_word = file.readline().strip()
+            if(first_word=="dark"):
+                set_dark_theme(app)
+                return True
+            else:
+                return False
+    except:
+        return False
+
 def set_dark_theme(app):
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
@@ -992,13 +1019,14 @@ def set_dark_theme(app):
     app.setPalette(palette)
 
 def main():
+    
     if("MCU" in platform.node()):
         theBoard=Board.BoardSetup()  
     else:
         theBoard=Board.BoardMock()
     app = QtWidgets.QApplication(sys.argv)    
-    set_dark_theme(app)
-    myapp = MyMainWindow(theBoard)    
+    is_theme_dark=check_theme(app)
+    myapp = MyMainWindow(theBoard,is_theme_dark)    
     #ModuleTest()    
     myapp.showFullScreen()
     #myapp.showMaximized()
