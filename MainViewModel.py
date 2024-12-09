@@ -137,8 +137,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
         
         self.CheckForLowStorageWarning()
         
-        self.firstThemeCheck=True
+       
         self.is_theme_dark=is_theme_dark
+        ## Only need to skip first check if it happens automatically
+        if(self.is_theme_dark):
+            self.firstThemeCheck=True
+        else:
+            self.firstThemeCheck=False
         self.darkThemeCheckBox.setChecked(is_theme_dark)
         
 
