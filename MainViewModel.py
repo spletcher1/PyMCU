@@ -125,8 +125,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.StatusBar.showMessage("USB connected...",2000)
                 self.saveDataAction.setEnabled(True)
                 self.MoveProgramButton.setEnabled(True)
-                self.updateButton.setEnabled(True)
-                QApplication.processEvents()
+                self.updateButton.setEnabled(True)                
                 QApplication.processEvents()
         except:
             print("Normal except: No usb on startup.")
@@ -149,8 +148,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("USB connected...",2000)
             self.saveDataAction.setEnabled(True)
             self.MoveProgramButton.setEnabled(True)
-            self.updateButton.setEnabled(True)
-            QApplication.processEvents()
+            self.updateButton.setEnabled(True)            
             QApplication.processEvents()
         elif(device.action=="remove"):
             self.isUSBAttached=False
@@ -158,8 +156,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.saveDataAction.setEnabled(False)
             self.MoveProgramButton.setEnabled(False)
             self.updateButton.setEnabled(False)
-            QApplication.processEvents()
-            QApplication.processEvents()
+            QApplication.processEvents()            
 
     def DisableButtons(self):        
         self.clearDFMAction.setEnabled(False)
@@ -269,8 +266,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if(len(self.theDFMGroup.theDFMs)==0): return
         if(self.theDFMGroup.currentProgram.isActive):
             self.RunProgramButton.setEnabled(False)
-            self.StatusBar.showMessage("Stopping program.",self.statusmessageduration)   
-            QApplication.processEvents()  
+            self.StatusBar.showMessage("Stopping program.",self.statusmessageduration)               
             QApplication.processEvents()          
             self.theDFMGroup.StopCurrentProgram()
             while self.theDFMGroup.currentProgram.isActive:
@@ -282,8 +278,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         else:
             self.RunProgramButton.setEnabled(False)
-            self.DisableButtons()                        
-            QApplication.processEvents()    
+            self.DisableButtons()                                    
             QApplication.processEvents()        
             self.theDFMGroup.StageCurrentProgram()    
             self.StatusBar.showMessage("Staging program.",self.statusmessageduration)           
@@ -897,15 +892,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
             msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowType.FramelessWindowHint | QtCore.Qt.WindowType.WindowStaysOnTopHint)      
             returnVal=msg.exec()  
             
-            QApplication.processEvents()
-            QApplication.processEvents()
+            QApplication.processEvents()            
             if returnVal==QMessageBox.Ok:   
                 self.DisableButtons()
                 self.GoToMessagesPage()                            
                 self.StatusBar.showMessage("Copying data files...",120000)      
                 self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)          
-                self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
-                QApplication.processEvents()       
+                self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                             
                 QApplication.processEvents()       
                 destPath = subfolders[0]+'/FLICData'    
                 sourcePath="/home/pi/PyMCU/PyMCU/FLICData"                
@@ -913,8 +906,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 tmp.StartDataTransfer(sourcePath,destPath)     
                 while(tmp.isDataTransferring):
                     self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
-                    QApplication.processEvents()  
-                    QApplication.processEvents()
+                    QApplication.processEvents()                      
                     time.sleep(0.2)      
                 if(tmp.copySuccess):
                     self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
@@ -930,8 +922,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             os.system(command)    
             self.isUSBAttached=False            
             self.saveDataAction.setEnabled(False)
-            self.MoveProgramButton.setEnabled(False)
-            QApplication.processEvents()
+            self.MoveProgramButton.setEnabled(False)            
             QApplication.processEvents()
             self.StatusBar.showMessage("USB unmounted. Ready to remove.",self.statusmessageduration)    
         except:
