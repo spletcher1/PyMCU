@@ -487,7 +487,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             s = str(value)
             tmp = QPushButton(s)
             tmp.setFlat(False)            
-            tmp.setMinimumHeight(45)
+            tmp.setMinimumHeight(40)
             #tmp.setMaximumWidth(88)
             self.DFMListLayout2.setAlignment(Qt.AlignmentFlag.AlignTop)
             self.DFMListLayout2.addWidget(tmp)            
