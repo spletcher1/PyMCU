@@ -2,11 +2,11 @@ import sys
 import fcntl
 import struct
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
+from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtCore import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-from pyudev.pyqt5 import MonitorObserver
-from pyudev import Context,Monitor
+import pyudev
 import datetime
 import time
 import threading
@@ -27,6 +27,18 @@ from TimeInputDialog import DateDialog
 if("MCU" in platform.node()):
     import RPi.GPIO as GPIO
 
+class USBMonitorThread(QThread):
+    usb_event = pyqtSignal(str)
+
+    def run(self):
+        context = pyudev.Context()
+        monitor = pyudev.Monitor.from_netlink(context)
+        monitor.filter_by(subsystem='usb')
+        for device in iter(monitor.poll, None):
+            if device.action == 'add':
+                self.usb_event.emit(device.action)
+            elif device.action == 'remove':
+                self.usb_event.emit(device.action)
 
 class GUIUpdateThread(QtCore.QThread):
     updateGUISignal = QtCore.pyqtSignal()
@@ -99,12 +111,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.currentChosenProgramFile=""
         self.currentProgramFileDirectory=""
 
-        self.context = Context()
-        self.monitor = Monitor.from_netlink(self.context)
-        self.monitor.filter_by(subsystem="usb")
-        self.observer=MonitorObserver(self.monitor)
-        self.observer.deviceEvent.connect(self.device_connected)
-        self.monitor.start()
+        self.usb_monitor_thread = USBMonitorThread()
+        self.usb_monitor_thread.usb_event.connect(self.device_connected)
+        self.usb_monitor_thread.start()     
 
         self.fastUpdateCheckBox.setChecked(False)
         self.zoomPlotCheckBox.setChecked(False)
@@ -147,15 +156,15 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.darkThemeCheckBox.setChecked(is_theme_dark)
         
 
-    def device_connected(self,device):        
-        if(device.action=="add"):
+    def device_connected(self,action):                
+        if(action=="add"):
             self.isUSBAttached=True
             self.StatusBar.showMessage("USB connected...",2000)
             self.saveDataAction.setEnabled(True)
             self.MoveProgramButton.setEnabled(True)
             self.updateButton.setEnabled(True)            
             QApplication.processEvents()
-        elif(device.action=="remove"):
+        elif(action=="remove"):
             self.isUSBAttached=False
             self.StatusBar.showMessage("USB removed...",2000)
             self.saveDataAction.setEnabled(False)
@@ -880,25 +889,25 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.isDataTransferring=False
 
     def SaveDataToUSB( self ):
-        try:
+        try:            
             subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
             if len(subfolders)==0:
                 self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
+                print("not found")
                 return
-                                            
             msg = QMessageBox()
             msg.setParent(self)        
             msg.setIcon(QMessageBox.Icon.Warning)
             msg.setText("Do not remove USB until copy is noted as complete.")
             msg.setWindowTitle("Data Transfer")
-            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)            
             ss="This may take several minutes.\nPress Okay to begin."
             msg.setInformativeText(ss) 
             msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowType.FramelessWindowHint | QtCore.Qt.WindowType.WindowStaysOnTopHint)      
             returnVal=msg.exec()  
-            
+        
             QApplication.processEvents()            
-            if returnVal==QMessageBox.Ok:   
+            if returnVal==QMessageBox.StandardButton.Ok:   
                 self.DisableButtons()
                 self.GoToMessagesPage()                            
                 self.StatusBar.showMessage("Copying data files...",120000)      
@@ -912,7 +921,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 while(tmp.isDataTransferring):
                     self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
                     QApplication.processEvents()                      
-                    time.sleep(0.2)      
+                    time.sleep(0.2)                     
                 if(tmp.copySuccess):
                     self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
                     self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.ANNOTATION)  
@@ -932,6 +941,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("USB unmounted. Ready to remove.",self.statusmessageduration)    
         except:
             print("Except: Problem saving data to USB.")
+            self.StatusBar.showMessage("Problem saving data to USB.",self.statusmessageduration)  
             return
 
     def ZoomPlotChanged(self):
