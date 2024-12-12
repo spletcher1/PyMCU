@@ -82,7 +82,10 @@ class DFM:
         else:
             resultArray=array.array("i",(0 for i in range(0,12)))
             for i in range(0,12):
-                resultArray[i]=tmp.analogValues[i]-self.signalBaselines[i]
+                if(tmp.analogValues[i]>40000):
+                    resultArray[i]=tmp.analogValues[i]-self.signalBaselines[i]-65536
+                else:
+                    resultArray[i]=tmp.analogValues[i]-self.signalBaselines[i]
                 if(resultArray[i]<0):
                     resultArray[i]=0
             return resultArray        

@@ -142,7 +142,7 @@ class StatusPacket:
         self.processResult = PROCESSEDPACKETRESULT.OKAY   
         return
 
-    def ProcessStatusPacketPletcherV3(self,bytesData,startTime,packetNum):        
+    def ProcessStatusPacketPletcherV3(self,bytesData,startTime,packetNum):           
         ## This function should receive packetnumbers 0-4        
         indexer = (packetNum*56)
         # Calculate the checksum
@@ -170,8 +170,8 @@ class StatusPacket:
             currentValue += bytesData[baseindex+1]<<8
             currentValue += bytesData[baseindex+2]
             self.analogValues[i] = currentValue >>7
-            if(self.analogValues[i]) > 40000:
-                self.analogValues[i]=self.analogValues[i]-65536
+            #if(self.analogValues[i]) > 40000:
+            #    self.analogValues[i]=self.analogValues[i]-65536
            
         currentValue = bytesData[(indexer+37)]<<16
         currentValue += bytesData[(indexer+38)]<<8
