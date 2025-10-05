@@ -12,8 +12,6 @@ https://github.com/seffs/wayfire-plugins-extra-raspbian
 https://github.com/seffs/wayfire-plugins-extra-raspbian/releases
 
 
-
-
 Detailed step by step:
 
 a) enable i2c, spi, and remote GPIO from raspberry pi config.
@@ -61,7 +59,8 @@ sudo ln -s /media/scott /media/pi
 6) Add the following lines to the ~/.config/wayfire.ini file 
 
 [idle]
-dpms_timeout=10
+dpms_timeout=60
+disable_on_fullscreen=false
 
 [autostart]
 mcu = /home/pi/PyMCU/PyMCU/RunMCU.sh
@@ -145,3 +144,13 @@ pip3 install PyQt6
 
 This needs to be done in the active PyMCU environment.
 It looks like I tested this in PyQt6.7.1
+
+****
+10/5/25
+Screen blanking is now fixed in latest pyqt!
+Just add another line to the wayfire.ini file under the [idle] section so it 
+looks like
+
+[idle]
+dpms_timeout=60
+disable_on_fullscreen=false
