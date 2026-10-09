@@ -1,525 +1,262 @@
+"""Transports between the MCU and the DFMs.
+
+UARTCOMM talks to V3 DFMs (and the V3 environmental monitor) on a shared, half-duplex RS-485
+bus. The protocol is defined by the DFM firmware (DFMV3_V2/src/UART2.c, and DFMV3 before it):
+
+  * Every frame is COBS encoded and terminated by a single 0x00 byte.
+  * Requests start with [ID, command]. Simple requests are [ID, command, ID]. Instruction and
+    linkage requests carry a payload followed by a 4-byte big-endian checksum (see Checksum32).
+  * A DFM answers 5 ms (firmware 2.0.x) or 15 ms (older firmware) after a request, plus 2-3 ms
+    to turn its driver on. After its last byte it keeps driving the bus for another 2-3 ms.
+  * A status reply holds up to 60 56-byte status packets. The DFM keeps them until it is ACKed,
+    so packets that were never ACKed are sent again with the next status request.
+  * Buffer resets, instructions and linkages are answered with [ID] (ACK) or [0xFE] (NACK).
+
+I2CCOMM talks to legacy V2 DFMs over I2C.
+"""
 import platform
-import Event
-import Message
-import datetime
-import Instruction
-import Enums
-import Board
-import smbus2
+import sys
 import time
+
 import serial
+import smbus2
 from cobs import cobs
-import StatusPacket
 
-if(platform.system()!="Windows"):
-    import serial.tools.list_ports
+import Enums
+from StatusPacket import Checksum32
 
-if("MCU" in platform.node()):        
+if "MCU" in platform.node():
     from gpiozero import LED
 
+SERIAL_PORT = "/dev/ttyAMA0"  # PL011 UART on GPIO14/15
+BAUD_RATE = 250000            # Firmware: PBCLK 40 MHz, BRGH=1, U2BRG=39
+SEND_ENABLE_PIN = 17          # RS-485 driver enable
 
-class UARTCOMM():    
-    UART_message = Event.Event()
-    #region Core read/write functions
+STATUS_REQUEST = 0xFC
+LATEST_STATUS_REQUEST = 0xEA
+VERSION_REQUEST = 0xEB
+BUFFER_RESET_REQUEST = 0xFE
+INSTRUCTION_REQUEST = 0xFD
+LINKAGE_REQUEST = 0xFB
+ACK = 0xFA
+
+ENVMON_ID = 99
+
+BYTE_TIME = 10 / BAUD_RATE    # Start bit, 8 data bits, stop bit
+DRIVER_SETUP_TIME = 0.002     # Driver is on this long before the first byte goes out
+DRIVER_HOLD_TIME = 0.002      # Driver stays on at least this long after write() returns
+TX_MARGIN = 0.0005            # Slack on top of the computed time on the wire
+# A DFM turns its driver off two to three 1 ms ticks after its last byte. Driving the bus before
+# then garbles what is sent, which in practice is the ACK that follows a status reply.
+BUS_RELEASE_TIME = 0.003
+# Buffer reset, instruction, linkage and version replies arrive within ~20 ms on all firmware.
+REPLY_TIMEOUT = 0.03
+# A full status reply (60 packets, ~3.4 kB) takes ~0.15 s on the wire and has been measured
+# at over 0.3 s end to end. This bounds the whole frame, not the gap between bytes.
+STATUS_TIMEOUT = 2.0
+
+ACK_FRAME_SIZE = 5
+VERSION_FRAME_SIZE = 50
+STATUS_FRAME_SIZE = 5000
+
+# Reported for firmware older than 2.0.0, which doesn't answer version requests.
+LEGACY_VERSION = b"1.0.5"
+
+
+def _Field(value, size):
+    """Big-endian bytes of value truncated to size bytes, so -1 is sent as all 0xFF."""
+    return (value & ((1 << (8 * size)) - 1)).to_bytes(size, "big")
+
+
+def InstructionPayload(instruction, timingSize):
+    """Instruction packet body: dark, frequency, pulse width, decay, delay, max time on and the
+    12 thresholds. Decay, delay and max time on are 2 bytes for V1.5 firmware and 4 for V2.
+
+    A -1 threshold goes out as 0xFFFF, which the firmware treats as 'never on'.
+    """
+    payload = bytes((1 if instruction.theDarkState == Enums.DARKSTATE.ON else 0,))
+    payload += _Field(instruction.frequency, 2) + _Field(instruction.pulseWidth, 2)
+    for value in (instruction.decay, instruction.delay, instruction.maxTimeOn):
+        payload += _Field(value, timingSize)
+    for threshold in instruction.adjustedThresholds:
+        payload += _Field(threshold, 2)
+    return payload
+
+
+class UARTCOMM:
     def __init__(self):
-        ## The timeout here is tricky.  For 60 packets to be sent, it seems to
-        ## take about 0.250 seconds, but sometimes over 0.3. So the timeout has to be larger than this
-        ## or the packet gets cut off.
-        self.thePort=serial.Serial('/dev/ttyAMA0',250000,timeout=2)                   
-        self.sendPIN = 17    
-        self.SendPin = LED(self.sendPIN)            
-        self.SendPin.off();            
-    def NewMessage(self,ID, errorTime, sample,  message,mt):
-        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
-        UARTCOMM.UART_message.notify(tmp)      
-    def _WriteByteArray(self,ba,delay=0.002):   
-        if (self.thePort.out_waiting>0):
-            print("out waiting")
-            self.thePort.reset_output_buffer()    
-        self.SendPin.on()
-        time.sleep(delay)    
-        self.thePort.write(ba)   
-        time.sleep(delay)             
+        self.thePort = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=STATUS_TIMEOUT)
+        self.SendPin = LED(SEND_ENABLE_PIN)
         self.SendPin.off()
-    def _Read(self,numBytes):
-        result=self.thePort.read(numBytes)
-        return result
-    def _ReadCOBSPacket(self, maxBytes):
-        cobsResult = Enums.COBSRESULT.OKAY        
-        term = bytearray(1)
-        term[0]=0x00
-        result = self.thePort.read_until(term,maxBytes)      
-        if(len(result)==0):         
-            cobsResult = Enums.COBSRESULT.NOANSWER
-            return (cobsResult,result)
-        if(result[-1]!=0):
-            cobsResult = Enums.COBSRESULT.INCOMPLETEPACKET          
-            return (cobsResult,result)
-        result = result[:-1]        
-        return (cobsResult,result)
-        
+        self.busFreeTime = 0.0
+
+    def Close(self):
+        self.thePort.close()
+        self.SendPin.close()
+
+    #region Framing
+    def _Send(self, packet):
+        frame = cobs.encode(bytes(packet)) + b"\x00"
+        wait = self.busFreeTime - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        self.SendPin.on()
+        time.sleep(DRIVER_SETUP_TIME)
+        self.thePort.write(frame)
+        # write() returns once the bytes are queued, not once they are sent. A V2 instruction
+        # frame (49 bytes) takes 1.96 ms, so the driver must stay on for the full transmit time
+        # or the closing 0x00 can be cut off and the DFMs never see the frame end. The drain
+        # returns at once unless transmission started late.
+        time.sleep(max(DRIVER_HOLD_TIME, len(frame) * BYTE_TIME + TX_MARGIN))
+        self.thePort.flush()
+        self.SendPin.off()
+        # Whatever arrived while we held the bus is noise, not a reply.
+        self.thePort.reset_input_buffer()
+
+    def _ReadFrame(self, maxBytes, timeout):
+        """Read and decode one frame. Returns (COBSRESULT, payload)."""
+        self.thePort.timeout = timeout
+        raw = self.thePort.read_until(b"\x00", maxBytes)
+        if not raw:
+            return Enums.COBSRESULT.NOANSWER, b""
+        self.busFreeTime = time.monotonic() + BUS_RELEASE_TIME
+        if raw[-1] != 0:
+            return Enums.COBSRESULT.INCOMPLETEPACKET, b""
+        try:
+            return Enums.COBSRESULT.OKAY, cobs.decode(raw[:-1])
+        except cobs.DecodeError:
+            return Enums.COBSRESULT.INCOMPLETEPACKET, b""
+
+    def _SendRequest(self, ID, command):
+        self._Send((ID, command, ID))
+
+    def _SendChecksummedRequest(self, ID, command, payload):
+        packet = bytes((ID, command)) + payload
+        self._Send(packet + Checksum32(packet).to_bytes(4, "big"))
+
+    def _ReadAck(self, ID):
+        result, reply = self._ReadFrame(ACK_FRAME_SIZE, REPLY_TIMEOUT)
+        return result == Enums.COBSRESULT.OKAY and reply == bytes((ID,))
     #endregion
 
-    #region Misc Functions
-    def GetAvailablePorts(self):
-        ports = serial.tools.list_ports.comports()
-        available_ports=[]
-        for p in ports:
-            available_ports.append(p.device)
-        return available_ports    
-    def _AddChecksumTwoBytes(self, startByte, bytes):
-        checksum=0
-        tmp = len(bytes)
-        for i in range(startByte,tmp-2):
-            checksum=checksum+bytes[i]
-        checksum = (checksum ^ 0xFFFFFFFF) + 0x01
-        checksum = checksum & 0x0000FFFF
-        bytes[tmp-2] = (checksum>>8) & 0xFF
-        bytes[tmp-1] = (checksum) & 0xFF
-    def _AddChecksumFourBytes(self, startByte, ba):
-        checksum=0
-        tmp = len(ba)
-        for i in range(startByte,tmp-4):
-            checksum=checksum+ba[i]
-        checksum = (checksum ^ 0xFFFFFFFF) + 0x01                      
-        ba[tmp-4] = (checksum>>24) & 0xFF
-        ba[tmp-3] = (checksum>>16) & 0xFF
-        ba[tmp-2] = (checksum>>8) & 0xFF
-        ba[tmp-1] = (checksum) & 0xFF   
+    #region Specific DFM calls
+    def PollSlave(self, ID):
+        if not self.RequestBufferReset(ID):
+            return None
+        return Enums.DFMTYPE.ENVMONV3 if ID == ENVMON_ID else Enums.DFMTYPE.PLETCHERV3
+
+    def GetStatusPacket(self, ID, DFMType, latestOnly):
+        """Returns (COBSRESULT, payload); the payload holds whole 56-byte status packets."""
+        self._SendRequest(ID, LATEST_STATUS_REQUEST if latestOnly else STATUS_REQUEST)
+        return self._ReadFrame(STATUS_FRAME_SIZE, STATUS_TIMEOUT)
+
+    def SendAck(self, ID):
+        self._SendRequest(ID, ACK)
+
+    def GetVersion(self, ID):
+        self._SendRequest(ID, VERSION_REQUEST)
+        result, reply = self._ReadFrame(VERSION_FRAME_SIZE, REPLY_TIMEOUT)
+        return reply if result == Enums.COBSRESULT.OKAY else LEGACY_VERSION
+
+    def RequestBufferReset(self, ID):
+        self._SendRequest(ID, BUFFER_RESET_REQUEST)
+        result, reply = self._ReadFrame(ACK_FRAME_SIZE, REPLY_TIMEOUT)
+        # Only the first byte is checked, as the environmental monitor answers this too.
+        return result == Enums.COBSRESULT.OKAY and reply[:1] == bytes((ID,))
+
+    def SendLinkage(self, ID, linkage):
+        self._SendChecksummedRequest(ID, LINKAGE_REQUEST, bytes(linkage[i] for i in range(12)))
+        return self._ReadAck(ID)
+
+    def SendInstructionDFMV1_5(self, ID, anInstruction):
+        self._SendChecksummedRequest(ID, INSTRUCTION_REQUEST, InstructionPayload(anInstruction, 2))
+        return self._ReadAck(ID)
+
+    def SendInstructionDFMV2_0(self, ID, anInstruction):
+        self._SendChecksummedRequest(ID, INSTRUCTION_REQUEST, InstructionPayload(anInstruction, 4))
+        return self._ReadAck(ID)
     #endregion
 
-    #region Specific DFM calls     
-    def RequestStatus(self,ID):      
-        ba = bytearray(3)
-        ba[0]=ID
-        ba[1]=0xFC # Indicates status request
-        ba[2]=ID
-        
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)                        
-        self._WriteByteArray(barray,0.002)        
 
-    def GetVersion(self,ID):      
-        ba = bytearray(3)
-        ba[0]=ID
-        ba[1]=0xEB # Indicates status request
-        ba[2]=ID
-        
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)                        
-        self._WriteByteArray(barray,0.002)        
+class I2CCOMM:
+    BASE_ADDRESS = 0x50
 
-    def RequestLatestStatus(self,ID):                 
-        ba = bytearray(3)
-        ba[0]=ID
-        ba[1]=0xEA # Indicates latest status request
-        ba[2]=ID
-        
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)                        
-        self._WriteByteArray(barray,0.002)
-    
-    def SendAck(self,ID):        
-        ba = bytearray(3)
-        ba[0]=ID
-        ba[1]=0xFA # Indicates ACK        
-        ba[2]=ID
-    
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)            
-        self._WriteByteArray(barray,0.002)
-
-    def RequestBufferReset(self,ID):         
-        if (self.thePort.in_waiting>0):
-            self.thePort.reset_input_buffer()
-               
-        #self.thePort.reset_input_buffer()  
-        tmpOut = self.thePort.timeout
-        self.thePort.timeout = 0.03  
-        ba = bytearray(3)
-        ba[0]=ID
-        ba[1]=0xFE # Indicates buffer reset        
-        ba[2]=ID
-    
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)                      
-        self._WriteByteArray(barray,0.002)        
-        try:
-            tmp=self._ReadCOBSPacket(5)                         
-            self.thePort.timeout = tmpOut
-            if(tmp[0]!=Enums.COBSRESULT.OKAY):            
-                return False
-            tmp = cobs.decode(tmp[1])                        
-            if(tmp[0]==ID):
-                return True
-            else:
-                return False    
-        except: 
-            self.thePort.timeout = tmpOut             
-            return False
-
-    def SendLinkage(self,ID,linkage):
-        if (self.thePort.in_waiting>0):
-            self.thePort.reset_input_buffer()
-        
-        ba = bytearray(18)
-        ba[0]=ID
-        ba[1]=0xFB
-        for i in range(0,12):
-            ba[i+2]=linkage[i]
-        self._AddChecksumFourBytes(0,ba)
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)        
-        self._WriteByteArray(barray,0.002)
-
-        try:
-            tmp=self._ReadCOBSPacket(5)                                     
-            if(tmp[0]!=Enums.COBSRESULT.OKAY):            
-                return False          
-            tmp = cobs.decode(tmp[1])   
-            if(len(tmp)!=1):            
-                return False    
-            if(tmp[0]==ID):
-                return True
-            else:
-                return False    
-        except:
-            return False 
-        
-    def SendInstructionDFMV1_5(self,ID,anInstruction):           
-        if (self.thePort.in_waiting>0):
-            self.thePort.reset_input_buffer()     
-        ba = bytearray(41)           
-        ba[0]=ID
-        ba[1]=0xFD
-       
-        if(anInstruction.theDarkState==Enums.DARKSTATE.ON):
-            ba[2]=1
-        else:
-            ba[2]=0
-        ba[3]=(anInstruction.frequency>>8) & 0xFF
-        ba[4]=(anInstruction.frequency) & 0xFF
-
-        ba[5]=(anInstruction.pulseWidth>>8) & 0xFF
-        ba[6]=(anInstruction.pulseWidth) & 0xFF
-
-        ba[7]=(anInstruction.decay>>8) & 0xFF
-        ba[8]=(anInstruction.decay) & 0xFF
-    
-        ba[9]=(anInstruction.delay>>8) & 0xFF
-        ba[10]=(anInstruction.delay) & 0xFF
-
-        ba[11]=(anInstruction.maxTimeOn>>8) & 0xFF
-        ba[12]=(anInstruction.maxTimeOn) & 0xFF
-
-        ## Note that a -1 for threashold translates to 0xFFFF for this
-        ## two byte instruction, which is 65535.
-        for i in range(0,12):
-            index=i*2+13
-            ba[index] = (anInstruction.adjustedThresholds[i]>>8) & 0xFF            
-            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                  
-        self._AddChecksumFourBytes(0,ba)       
-      
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)         
-        self._WriteByteArray(barray,0.002)        
-        try:
-            tmp=self._ReadCOBSPacket(5)                                     
-            if(tmp[0]!=Enums.COBSRESULT.OKAY):                        
-                return False     
-            tmp = cobs.decode(tmp[1])      
-            if(len(tmp)!=1):            
-                return False
-            if(tmp[0]==ID):
-                return True
-            else:
-                return False    
-        except:
-            return False  
-        
-    def SendInstructionDFMV2_0(self,ID,anInstruction):   
-        if (self.thePort.in_waiting>0):
-            self.thePort.reset_input_buffer()
-        
-        ba = bytearray(47)           
-        ba[0]=ID
-        ba[1]=0xFD
-       
-        if(anInstruction.theDarkState==Enums.DARKSTATE.ON):
-            ba[2]=1
-        else:
-            ba[2]=0
-        ba[3]=(anInstruction.frequency>>8) & 0xFF
-        ba[4]=(anInstruction.frequency) & 0xFF
-
-        ba[5]=(anInstruction.pulseWidth>>8) & 0xFF
-        ba[6]=(anInstruction.pulseWidth) & 0xFF
-
-        ba[7]=(anInstruction.decay>>24) & 0xFF
-        ba[8]=(anInstruction.decay>>16) & 0xFF
-        ba[9]=(anInstruction.decay>>8) & 0xFF
-        ba[10]=(anInstruction.decay) & 0xFF
-    
-        ba[11]=(anInstruction.delay>>24) & 0xFF
-        ba[12]=(anInstruction.delay>>16) & 0xFF
-        ba[13]=(anInstruction.delay>>8) & 0xFF
-        ba[14]=(anInstruction.delay) & 0xFF
-
-        ba[15]=(anInstruction.maxTimeOn>>24) & 0xFF
-        ba[16]=(anInstruction.maxTimeOn>>16) & 0xFF
-        ba[17]=(anInstruction.maxTimeOn>>8) & 0xFF
-        ba[18]=(anInstruction.maxTimeOn) & 0xFF
-
-        ## Note that a -1 for threashold translates to 0xFFFF for this
-        ## two byte instruction, which is 65535.
-        for i in range(0,12):
-            index=i*2+19
-            ba[index] = (anInstruction.adjustedThresholds[i]>>8) & 0xFF            
-            ba[index+1] = (anInstruction.adjustedThresholds[i]) & 0xFF                  
-        self._AddChecksumFourBytes(0,ba)       
-        
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)         
-        self._WriteByteArray(barray,0.002)        
-        try:
-            tmp=self._ReadCOBSPacket(5)                                     
-            if(tmp[0]!=Enums.COBSRESULT.OKAY):                        
-                return False     
-            tmp = cobs.decode(tmp[1])      
-            if(len(tmp)!=1):            
-                return False
-            if(tmp[0]==ID):
-                return True
-            else:
-                return False    
-        except:
-            return False  
-
-    def GetSomething(self,chars):
-        tmp=self._ReadCOBSPacket(4000)                                     
-        if(tmp[0]!=Enums.COBSRESULT.OKAY):            
-            return False     
-        tmp=cobs.decode(tmp[1])
-        return tmp
-
-    def GetVersion(self,ID):      
-        ba = bytearray(3)
-        ba[0]=ID
-        ba[1]=0xEB # Indicates status request
-        ba[2]=ID
-        
-        encodedba=cobs.encode(ba)        
-        barray = bytearray(encodedba)
-        barray.append(0x00)                        
-        self._WriteByteArray(barray,0.002)   
-
-        try:
-            tmp = self._ReadCOBSPacket(50)      
-            if(tmp[0]==Enums.COBSRESULT.NOANSWER):                      
-                return b'1.0.5'
-            elif(tmp[0]==Enums.COBSRESULT.INCOMPLETEPACKET):  
-                return b'1.0.5'
-            tmp=cobs.decode(tmp[1])
-            return tmp
-        except:
-            return b'1.0.5'
-
-    def GetStatusPacket(self,ID,dummy,latestOnly):            
-        if (self.thePort.in_waiting>0):
-            print("In Waiting")
-            self.thePort.reset_input_buffer()
-        
-        if(latestOnly):            
-            self.RequestLatestStatus(ID)
-        else:
-            self.RequestStatus(ID)        
-        try:      
-            #start = time.time()
-            ## This is set for maxpackets = 60
-            tmp = self._ReadCOBSPacket(5000)            
-            if(tmp[0]==Enums.COBSRESULT.NOANSWER):                      
-                return -1
-            elif(tmp[0]==Enums.COBSRESULT.INCOMPLETEPACKET):  
-                return -2               
-            tmp=cobs.decode(tmp[1])
-            #end=time.time()
-            #if ((end-start)>0.030) :
-            #    print("Status time: "+str(end-start))        
-            ## Ack is now sent after packet processing.
-            ## So bad packets are resent.
-            return tmp
-        except:
-            return ''
-    def PollSlave(self,ID): 
-        if self.RequestBufferReset(ID):    
-            if(ID==99):
-                return Enums.DFMTYPE.ENVMONV3
-            else:                  
-                return Enums.DFMTYPE.PLETCHERV3
-        else:
-            return ''
-    #endregion     
-       
-
-
-class I2CCOMM():      
     def __init__(self):
         self.i2cbus = smbus2.SMBus(1)
-      
-    def PollSlave(self,ID):
-        bytestoget = 64         
-        try:
-            tmpAddr = 0x50+ID         
-            msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
-            self.i2cbus.i2c_rdwr(msg)       
-            tmp=list(msg)
-            if((tmp[60]+tmp[61]+tmp[62]+tmp[63])==0):
-                return Enums.DFMTYPE.SABLEV2
-            else:
-                return Enums.DFMTYPE.PLETCHERV2
-        except:
-            return ''
-        
-    def GetStatusPacket(self,ID,DFMType,dummy):             
-        if(DFMType == Enums.DFMTYPE.PLETCHERV2):             
-            bytestoget = 64               
-        elif(DFMType == Enums.DFMTYPE.SABLEV2):             
-            bytestoget = 52               
-        else:
-            bytestoget = 64               
-        try:                            
-            tmpAddr = 0x50+ID         
-            msg=smbus2.i2c_msg.read(tmpAddr,bytestoget)
-            self.i2cbus.i2c_rdwr(msg)            
-            return list(msg)                
-        except:            
-            return ''   
 
-    def SendDark(self,ID,darkstate):
+    def Close(self):
+        self.i2cbus.close()
+
+    def _Read(self, ID, numBytes):
+        msg = smbus2.i2c_msg.read(I2CCOMM.BASE_ADDRESS + ID, numBytes)
+        self.i2cbus.i2c_rdwr(msg)
+        return list(msg)
+
+    def _Write(self, ID, register, values):
         try:
-            tmpAddr = 0x50+ID   
-            buffer = [darkstate]
-            self.i2cbus.write_i2c_block_data(tmpAddr,1,buffer)                  
+            self.i2cbus.write_i2c_block_data(I2CCOMM.BASE_ADDRESS + ID, register, values)
             return True
-        except:
+        except Exception:
             return False
+
+    def PollSlave(self, ID):
+        try:
+            data = self._Read(ID, 64)
+        except Exception:
+            return None
+        # Sable boards send 52 bytes, so the end of a 64-byte read is empty.
+        return Enums.DFMTYPE.SABLEV2 if sum(data[60:64]) == 0 else Enums.DFMTYPE.PLETCHERV2
+
+    def GetStatusPacket(self, ID, DFMType, latestOnly):
+        try:
+            return Enums.COBSRESULT.OKAY, self._Read(ID, 52 if DFMType == Enums.DFMTYPE.SABLEV2 else 64)
+        except Exception:
+            return Enums.COBSRESULT.NOANSWER, []
+
+    def SendDark(self, ID, darkstate):
+        return self._Write(ID, 1, [darkstate])
 
     def SendOptoState(self, ID, os1, os2):
-        try:
-            tmpAddr = 0x50+ID   
-            buffer=[os1,os2]
-            self.i2cbus.write_i2c_block_data(tmpAddr,2,buffer)            
-            return True
-        except:
-            return False
+        return self._Write(ID, 2, [os1, os2])
 
     def SendFrequency(self, ID, freq):
-        try:
-            tmpAddr = 0x50+ID         
-            buffer = [freq]
-            self.i2cbus.write_i2c_block_data(tmpAddr,4,buffer)                 
-            return True
-        except:
-            return False
+        return self._Write(ID, 4, [freq])
 
-    def SendPulseWidth(self,ID,pw):
-        try:
-            tmpAddr = 0x50+ID         
-            buffer = [pw]
-            self.i2cbus.write_i2c_block_data(tmpAddr,5,buffer)                 
-            return True
-        except:
-            return False
-    
-    def SendAck(self,ID):
+    def SendPulseWidth(self, ID, pw):
+        return self._Write(ID, 5, [pw])
+
+    def SendAck(self, ID):
         pass
 
-#region Testing       
-def ModuleTest2(dfmID):
+
+#region Testing
+def ModuleTest(ID):
+    """Hardware check, run on the MCU: python3 COMM.py <DFM ID>"""
+    import datetime
+    import Board
+    import StatusPacket
     Board.BoardSetup()
-    theCOMM = UARTCOMM()    
-   
-    tmp = theCOMM.GetStatusPacket(dfmID,0,False)  
-
-    sp=StatusPacket.StatusPacket(6,6,Enums.DFMTYPE.PLETCHERV3)
-    sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
-    if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
-        print(sp.processResult)
-    else:
-        print(sp.GetConsolePrintPacket())
-
-
-    
-
-def ModuleTest(id):
-    tmp=Board.BoardSetup()
-    time.sleep(5)
-    theCOMM = UARTCOMM()    
-
-    #for i in range(1,16):
-    #    print(theCOMM.RequestBufferReset(i))
-    #    time.sleep(.3)
-    #return
-
-    #print(theCOMM.GetStatusPacket(6,0))
-    #return
-    time.sleep(1)
-    print(theCOMM.RequestBufferReset(id))
-    #return
-    time.sleep(1)
-    #DFMs = [1,2,3,4,5,6]
-    DFMs=[id]
-    for i in range(0,20):
-        for jj in DFMs:
-            tmp = theCOMM.GetStatusPacket(jj,1,False)                                
-            if(len(tmp)>0):                
-                theCOMM.SendAck(id)                                   
-                numpackets = int(len(tmp)/56)            
-                for j in range(0,numpackets):
-                    sp=StatusPacket.StatusPacket(6,jj,Enums.DFMTYPE.PLETCHERV3)
-                    sp.ProcessStatusPacket(tmp,datetime.datetime.today(),j)
-                    if(sp.processResult!=Enums.PROCESSEDPACKETRESULT.OKAY):
-                        print(sp.processResult)                       
-                    print(sp.GetConsolePrintPacket())
-            else:
-                print("NA")
-            time.sleep(0.002)
+    time.sleep(3)
+    port = UARTCOMM()
+    print("Version:", port.GetVersion(ID))
+    print("Buffer reset:", port.RequestBufferReset(ID))
+    for _ in range(10):
         time.sleep(1)
-        print('*')
-    return
-    
-def AckTest(id):
-    Board.BoardSetup()
-    theCOMM = UARTCOMM()        
-    for i in range(0,20):        
-        theCOMM.SendAck(id)                         
-        time.sleep(1)
-        print('*')
-    return
-
-def SimpleTest():
-    tmp=Board.BoardSetup()
-    time.sleep(3)   
-    theCOMM = UARTCOMM()  
-    print("Getting...")
-    #for i in range(0,10):
-    #    print(theCOMM.GetSomething(20))
-    print(theCOMM.GetVersion(1))
-    print("Done")
+        result, payload = port.GetStatusPacket(ID, Enums.DFMTYPE.PLETCHERV3, False)
+        if result != Enums.COBSRESULT.OKAY:
+            print(result)
+            continue
+        packets = []
+        for i in range(len(payload) // StatusPacket.V3_PACKET_SIZE):
+            sp = StatusPacket.StatusPacket(i, ID, Enums.DFMTYPE.PLETCHERV3)
+            sp.ProcessStatusPacket(payload, datetime.datetime.today(), i)
+            packets.append(sp)
+            print(sp.GetConsolePrintPacket())
+        if packets and all(p.processResult == Enums.PROCESSEDPACKETRESULT.OKAY for p in packets):
+            port.SendAck(ID)
+    port.Close()
 
 
-if __name__=="__main__" :
-    #ModuleTest()
-    SimpleTest()
-    #ModuleTest(1)
-    #AckTest(8)
-   
+if __name__ == "__main__":
+    ModuleTest(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
 #endregion

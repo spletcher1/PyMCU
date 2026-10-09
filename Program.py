@@ -1,7 +1,6 @@
 import datetime
 import Enums
 import InstructionSet
-import Instruction
 import Event
 import Message
 import array

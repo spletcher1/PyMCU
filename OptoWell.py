@@ -1,5 +1,3 @@
-import Enums
-import time
 import threading
 
 class OptoWell:

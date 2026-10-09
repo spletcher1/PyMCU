@@ -31,22 +31,13 @@ class BoardSetup():
         self.TurnOnDFMPower()
 
     def IsDFMV3Board(self):
-        if (self.GetBoardVersion()=="V3"):
-            return True
-        else:
-            return False
-        
+        return self.GetBoardVersion()=="V3"
+
     def IsDFMV2Board(self):
-        if (self.GetBoardVersion()=="V2"):
-            return True
-        else:
-            return False
-        
+        return self.GetBoardVersion()=="V2"
+
     def GetBoardVersion(self):
-        if(self.BoardID.value):
-            return "V3"
-        else:
-            return "V2"
+        return "V3" if self.BoardID.value else "V2"
 
     def TurnOnDFMPower(self):
         self.relay.on()

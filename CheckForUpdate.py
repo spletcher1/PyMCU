@@ -1,6 +1,5 @@
 import os
 import glob
-import shutil
 import time
 
 def DetectUSB():
@@ -18,7 +17,6 @@ def DetectUpdateFile():
             sourceDirectory = "/media/pi/FLICUpdates/"
         else:
             sourceDirectory = subfolders[0]+"/FLICUpdates/"    
-        targetDirectory ="../"             
         files=(glob.glob(sourceDirectory+"*.tgz"))                
         if(len(files)==1):    
             print("Updating...")

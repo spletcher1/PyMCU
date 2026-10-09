@@ -1,12 +1,9 @@
-import DFM
 import Enums
 
 class DFMErrors:
+    """Tracks each bit of a DFM's error byte as never, currently or previously set."""
     def __init__(self):
-        self.currentErrorByte=0x00
-        self.currentErrorStatuses=[]
-        for _ in range(0,8):
-            self.currentErrorStatuses.append(Enums.REPORTEDERRORSTATUS.NEVER)
+        self.ClearErrors()
 
     def GetI2CErrorStatus(self):
         return self.currentErrorStatuses[0]
@@ -27,48 +24,12 @@ class DFMErrors:
 
     def ClearErrors(self):
         self.currentErrorByte=0x00
-        for i in range(0,8):
-            self.currentErrorStatuses[i]=Enums.REPORTEDERRORSTATUS.NEVER
+        self.currentErrorStatuses=[Enums.REPORTEDERRORSTATUS.NEVER]*8
 
-            
     def UpdateErrors(self,errorByte):
         self.currentErrorByte=errorByte
-        if((errorByte & 0x80) > 0):
-            self.currentErrorStatuses[7]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[7]==Enums.REPORTEDERRORSTATUS.CURRENT:
-            self.currentErrorStatuses[7]=Enums.REPORTEDERRORSTATUS.PAST
-
-        if((errorByte & 0x40) > 0):
-            self.currentErrorStatuses[6]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[6]==Enums.REPORTEDERRORSTATUS.CURRENT:
-            self.currentErrorStatuses[6]=Enums.REPORTEDERRORSTATUS.PAST
-
-        if((errorByte & 0x20) > 0):
-            self.currentErrorStatuses[5]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[5]==Enums.REPORTEDERRORSTATUS.CURRENT:
-            self.currentErrorStatuses[5]=Enums.REPORTEDERRORSTATUS.PAST
-
-        if((errorByte & 0x10) > 0):
-            self.currentErrorStatuses[4]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[4]==Enums.REPORTEDERRORSTATUS.CURRENT:
-            self.currentErrorStatuses[4]=Enums.REPORTEDERRORSTATUS.PAST
-
-        if((errorByte & 0x08) > 0):
-            self.currentErrorStatuses[3]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[3]==Enums.REPORTEDERRORSTATUS.CURRENT:
-            self.currentErrorStatuses[3]=Enums.REPORTEDERRORSTATUS.PAST
-
-        if((errorByte & 0x04) > 0):
-            self.currentErrorStatuses[2]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[2]==Enums.REPORTEDERRORSTATUS.CURRENT:
-            self.currentErrorStatuses[2]=Enums.REPORTEDERRORSTATUS.PAST
-
-        if((errorByte & 0x02) > 0):
-            self.currentErrorStatuses[1]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[1]==Enums.REPORTEDERRORSTATUS.CURRENT:
-            self.currentErrorStatuses[1]=Enums.REPORTEDERRORSTATUS.PAST
-
-        if((errorByte & 0x01) > 0):            
-            self.currentErrorStatuses[0]=Enums.REPORTEDERRORSTATUS.CURRENT
-        elif self.currentErrorStatuses[0]==Enums.REPORTEDERRORSTATUS.CURRENT:            
-            self.currentErrorStatuses[0]=Enums.REPORTEDERRORSTATUS.PAST
+        for bit in range(0,8):
+            if(errorByte & (1<<bit)):
+                self.currentErrorStatuses[bit]=Enums.REPORTEDERRORSTATUS.CURRENT
+            elif self.currentErrorStatuses[bit]==Enums.REPORTEDERRORSTATUS.CURRENT:
+                self.currentErrorStatuses[bit]=Enums.REPORTEDERRORSTATUS.PAST

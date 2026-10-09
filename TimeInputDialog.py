@@ -1,4 +1,4 @@
-from PyQt6 import QtCore, QtGui, QtWidgets, uic
+from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
@@ -38,18 +38,9 @@ class DateDialog(QDialog):
         dialog.setWindowFlags(parent.windowFlags() & ~QtCore.Qt.WindowType.FramelessWindowHint | QtCore.Qt.WindowType.WindowStaysOnTopHint)   
         result = dialog.exec()
         date = dialog.dateTime()
+        # Seconds since the epoch, or 0 if cancelled.
         if result==QtWidgets.QDialog.DialogCode.Accepted:
             return(date.toSecsSinceEpoch())
         else:
             return 0
-        return (date.date(), date.time(), result == QtWidgets.QDialog.DialogCode.Accepted)
-
-def main():
-    app = QApplication([])
-    date, time, ok = DateDialog.getDateTime()
-    print("{} {} {}".format(date, time, ok))
-    app.exec()
-
-if __name__ == "__main__":
-    main()
     

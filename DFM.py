@@ -1,46 +1,59 @@
-import datetime
-import StatusPacket
-import Enums
-import time
-import DataBuffer
 import array
-import threading
+import time
+
+import DataBuffer
 import DFMErrors
-import MessagesList
-import Message
+import Enums
 import Event
 import Instruction
-import Board
-import math
+import Message
 import OptoLid
-from DataGetter import MP_Command
- 
+
+# Seconds to wait before retrying commands that a DFM did not acknowledge.
+COMMAND_RETRY_INTERVAL = 1.0
+
+def UsesV2Instructions(version):
+    # Firmware 2.0 and later (e.g. 2.0.0, 2.0.1) take 4-byte decay, delay and max time on.
+    try:
+        return int(version.split(".")[0]) >= 2
+    except ValueError:
+        return False
+
+# Message and new status for each kind of failed read.
+READ_FAILURES = {
+    Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR: ("Checksum mismatch", Enums.CURRENTSTATUS.ERROR),
+    Enums.PROCESSEDPACKETRESULT.NOANSWER: ("No answer", Enums.CURRENTSTATUS.MISSING),
+    Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES: ("Packet size mismatch", Enums.CURRENTSTATUS.ERROR),
+    Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET: ("Incomplete packet received", Enums.CURRENTSTATUS.ERROR),
+}
+
 class DFM:
-    DFM_message = Event.Event()    
+    DFM_message = Event.Event()
     #region Initialization, etc.
     def __init__(self,id,dfmType,mp):
         self.MP = mp
-        self.ID=id             
-        self.DFMType = dfmType   
+        self.ID=id
+        self.DFMType = dfmType
         ## Set this to 1.5 and only change if found to be needed.
         self.DFMSubType = Enums.DFMSUBTYPE.V1_5
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
-        self.pastStatus = Enums.PASTSTATUS.ALLCLEAR        
-        self.theData = DataBuffer.DataBuffer()             
+        self.pastStatus = Enums.PASTSTATUS.ALLCLEAR
+        self.theData = DataBuffer.DataBuffer()
         self.sampleIndex=1
         self.lastDFMIndex=0
-        self.signalBaselines=array.array("i",(0 for i in range(0,12)))      
-        self.currentLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])    
+        self.signalBaselines=array.array("i",(0 for i in range(0,12)))
+        self.currentLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
         self.baselineSamples=0
-        self.isCalculatingBaseline=False                   
+        self.isCalculatingBaseline=False
         self.currentInstruction = Instruction.DFMInstruction()
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
         # This is true because we need to get this ASAP for each DFM upon connection.
         self.isVersionGetNeeded = True
         self.isLinkageSetNeeded=False
+        self.retryTime=0.0
         self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
         self.reportedOptoPulsewidth=0
@@ -50,19 +63,19 @@ class DFM:
         self.reportedDarkState = Enums.DARKSTATE.OFF
         self.reportedHumidity=1.0
         self.reportedLUX=0
-        self.reportedVoltsIn=1.0                        
+        self.reportedVoltsIn=1.0
         self.firmwareVersion="0.0.0"
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV2):
-            self.theOptoLid = OptoLid.OptoLid()       
+            self.theOptoLid = OptoLid.OptoLid()
 
     def __str__(self):
         return "DFM " + str(self.ID)
 
     def NewMessage(self,ID, errorTime, sample,  message,mt):
-        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)        
-        DFM.DFM_message.notify(tmp)        
+        tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
+        DFM.DFM_message.notify(tmp)
     #endregion
-  
+
     #region Property-like getters and setters
     def SetLinkage(self,links):
         self.currentLinkage = links
@@ -72,23 +85,21 @@ class DFM:
 
     def GetDFMName(self):
         return "DFM "+str(self.ID)
-        
+
     def GetLastAnalogData(self,adjustForBaseline):
         tmp = self.theData.GetLastDataPoint()
         if(tmp.sample==0):
             return None
         if(adjustForBaseline == False):
             return tmp.analogValues
-        else:
-            resultArray=array.array("i",(0 for i in range(0,12)))
-            for i in range(0,12):
-                if(tmp.analogValues[i]>40000):
-                    resultArray[i]=tmp.analogValues[i]-self.signalBaselines[i]-65536
-                else:
-                    resultArray[i]=tmp.analogValues[i]-self.signalBaselines[i]
-                if(resultArray[i]<0):
-                    resultArray[i]=0
-            return resultArray        
+        resultArray=array.array("i",(0 for i in range(0,12)))
+        for i in range(0,12):
+            # Values over 40000 carry the firmware's +65536 'in training' flag.
+            value = tmp.analogValues[i]-self.signalBaselines[i]
+            if(tmp.analogValues[i]>40000):
+                value -= 65536
+            resultArray[i]=max(value,0)
+        return resultArray
 
     def SetIdleStatus(self):
         ## Idle is opto off, dark running as its has been, and default other parameters.
@@ -98,19 +109,18 @@ class DFM:
     def SetOutputsOn(self):
         self.currentInstruction = Instruction.DFMInstruction()
         self.currentInstruction.SetOptoValues([0]*12)
-        self.isInstructionUpdateNeeded=True        
-
-    def SetOutputsOff(self):       
-        self.currentInstruction = Instruction.DFMInstruction()        
         self.isInstructionUpdateNeeded=True
-        
+
+    def SetOutputsOff(self):
+        self.SetIdleStatus()
+
     def SetStatus(self, newStatus):
-        if(newStatus != self.status):            
-            if(newStatus == Enums.CURRENTSTATUS.ERROR or newStatus == Enums.CURRENTSTATUS.MISSING):               
-                self.pastStatus = Enums.PASTSTATUS.PASTERROR                     
+        if(newStatus != self.status):
+            if(newStatus == Enums.CURRENTSTATUS.ERROR or newStatus == Enums.CURRENTSTATUS.MISSING):
+                self.pastStatus = Enums.PASTSTATUS.PASTERROR
             self.status = newStatus
     #endregion
-  
+
     #region Baselining
     def ResetBaseline(self):
         for i in range(0,len(self.signalBaselines)):
@@ -119,229 +129,193 @@ class DFM:
         self.isCalculatingBaseline = False
     def UpdateBaseline(self):
         last = self.GetLastAnalogData(False)
-        if last is None: 
+        if last is None:
             return
         for i in range(0,12):
             tmp = self.signalBaselines[i] * self.baselineSamples
             self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
         if (self.baselineSamples>=10):
-            self.isCalculatingBaseline=False              
+            self.isCalculatingBaseline=False
     def BaselineDFM(self):
         self.ResetBaseline()
         self.isCalculatingBaseline = True
     #endregion
 
-    #region Packet processing, reading, writing, file methods.  
+    #region Packet processing, reading, writing, file methods.
     def UpdateReportedValues(self, currentStatusPackets):
-        self.reportedHumidity = currentStatusPackets[-1].humidity
-        self.reportedLUX = currentStatusPackets[-1].lux
-        self.reportedTemperature = currentStatusPackets[-1].temp
-        self.reportedOptoFrequency = currentStatusPackets[-1].optoFrequency
-        self.reportedOptoPulsewidth = currentStatusPackets[-1].optoPulseWidth
-        self.reportedOptoStateCol1  = currentStatusPackets[-1].optoState1
-        self.reportedOptoStateCol2 = currentStatusPackets[-1].optoState2       
-        self.reportedVoltsIn = currentStatusPackets[-1].voltsIn
-        
-        
-        if(currentStatusPackets[-1].darkStatus==0):
+        last = currentStatusPackets[-1]
+        self.reportedHumidity = last.humidity
+        self.reportedLUX = last.lux
+        self.reportedTemperature = last.temp
+        self.reportedOptoFrequency = last.optoFrequency
+        self.reportedOptoPulsewidth = last.optoPulseWidth
+        self.reportedOptoStateCol1  = last.optoState1
+        self.reportedOptoStateCol2 = last.optoState2
+        self.reportedVoltsIn = last.voltsIn
+        if(last.darkStatus==0):
             self.reportedDarkState = Enums.DARKSTATE.OFF
         else:
             self.reportedDarkState = Enums.DARKSTATE.ON
 
         for sp in currentStatusPackets:
-            if(sp.processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
-                self.currentDFMErrors.UpdateErrors(sp.errorFlags)
-                if(sp.errorFlags!=0):
-                    s="DFM code: {:02X}".format(sp.errorFlags)
-                    self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)
+            if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
+                continue
+            self.currentDFMErrors.UpdateErrors(sp.errorFlags)
+            if(sp.errorFlags!=0):
+                s="DFM code: {:02X}".format(sp.errorFlags)
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)
 
-        ## TODO: Decide whether to incorporate this (and more) "closed loop" behavior. 
-        ##if self.isInstructionUpdateNeeded:
-        ##    return # This is here to avoid loop 
-        ##tmpisInstructionUpdateNeeded=False
-        ##if(self.currentInstruction.frequency != self.reportedOptoFrequency):
-        ##    tmpisInstructionUpdateNeeded=True
-        ##elif(self.currentInstruction.pulseWidth != self.reportedOptoPulsewidth):
-        ##    tmpisInstructionUpdateNeeded=True
-        ##elif(self.currentInstruction.theDarkState != self.reportedDarkState):
-        ##    tmpisInstructionUpdateNeeded=True
-        
-        ##if(tmpisInstructionUpdateNeeded):
-        ##   self.isInstructionUpdateNeeded=True
+    def ProcessPackets(self,currentStatusPackets,saveDataToQueue):
+        # V3 DFMs resend packets that were not ACKed, so a failed read is only a notice for them.
+        if (self.DFMType == Enums.DFMTYPE.PLETCHERV3):
+            theMessageType =  Enums.MESSAGETYPE.NOTICE
+        else:
+            theMessageType =  Enums.MESSAGETYPE.ERROR
+        for sp in currentStatusPackets:
+            if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
+                if(sp.processResult in READ_FAILURES):
+                    text, newStatus = READ_FAILURES[sp.processResult]
+                    self.SetStatus(newStatus)
+                    self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,"({:d}) ".format(self.ID)+text,theMessageType)
+            elif(sp.recordIndex<=0):
+                # It's okay now to receive these because of the fast buffer reset and call. I will not call this an error.
+                print("({:d}) Empty packet received".format(self.ID))
+            elif(sp.recordIndex<=self.lastDFMIndex):
+                ## If there are readings sent multiple times, don't add them to the data file, but let us know they occured.
+                s="({:d}) Repeated index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
+            else:
+                self._AddPacket(sp,saveDataToQueue)
 
-    def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                                  
-        for j in range(0,len(currentStatusPackets)):                  
-            isSuccess=False   
-            if (self.DFMType == Enums.DFMTYPE.PLETCHERV3):
-                theMessageType =  Enums.MESSAGETYPE.NOTICE
-            else:  
-                theMessageType =  Enums.MESSAGETYPE.ERROR
-            if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
-                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Checksum mismatch".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
-            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):                
-                self.SetStatus(Enums.CURRENTSTATUS.MISSING)
-                s="({:d}) No answer".format(self.ID)                
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                                       
-            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
-                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Packet size mismatch".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
-            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET):
-                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Incomplete packet received".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,theMessageType)                       
-            elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
-                isSuccess=True
-            if isSuccess:        
-                ## If there are readings sent multiple times, don't add them to the data file, but let us know they occured. 
-                if (currentStatusPackets[j].recordIndex<=self.lastDFMIndex and currentStatusPackets[j].recordIndex>0):
-                    s="({:d}) Repeated index: ({:d}) ".format(currentStatusPackets[j].recordIndex,self.lastDFMIndex)                           
-                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)  
-                elif (currentStatusPackets[j].recordIndex>0):                                                   
-                    currentStatusPackets[j].sample = self.sampleIndex                                                          
-                    if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
-                        s="({:d}) Data queue full".format(self.ID)
-                        self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
-                        self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
-                    else:                                  
-                        if(saveDataToQueue): 
-                            if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
-                                if(currentStatusPackets[j].recordIndex != (self.lastDFMIndex+1)):
-                                    s="({:d}) Skipped index: ({:d}) ".format(currentStatusPackets[j].recordIndex,self.lastDFMIndex)
-                                    #s="({:d}) Skipped index:".format(self.ID)                                
-                                    self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
-                                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)  
-                                self.lastDFMIndex = currentStatusPackets[j].recordIndex
-                            self.sampleIndex+=1                                                       
-                            self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
-                        else:
-                            self.SetStatus(Enums.CURRENTSTATUS.READING)                                     
-                    if(self.isCalculatingBaseline):                        
-                        self.UpdateBaseline()
-                else :
-                    # It's okay now to receive these because of the fast buffer reset and call. I will not call this an error.                    
-                    s="({:d}) Empty packet received".format(self.ID)
-                    print(s)
-                    #self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
-  
-        if isSuccess:    
-            self.UpdateReportedValues(currentStatusPackets) 
-
+        # A read that ends in a bad packet is resent in full, so its values are reported then.
+        if(currentStatusPackets[-1].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
+            self.UpdateReportedValues(currentStatusPackets)
         self.CheckStatus()
+
+    def _AddPacket(self,sp,saveDataToQueue):
+        sp.sample = self.sampleIndex
+        if(self.theData.NewData(sp,saveDataToQueue)==False):
+            s="({:d}) Data queue full".format(self.ID)
+            self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
+            self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+        elif(saveDataToQueue):
+            if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
+                if(sp.recordIndex != (self.lastDFMIndex+1)):
+                    s="({:d}) Skipped index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
+                    self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
+                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+                self.lastDFMIndex = sp.recordIndex
+            self.sampleIndex+=1
+            self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
+        else:
+            self.SetStatus(Enums.CURRENTSTATUS.READING)
+        if(self.isCalculatingBaseline):
+            self.UpdateBaseline()
 
     def ResetOutputFileStuff(self):
         self.outputFileIncrementor=0
-        self.outputFile="DFM" + str(self.ID) + "_0.csv"       
-    
+        self.outputFile="DFM" + str(self.ID) + "_0.csv"
+
     def IncrementOutputFile(self):
         self.outputFileIncrementor+=1
         self.outputFile="DFM" + str(self.ID) + "_"+str(self.outputFileIncrementor)+".csv"
-
     #endregion
 
-    #region Updating                
-    def UpdateInstruction(self,instruct,useBaseline):                      
-        if(instruct is self.currentInstruction):            
-            return 
-        else:                                  
-            self.currentInstruction = instruct                        
-            if(useBaseline):
-                self.currentInstruction.SetBaseline(self.signalBaselines)                        
-            self.isInstructionUpdateNeeded=True                     
-    
+    #region Updating
+    def UpdateInstruction(self,instruct,useBaseline):
+        # There is no instruction before a program starts or for Constant programs; keep the current one.
+        if(instruct is None or instruct is self.currentInstruction):
+            return
+        self.currentInstruction = instruct
+        if(useBaseline):
+            self.currentInstruction.SetBaseline(self.signalBaselines)
+        self.isInstructionUpdateNeeded=True
+
     def CheckStatus(self):
-        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3):               
+        if(self.DFMType == Enums.DFMTYPE.PLETCHERV3):
             self.CheckStatusV3()
         elif(self.DFMType == Enums.DFMTYPE.PLETCHERV2):
             self.CheckStatusV2()
         else:
             pass #Sable V2 doesn't need anything here.
 
-    def CheckStatusV2(self):    
+    def CheckStatusV2(self):
         if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.ERROR or self.status == Enums.CURRENTSTATUS.UNDEFINED:
-            return              
-        lsp = self.theData.GetLastDataPoint()   
-        
-        if(lsp.optoFrequency!=self.currentInstruction.frequency):     
-            self.MP.SendFrequency(self.ID,self.currentInstruction.frequency)       
-           
-        if(lsp.optoPulseWidth!=self.currentInstruction.pulseWidth):               
-            self.MP.SendPulseWidth(self.ID,self.currentInstruction.pulseWidth)
-            
-        if(lsp.darkStatus!=self.currentInstruction.theDarkState.value):         
-            self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value)          
-               
-        if(self.isInstructionUpdateNeeded):                
-            self.theOptoLid.UpdateWithInstruction(self.currentInstruction)                               
-            self.isInstructionUpdateNeeded=False
-        
-        self.theOptoLid.SetOptoState(lsp.analogValues)                      
-        if(lsp.optoState1!=self.theOptoLid.optoStateCol1 or lsp.optoState2!=self.theOptoLid.optoStateCol2):   
-            self.MP.SendOptoState(self.ID,self.theOptoLid.optoStateCol1,self.theOptoLid.optoStateCol2)                 
-
-    def CheckStatusV3(self):     
-        # To avoid sending repeated instructions to missing DFM that are never acked and therefore continue to be queued and sent.
-        if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.ERROR or self.status == Enums.CURRENTSTATUS.UNDEFINED:            
             return
-        if(self.isBufferResetNeeded):                  
-            if(self.MP.SendBufferReset(self.ID)):                    
-                self.isBufferResetNeeded=False
-                self.sampleIndex=1      
-                self.lastDFMIndex=0;              
-            else:
-                print("Buffer reset NACKed")                 
-        if(self.isInstructionUpdateNeeded):      
-            if(self.DFMSubType == Enums.DFMSUBTYPE.V1_5):      
-                if(self.MP.SendInstructionDFMV1_5(self.ID, self.currentInstruction)):                       
-                    self.isInstructionUpdateNeeded=False
-                else:
-                    print("Instruction update NACKed")            
-            elif (self.DFMSubType == Enums.DFMSUBTYPE.V2):                              
-                if(self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)):                       
-                    self.isInstructionUpdateNeeded=False
-                else:
-                    print("Instruction update NACKed")      
-           
+        lsp = self.theData.GetLastDataPoint()
+
+        if(lsp.optoFrequency!=self.currentInstruction.frequency):
+            self.MP.SendFrequency(self.ID,self.currentInstruction.frequency)
+
+        if(lsp.optoPulseWidth!=self.currentInstruction.pulseWidth):
+            self.MP.SendPulseWidth(self.ID,self.currentInstruction.pulseWidth)
+
+        if(lsp.darkStatus!=self.currentInstruction.theDarkState.value):
+            self.MP.SendDarkState(self.ID,self.currentInstruction.theDarkState.value)
+
+        if(self.isInstructionUpdateNeeded):
+            self.theOptoLid.UpdateWithInstruction(self.currentInstruction)
+            self.isInstructionUpdateNeeded=False
+
+        self.theOptoLid.SetOptoState(lsp.analogValues)
+        if(lsp.optoState1!=self.theOptoLid.optoStateCol1 or lsp.optoState2!=self.theOptoLid.optoStateCol2):
+            self.MP.SendOptoState(self.ID,self.theOptoLid.optoStateCol1,self.theOptoLid.optoStateCol2)
+
+    def ReadFirmwareVersion(self):
+        # The version decides the instruction packet format. Returns False if the request timed out.
+        v = self.MP.GetVersion(self.ID)
+        if(v is None):
+            return False
+        self.firmwareVersion = v.decode("utf-8", errors="replace")
+        if(UsesV2Instructions(self.firmwareVersion)):
+            self.DFMSubType = Enums.DFMSUBTYPE.V2
+        else:
+            self.DFMSubType = Enums.DFMSUBTYPE.V1_5
+        self.isVersionGetNeeded = False
+        return True
+
+    def CheckStatusV3(self):
+        # To avoid sending repeated instructions to missing DFM that are never acked and therefore continue to be queued and sent.
+        if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.ERROR or self.status == Enums.CURRENTSTATUS.UNDEFINED:
+            return
+        # Commands that were not acknowledged are retried, but not on every pass.
+        if(time.monotonic() < self.retryTime):
+            return
+        isFailed = False
+        # Get the version first so the first instruction is sent in the right format.
         if(self.isVersionGetNeeded):
-            v = self.MP.GetVersion(self.ID)
-            if(v[0]==self.ID):        
-                v2 = v[1].decode("utf-8")
-                self.firmwareVersion = v2
-                if(v2 == "2.0.0"):
-                    self.DFMSubType = Enums.DFMSUBTYPE.V2
-                else:
-                    self.DFMSubType = Enums.DFMSUBTYPE.V1_5
-                self.isVersionGetNeeded = False
-            
-
-        if(self.isLinkageSetNeeded):                       
-            if(self.MP.SendLinkage(self.ID,self.currentLinkage)):                       
-                self.isLinkageSetNeeded=False
+            if not self.ReadFirmwareVersion():
+                isFailed = True
+        # Each flag is cleared before sending so that a new request made while the command is
+        # in flight (e.g. an instruction change from the GUI thread) is not lost.
+        if(self.isBufferResetNeeded):
+            self.isBufferResetNeeded=False
+            if(self.MP.SendBufferReset(self.ID)):
+                self.sampleIndex=1
+                self.lastDFMIndex=0
             else:
-                print("Linkage update NACKed")            
-                  
-        return    
-
-    #endregion     
-     
-
-    
-#region Module Testing
-
-def ModuleTest():
-    Board.BoardSetup()
-    #tmp = DFMGroup(COMM.TESTCOMM())
-    port = COMM.UARTCOMM()    
-    dfm = DFM(8,Enums.DFMTYPE.PLETCHERV3,'hi')
-    dfm.ReadValues(False)  
-    for sp in dfm.currentStatusPackets:
-        print(sp.GetDataBufferPrintPacket())          
-       
-if __name__=="__main__" :
-    ModuleTest()   
-    print("Done!!")     
-
-#endregion
+                self.isBufferResetNeeded=True
+                print("Buffer reset NACKed")
+                isFailed = True
+        if(self.isInstructionUpdateNeeded and not self.isVersionGetNeeded):
+            self.isInstructionUpdateNeeded=False
+            if(self.DFMSubType == Enums.DFMSUBTYPE.V2):
+                isSent = self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)
+            else:
+                isSent = self.MP.SendInstructionDFMV1_5(self.ID, self.currentInstruction)
+            if not isSent:
+                self.isInstructionUpdateNeeded=True
+                print("Instruction update NACKed")
+                # The firmware NACKs an instruction in the wrong format, so check the version again.
+                self.isVersionGetNeeded = True
+                isFailed = True
+        if(self.isLinkageSetNeeded):
+            self.isLinkageSetNeeded=False
+            if not self.MP.SendLinkage(self.ID,self.currentLinkage):
+                self.isLinkageSetNeeded=True
+                print("Linkage update NACKed")
+                isFailed = True
+        if(isFailed):
+            self.retryTime = time.monotonic() + COMMAND_RETRY_INTERVAL
+    #endregion

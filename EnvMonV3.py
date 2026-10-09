@@ -1,19 +1,11 @@
-import datetime
 import StatusPacket
 import Enums
 import time
 import DataBuffer
-import array
-import threading
 import DFMErrors
-import MessagesList
 import Message
 import Event
 import Instruction
-import Board
-import math
-import OptoLid
-from DataGetter import MP_Command
 
 class EnvironmentalMonitorV3:
     EM_message = Event.Event()    
@@ -29,8 +21,8 @@ class EnvironmentalMonitorV3:
         self.theData = DataBuffer.DataBuffer()             
         self.sampleIndex=1
         self.currentInstruction = Instruction.DFMInstruction()
-        self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
+        self.retryTime=0.0
         self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedTemperature=1.0
         self.reportedDarkState = Enums.DARKSTATE.OFF
@@ -42,6 +34,8 @@ class EnvironmentalMonitorV3:
         self.reportedOptoStateCol1=0
         self.reportedOptoStateCol2=0        
         self.reportedVoltsIn=0.0       
+        # Shown on the DFM page; the EnvMon is not asked for its firmware version.
+        self.firmwareVersion=""
         self.isCalculatingBaseline=False                     
         
     def __str__(self):
@@ -60,7 +54,6 @@ class EnvironmentalMonitorV3:
     def SetIdleStatus(self):
         ## Idle is opto off, dark running as its has been, and default other parameters.
         self.currentInstruction = Instruction.DFMInstruction()
-        self.isInstructionUpdateNeeded=True
 
     def SetOutputsOn(self):
         pass
@@ -104,19 +97,19 @@ class EnvironmentalMonitorV3:
             if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Checksum mismatch".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
                 self.SetStatus(Enums.CURRENTSTATUS.MISSING)
                 s="({:d}) No answer".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Wrong number of bytes:".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
                 s="({:d}) Incomplete packet received:".format(self.ID)
-                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
+                self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
             if isSuccess:                                                                                                                                            
@@ -165,31 +158,24 @@ class EnvironmentalMonitorV3:
 
     #region Updating                
  
-    def UpdateInstruction(self,instruct,useBaseline):                      
-        if(instruct is self.currentInstruction):            
-            return 
-        else:                                  
-            self.currentInstruction = instruct                                         
-            self.isInstructionUpdateNeeded=True                     
+    def UpdateInstruction(self,instruct,useBaseline):
+        # Kept for the program description only: the EnvMon has no instruction command yet.
+        if(instruct is not None):
+            self.currentInstruction = instruct
     
     def CheckStatus(self):       
         if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.ERROR or self.status == Enums.CURRENTSTATUS.UNDEFINED:            
             return      
-        if(self.isBufferResetNeeded):                  
-            if(self.MP.SendBufferReset(self.ID)):                    
+        if(self.isBufferResetNeeded and time.monotonic() >= self.retryTime):
+            if(self.MP.SendBufferReset(self.ID)):
                 self.isBufferResetNeeded=False
-                self.sampleIndex=1      
+                self.sampleIndex=1
             else:
-                print("Buffer reset NACKed")                 
-        
-        ## TODO: activate instructions for outputs.
-        if(self.isInstructionUpdateNeeded):            
-            if(self.MP.SendInstruction(self.ID, self.currentInstruction)):                       
-                self.isInstructionUpdateNeeded=False                 
-            else:
-                print("Instruction update NACKed")                           
-                  
-        return    
+                print("Buffer reset NACKed")
+                # Retried, but not on every pass.
+                self.retryTime = time.monotonic() + 1.0
+        ## TODO: activate instructions for outputs. There is no EnvMon instruction command in
+        ## the protocol yet, so nothing is sent.
 
     #endregion     
      
@@ -207,17 +193,6 @@ def ErrorTest():
         spList.append(sp)
     dfm.UpdateReportedValues(spList)
 
-
-def ModuleTest():
-    Board.BoardSetup()
-    #tmp = DFMGroup(COMM.TESTCOMM())
-    #port = COMM.UARTCOMM()
-    port=COMM.COMM()
-    dfm = EnvironmentalMonitorV3(3)
-    dfm.ReadValues(False)  
-    for sp in dfm.currentStatusPackets:
-        print(sp.GetDataBufferPrintPacket())          
-       
 if __name__=="__main__" :
     ErrorTest()   
     print("Done!!")     

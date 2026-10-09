@@ -1,5 +1,4 @@
 import adafruit_tsl2561
-import time
 
 class TSL2561:
     def __init__(self,i2c):

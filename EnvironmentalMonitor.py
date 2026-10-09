@@ -8,7 +8,7 @@ import SI7021
 from enum import Enum
 
 class MonitorState(Enum):
-    IDLE=1,
+    IDLE=1
     REQUESTTEMP=2
     GETTEMP=3
     REQUESTHUM=4
@@ -48,7 +48,7 @@ class EnvironmentalMonitor():
 
     def StepMonitor(self):       
         if(self.isPresent==False):
-            self.currentState==MonitorState.IDLE
+            self.currentState=MonitorState.IDLE
             return
         try:
             if (self.currentState==MonitorState.IDLE):          
@@ -78,27 +78,10 @@ class EnvironmentalMonitor():
             self.light=0
             self.humidity=0
             self.temperature=0      
-            self.currentState==MonitorState.IDLE
+            self.currentState=MonitorState.IDLE
             return
 
 
-    def UpdateReadings(self):
-        testing=False
-        self.temperature=-1
-        self.light=-1
-        self.temperature=-1        
-        if(testing==False):
-            try:
-                self.temperature=self.si.GetTemperature()            
-                self.light =self.tsl.GetLUX()
-                self.humidity=self.si.GetHumidity()            
-            except:
-                return            
-        else:
-            self.light=100
-            self.humidity=50
-            self.temperature=25
-    
     def __str__(self):
         s = "Temp: "+str(self.temperature)+"  Light: "+str(self.light)+"  Humidity: "+str(self.humidity)
         return s
