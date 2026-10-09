@@ -44,6 +44,8 @@ class DFMGroup:
         ## New members added when the write worker was disbanded
         self.theFiles = {}
         self.writeStartTimes={}
+        # DFMs whose last data file write failed, so the failure is reported only once.
+        self.writeFailedIDs=set()
         self.currentDFMIndex=0
         self.currentDFMKeysList=[]
         self.programReadInterval=""
@@ -163,6 +165,7 @@ class DFMGroup:
 
         self.theFiles.clear()
         self.writeStartTimes.clear()
+        self.writeFailedIDs.clear()
         for value in self.theDFMs.values():
             self._OpenDataFile(value)
 
@@ -178,22 +181,51 @@ class DFMGroup:
             currentDFM.IncrementOutputFile()
             self._OpenDataFile(currentDFM)
         elif(currentDFM.theData.ActualSize()>(1000 +(self.currentDFMIndex*10))):
-            ss=currentDFM.theData.PullAllRecordsAsString()
-            if(ss!=""):
-                self.theFiles[currentDFM.ID].write(ss)
-            self.WriteMessages()
+            if(self._WriteBufferedData(currentDFM)):
+                self.WriteMessages()
 
         self.currentDFMIndex+=1
         if(self.currentDFMIndex==len(self.theDFMs)):
             self.currentDFMIndex=0
 
+    def _WriteBufferedData(self,theDFM):
+        """Writes the DFM's buffered records to its data file. Returns False if that failed; the
+        records are then kept for the next try. A try after a partial write can repeat some
+        rows, which the Index column shows."""
+        lines, count = theDFM.theData.PeekRecordsAsString()
+        if(count==0):
+            return True
+        try:
+            f = self.theFiles[theDFM.ID]
+            f.write(lines)
+            # Flushed so that a failure shows up now, while the records can still be kept.
+            f.flush()
+        except (OSError, ValueError) as e:
+            print(f"Data file write failed ({theDFM.ID}): {e!r}")
+            # Writes are retried on every pass, so this is reported once until one succeeds.
+            if(theDFM.ID not in self.writeFailedIDs):
+                self.writeFailedIDs.add(theDFM.ID)
+                self.NewMessage(theDFM.ID, datetime.datetime.today(), 0, "({:d}) Data file write failed: {}".format(theDFM.ID, e), Enums.MESSAGETYPE.ERROR)
+            return False
+        theDFM.theData.RemoveRecords(count)
+        self.writeFailedIDs.discard(theDFM.ID)
+        return True
+
     def WriteEnder(self):
         try:
             for key, value in self.theDFMs.items():
-                # Every file is closed here, including ones with nothing left to write, so
-                # their buffered data is on disk before anyone copies it.
-                with self.theFiles[key] as f:
-                    f.write(value.theData.PullAllRecordsAsString())
+                # Each file is written and closed on its own, so one that fails doesn't keep the
+                # others' data off the disk. Every file is closed, including ones with nothing left
+                # to write, so their buffered data is on disk before anyone copies it.
+                if not self._WriteBufferedData(value):
+                    # The recording is over, so these would otherwise end up in the next one's file.
+                    count = value.theData.ActualSize()
+                    self.NewMessage(key, datetime.datetime.today(), 0, "({:d}) {:d} records could not be written".format(key, count), Enums.MESSAGETYPE.ERROR)
+                    value.theData.RemoveRecords(count)
+                try:
+                    self.theFiles[key].close()
+                except OSError as e:
+                    self.NewMessage(key, datetime.datetime.today(), 0, "({:d}) Data file close failed: {}".format(key, e), Enums.MESSAGETYPE.ERROR)
             self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.ANNOTATION)
             self.WriteMessages()
         finally:
@@ -264,6 +296,7 @@ class DFMGroup:
         # which itself will clear out the buffer.
         for i in self.theDFMs.values():
             i.isBufferResetNeeded=True
+        reportedErrors=set()
         while not self.stopProgramWorkerSignal:
             try:
                 tmp = self.MP.data_q.get(block=False)
@@ -293,6 +326,12 @@ class DFMGroup:
                         self.WriteStep()
             except Exception as e:
                 print(f"Program worker exception: {e!r}")
+                # Packets being processed may not have been saved, and the DFM has already
+                # dropped them, so this is an error. Each kind is reported once, so a fault that
+                # repeats on every pass can't fill the message list.
+                if(type(e).__name__ not in reportedErrors):
+                    reportedErrors.add(type(e).__name__)
+                    self.NewMessage(0, datetime.datetime.today(), 0, "Program worker error: {!r}".format(e), Enums.MESSAGETYPE.ERROR)
             time.sleep(0.001)
         for d in self.theDFMs.values():
             d.SetStatus(Enums.CURRENTSTATUS.UNDEFINED)

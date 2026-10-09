@@ -48,6 +48,11 @@ class DataGetter:
         self.COMMType = None
         self.DFMInfos = []
         self.focalDFMs = []
+        # Reader-process state, by DFM ID.
+        self.bufferResetCounts = {}
+        self.firmwareVersions = {}
+        # DFMs whose last status reply was full, so more packets are waiting on them.
+        self.laggingDFMs = []
         self.refreshRate=0.25
         self.startTime = datetime.datetime.today()
         self.currentReadIndex=1
@@ -153,6 +158,10 @@ class DataGetter:
         else:
             return []
         self.COMMType = COMMType
+        # The main process makes new DFM objects for what is found, so this starts over too.
+        self.bufferResetCounts = {}
+        self.firmwareVersions = {}
+        self.laggingDFMs = []
         found=[]
         for i in range(1,100):
             if i in skippedIDs:
@@ -227,9 +236,11 @@ class DataGetter:
             else:
                 self.focalDFMs = [i for i in self.DFMInfos if i.ID==args[0]] or self.focalDFMs
         elif(commandType==COMMANDTYPE.BUFFER_RESET):
-            self._Answer(command, self.theCOMM.RequestBufferReset(args[0]))
+            self._Answer(command, self.BufferResetInternal(args[0]))
         elif(commandType==COMMANDTYPE.GET_VERSION):
-            self._Answer(command, self.theCOMM.GetVersion(args[0]))
+            version = self.theCOMM.GetVersion(args[0])
+            self.firmwareVersions[args[0]] = version
+            self._Answer(command, version)
         elif(commandType==COMMANDTYPE.LINKAGE):
             self._Answer(command, self.theCOMM.SendLinkage(args[0],args[1]))
         elif(commandType==COMMANDTYPE.INSTRUCTION_V1_5):
@@ -251,6 +262,14 @@ class DataGetter:
         else:
             print("Unknown Command")
 
+    def BufferResetInternal(self,ID):
+        isReset = self.theCOMM.RequestBufferReset(ID)
+        if isReset:
+            # Reads are tagged with this count, so the main process can tell reads of the old
+            # buffer that are still queued from reads of the new one.
+            self.bufferResetCounts[ID] = self.bufferResetCounts.get(ID,0)+1
+        return isReset
+
     def ReadWorker(self):
         commandsInARow=0
         lastTime = time.time()
@@ -261,30 +280,56 @@ class DataGetter:
                 commandsInARow+=1
             else:
                 commandsInARow=0
-                if(self.isPaused==False and time.time()-lastTime>self.refreshRate):
-                    lastTime = time.time()
-                    self.ReadValues()
+                if(self.isPaused==False):
+                    if(time.time()-lastTime>self.refreshRate):
+                        lastTime = time.time()
+                        self.ReadRound()
+                    elif(self.laggingDFMs):
+                        # Read these again now rather than next round, so a backlog drains
+                        # instead of growing. Commands still get a turn between reads.
+                        self.ReadValues([i for i in self.focalDFMs if i in self.laggingDFMs])
                 if(time.time()-lastTime_Env>1):
                     self.theEnvironmentalMonitor.StepMonitor()
                     lastTime_Env = time.time()
             time.sleep(0.002)
 
-    def ReadValues(self):
-        currentTime = datetime.datetime.today()
+    def ReadRound(self):
+        """Reads every focal DFM once."""
         self.EnvMonV3_Temperature=0.0
         self.EnvMonV3_Humidity=0.0
         self.EnvMonV3_LUX=0.0
-        for info in self.focalDFMs:
+        self.ReadValues(self.focalDFMs)
+
+    def ReadValues(self,infos):
+        currentTime = datetime.datetime.today()
+        lagging = []
+        for info in infos:
             try:
                 result,payload=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)
                 packList=self.ProcessPacket(info,result,payload,currentTime)
-                # A V3 DFM drops what it sent once it is ACKed, so ACK only a read with no bad packets.
-                if all(p.processResult == PROCESSEDPACKETRESULT.OKAY for p in packList):
-                    self.theCOMM.SendAck(info.ID)
+                resetCount = self.bufferResetCounts.get(info.ID,0)
+                for p in packList:
+                    p.bufferResetCount = resetCount
+                # Queued before the ACK: if the ACK fails the DFM just sends the packets again.
                 self.data_q.put(packList)
+                self._Acknowledge(info,packList)
+                if(len(payload) >= COMM.MAX_STATUS_PACKETS*StatusPacket.V3_PACKET_SIZE):
+                    lagging.append(info)
             except Exception as e:
                 print(f"Get status exception ({info.ID}): {e!r}")
             time.sleep(0.002)
+        self.laggingDFMs = lagging
+
+    def _Acknowledge(self,info,packList):
+        """A V3 DFM drops the packets it sent once they are ACKed, so only packets that were read
+        correctly are acknowledged. The read stops at the first bad packet."""
+        numGood = sum(1 for _ in itertools.takewhile(lambda p: p.processResult == PROCESSEDPACKETRESULT.OKAY, packList))
+        if(numGood == len(packList)):
+            self.theCOMM.SendAck(info.ID)
+        elif(numGood > 0 and info.DFMType == DFMTYPE.PLETCHERV3 and
+             COMM.SupportsPartialAck(self.firmwareVersions.get(info.ID, b""))):
+            # The good packets are kept, so the DFM need only send the rest again.
+            self.theCOMM.SendPartialAck(info.ID, packList[numGood-1].recordIndex)
 
     def _FailedPacket(self,info,result):
         packet=StatusPacket.StatusPacket(0,info.ID,info.DFMType)

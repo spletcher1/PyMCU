@@ -20,9 +20,10 @@ class DataBuffer:
         if(addToQueue):
             self.theData.append(newStatusPacket)           
         return True
-    def PullAllRecordsAsString(self):
-        s=""
-        while self.theData:
-            sdr = self.theData.popleft()                   
-            s+=sdr.GetDataBufferPrintPacket()
-        return s
+    def PeekRecordsAsString(self):
+        """Returns (lines, count) for every buffered record. The records stay buffered until
+        RemoveRecords(count), so they aren't lost if writing them fails."""
+        return "".join(sdr.GetDataBufferPrintPacket() for sdr in self.theData), len(self.theData)
+    def RemoveRecords(self,count):
+        for _ in range(count):
+            self.theData.popleft()

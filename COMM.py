@@ -9,7 +9,9 @@ bus. The protocol is defined by the DFM firmware (DFMV3_V2/src/UART2.c, and DFMV
   * A DFM answers 5 ms (firmware 2.0.x) or 15 ms (older firmware) after a request, plus 2-3 ms
     to turn its driver on. After its last byte it keeps driving the bus for another 2-3 ms.
   * A status reply holds up to 60 56-byte status packets. The DFM keeps them until it is ACKed,
-    so packets that were never ACKed are sent again with the next status request.
+    so packets that were never ACKed are sent again with the next status request. Firmware 2.0.2
+    and later also take a partial ACK: [ID, 0xF9, index of the last packet kept, checksum]. The
+    DFM then sends again only the packets after that one.
   * Buffer resets, instructions and linkages are answered with [ID] (ACK) or [0xFE] (NACK).
 
 I2CCOMM talks to legacy V2 DFMs over I2C.
@@ -23,7 +25,7 @@ import smbus2
 from cobs import cobs
 
 import Enums
-from StatusPacket import Checksum32
+from StatusPacket import Checksum32, V3_PACKET_SIZE
 
 if "MCU" in platform.node():
     from gpiozero import LED
@@ -39,6 +41,10 @@ BUFFER_RESET_REQUEST = 0xFE
 INSTRUCTION_REQUEST = 0xFD
 LINKAGE_REQUEST = 0xFB
 ACK = 0xFA
+PARTIAL_ACK = 0xF9
+PARTIAL_ACK_FIRMWARE = (2, 0, 2)
+# Firmware MAXPACKETS. A reply this full means more packets are waiting on the DFM.
+MAX_STATUS_PACKETS = 60
 
 ENVMON_ID = 99
 
@@ -54,6 +60,9 @@ REPLY_TIMEOUT = 0.03
 # A full status reply (60 packets, ~3.4 kB) takes ~0.15 s on the wire and has been measured
 # at over 0.3 s end to end. This bounds the whole frame, not the gap between bytes.
 STATUS_TIMEOUT = 2.0
+# The bus counts as quiet after this long without a byte. Longer than any gap inside a frame,
+# including the delay before Linux hands received bytes over.
+QUIET_TIME = 0.005
 
 ACK_FRAME_SIZE = 5
 VERSION_FRAME_SIZE = 50
@@ -66,6 +75,14 @@ LEGACY_VERSION = b"1.0.5"
 def _Field(value, size):
     """Big-endian bytes of value truncated to size bytes, so -1 is sent as all 0xFF."""
     return (value & ((1 << (8 * size)) - 1)).to_bytes(size, "big")
+
+
+def SupportsPartialAck(version):
+    """True if DFM firmware with this version string (bytes, as GetVersion returns) takes partial ACKs."""
+    try:
+        return tuple(int(p) for p in version.decode("ascii").split(".")) >= PARTIAL_ACK_FIRMWARE
+    except (UnicodeDecodeError, ValueError):
+        return False
 
 
 def InstructionPayload(instruction, timingSize):
@@ -115,17 +132,34 @@ class UARTCOMM:
 
     def _ReadFrame(self, maxBytes, timeout):
         """Read and decode one frame. Returns (COBSRESULT, payload)."""
-        self.thePort.timeout = timeout
-        raw = self.thePort.read_until(b"\x00", maxBytes)
+        deadline = time.monotonic() + timeout
+        while True:
+            self.thePort.timeout = max(0.0, deadline - time.monotonic())
+            raw = self.thePort.read_until(b"\x00", maxBytes)
+            # No frame is empty, so a lone 0x00 is line noise. The reply may still follow it.
+            if raw != b"\x00" or time.monotonic() >= deadline:
+                break
         if not raw:
             return Enums.COBSRESULT.NOANSWER, b""
         self.busFreeTime = time.monotonic() + BUS_RELEASE_TIME
-        if raw[-1] != 0:
+        if raw[-1] != 0 or len(raw) == 1:
+            self._WaitForQuietBus()
             return Enums.COBSRESULT.INCOMPLETEPACKET, b""
         try:
             return Enums.COBSRESULT.OKAY, cobs.decode(raw[:-1])
         except cobs.DecodeError:
+            self._WaitForQuietBus()
             return Enums.COBSRESULT.INCOMPLETEPACKET, b""
+
+    def _WaitForQuietBus(self):
+        """Discards input until the bus has been quiet for QUIET_TIME. Called when a read ends
+        early: the rest of that frame may still be on the bus, and sending now would garble both."""
+        deadline = time.monotonic() + STATUS_TIMEOUT
+        self.thePort.timeout = QUIET_TIME
+        # read() returns early only if all 4096 bytes arrive, which takes far longer than QUIET_TIME.
+        while self.thePort.read(4096) and time.monotonic() < deadline:
+            pass
+        self.busFreeTime = time.monotonic() + BUS_RELEASE_TIME
 
     def _SendRequest(self, ID, command):
         self._Send((ID, command, ID))
@@ -148,10 +182,20 @@ class UARTCOMM:
     def GetStatusPacket(self, ID, DFMType, latestOnly):
         """Returns (COBSRESULT, payload); the payload holds whole 56-byte status packets."""
         self._SendRequest(ID, LATEST_STATUS_REQUEST if latestOnly else STATUS_REQUEST)
-        return self._ReadFrame(STATUS_FRAME_SIZE, STATUS_TIMEOUT)
+        result, payload = self._ReadFrame(STATUS_FRAME_SIZE, STATUS_TIMEOUT)
+        if result == Enums.COBSRESULT.OKAY and len(payload) % V3_PACKET_SIZE != 0:
+            # Not whole packets, so a corrupt byte ended the frame early and the rest of the
+            # reply may still be arriving.
+            self._WaitForQuietBus()
+        return result, payload
 
     def SendAck(self, ID):
         self._SendRequest(ID, ACK)
+
+    def SendPartialAck(self, ID, lastIndex):
+        """Acknowledges the packets of the last status reply up to and including the one
+        numbered lastIndex. Only for firmware where SupportsPartialAck() is true."""
+        self._SendChecksummedRequest(ID, PARTIAL_ACK, lastIndex.to_bytes(4, "big"))
 
     def GetVersion(self, ID):
         self._SendRequest(ID, VERSION_REQUEST)

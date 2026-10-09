@@ -43,6 +43,8 @@ class DFM:
         self.theData = DataBuffer.DataBuffer()
         self.sampleIndex=1
         self.lastDFMIndex=0
+        # Buffer resets seen in the reads so far (see StatusPacket.bufferResetCount).
+        self.bufferResetCount=0
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))
         self.currentLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
         self.baselineSamples=0
@@ -54,7 +56,11 @@ class DFM:
         self.isVersionGetNeeded = True
         self.isLinkageSetNeeded=False
         self.retryTime=0.0
-        self.currentDFMErrors = DFMErrors.DFMErrors()
+        if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            # Narrowed down once the firmware version is known.
+            self.currentDFMErrors = DFMErrors.DFMErrors(DFMErrors.V3_ERROR_DISPLAY_BEFORE_2_0_2)
+        else:
+            self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
         self.reportedOptoPulsewidth=0
         self.reportedOptoStateCol1=0
@@ -172,6 +178,14 @@ class DFM:
             theMessageType =  Enums.MESSAGETYPE.NOTICE
         else:
             theMessageType =  Enums.MESSAGETYPE.ERROR
+        # Indexes start again at 1 with the first read after a buffer reset. This is done here,
+        # not when the reset is ACKed, because reads made before the reset may still be queued
+        # behind it; with the index already back at 0 they would make every later packet look
+        # repeated.
+        if(currentStatusPackets[0].bufferResetCount != self.bufferResetCount):
+            self.bufferResetCount = currentStatusPackets[0].bufferResetCount
+            self.sampleIndex=1
+            self.lastDFMIndex=0
         for sp in currentStatusPackets:
             if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
                 if(sp.processResult in READ_FAILURES):
@@ -272,6 +286,8 @@ class DFM:
             self.DFMSubType = Enums.DFMSUBTYPE.V2
         else:
             self.DFMSubType = Enums.DFMSUBTYPE.V1_5
+        # The meaning of the error bits also depends on the firmware.
+        self.currentDFMErrors.display = DFMErrors.V3ErrorDisplay(self.firmwareVersion)
         self.isVersionGetNeeded = False
         return True
 
@@ -291,10 +307,8 @@ class DFM:
         # in flight (e.g. an instruction change from the GUI thread) is not lost.
         if(self.isBufferResetNeeded):
             self.isBufferResetNeeded=False
-            if(self.MP.SendBufferReset(self.ID)):
-                self.sampleIndex=1
-                self.lastDFMIndex=0
-            else:
+            # The indexes start again when the first read after the reset arrives (ProcessPackets).
+            if not self.MP.SendBufferReset(self.ID):
                 self.isBufferResetNeeded=True
                 print("Buffer reset NACKed")
                 isFailed = True

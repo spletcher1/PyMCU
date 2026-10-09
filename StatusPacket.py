@@ -41,6 +41,9 @@ class StatusPacket:
         self.DFMID=DFMID
         self.processResult=''
         self.DFMType=DFMType
+        # How many times the reader had reset this DFM's buffer when the packet was read. Record
+        # indexes start again at 1 after each reset.
+        self.bufferResetCount=0
 
     def ProcessStatusPacket(self,bytesData,startTime,index=0):
         if(self.DFMType==DFMTYPE.SABLEV2):

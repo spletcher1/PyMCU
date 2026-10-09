@@ -529,16 +529,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.PastStatusLabel.setText("Clear")
 
+        # One checkbox per error bit, bit 0 first. What they show depends on the DFM's firmware.
         errors = dfm.currentDFMErrors
-        for box, status in ((self.I2CErrorBox, errors.GetI2CErrorStatus()),
-                            (self.OERRErrorBox, errors.GetOERRErrorStatus()),
-                            (self.PacketErrorBox, errors.GetPacketErrorStatus()),
-                            (self.SIErrorBox, errors.Getsi7021ErrorStatus()),
-                            (self.TSLErrorBox, errors.GetTSL2591ErrorStatus()),
-                            (self.FERRErrorBox, errors.GetFERRErrorStatus()),
-                            (self.InterruptErrorBox, errors.GetInterruptErrorStatus()),
-                            (self.MiscErrorBox, errors.GetMiscErrorStatus())):
-            box.setChecked(status!=Enums.REPORTEDERRORSTATUS.NEVER)
+        boxes = (self.I2CErrorBox, self.OERRErrorBox, self.PacketErrorBox, self.SIErrorBox,
+                 self.TSLErrorBox, self.FERRErrorBox, self.InterruptErrorBox, self.MiscErrorBox)
+        for box, entry in zip(boxes, errors.display):
+            box.setVisible(entry is not None)
+            if(entry is None):
+                continue
+            label, description, bits = entry
+            box.setText(label)
+            box.setToolTip(description)
+            box.setChecked(errors.GetStatus(bits)!=Enums.REPORTEDERRORSTATUS.NEVER)
 
         self.UpdateDFMButtonTextColors()
 
