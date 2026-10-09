@@ -27,7 +27,8 @@ V3_ERROR_DISPLAY_BEFORE_2_0_2 = [
     None,
 ] + _V3_COMMON
 
-# DFMV3_V2 2.0.2 and later.
+# DFMV3_V2 2.0.2 and later. Bit 1 reports that the status buffer overflowed.
+OVERFLOW_MASK = 0x02
 V3_ERROR_DISPLAY = [
     ("No Ack", "The MCU didn't acknowledge the last status packets, so the DFM sent them again.", (0,)),
     ("Overflow", "The DFM's status buffer filled up and its oldest packets were overwritten.", (1,)),

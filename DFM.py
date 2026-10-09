@@ -149,7 +149,7 @@ class DFM:
     #endregion
 
     #region Packet processing, reading, writing, file methods.
-    def UpdateReportedValues(self, currentStatusPackets):
+    def UpdateReportedValues(self, currentStatusPackets, isRecording):
         last = currentStatusPackets[-1]
         self.reportedHumidity = last.humidity
         self.reportedLUX = last.lux
@@ -167,9 +167,14 @@ class DFM:
         for sp in currentStatusPackets:
             if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
                 continue
-            self.currentDFMErrors.UpdateErrors(sp.errorFlags)
-            if(sp.errorFlags!=0):
-                s="DFM code: {:02X}".format(sp.errorFlags)
+            errorFlags = sp.errorFlags
+            if not isRecording:
+                # Packets aren't kept then, so an overflow loses nothing. It is also certain
+                # when the MCU asks for the latest packet only, as nothing drains the buffer.
+                errorFlags &= ~DFMErrors.OVERFLOW_MASK
+            self.currentDFMErrors.UpdateErrors(errorFlags)
+            if(errorFlags!=0):
+                s="DFM code: {:02X}".format(errorFlags)
                 self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)
 
     def ProcessPackets(self,currentStatusPackets,saveDataToQueue):
@@ -186,6 +191,7 @@ class DFM:
             self.bufferResetCount = currentStatusPackets[0].bufferResetCount
             self.sampleIndex=1
             self.lastDFMIndex=0
+        newPackets=[]
         for sp in currentStatusPackets:
             if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
                 if(sp.processResult in READ_FAILURES):
@@ -201,10 +207,13 @@ class DFM:
                 self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
             else:
                 self._AddPacket(sp,saveDataToQueue)
+                newPackets.append(sp)
 
-        # A read that ends in a bad packet is resent in full, so its values are reported then.
-        if(currentStatusPackets[-1].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):
-            self.UpdateReportedValues(currentStatusPackets)
+        # Only packets seen for the first time are reported, so each packet's error flags count
+        # once. Resent packets were counted when they first came, and with partial ACKs the good
+        # packets before a bad one aren't sent again.
+        if(newPackets):
+            self.UpdateReportedValues(newPackets,saveDataToQueue)
         self.CheckStatus()
 
     def _AddPacket(self,sp,saveDataToQueue):
