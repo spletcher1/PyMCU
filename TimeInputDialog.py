@@ -3,19 +3,27 @@ from PyQt6.QtCore import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 
-class DateDialog(QDialog):
+class DateDialog(QFrame):
     """Touch-friendly date and time picker: tap a day on the calendar, then use the large
-    - and + buttons for the hour and minute (hold to repeat). Seconds are set to zero."""
+    - and + buttons for the hour and minute (hold to repeat). Seconds are set to zero.
+
+    Shown as a fixed panel centered inside the main window over a dimmed backdrop, rather than
+    as a separate window: Wayland doesn't let an app place its windows, so a dialog window can't
+    be reliably centered or kept without a title bar. Only Cancel or Set Time closes it."""
+
+    closed = pyqtSignal(bool)
 
     def __init__(self, parent = None):
         super(DateDialog, self).__init__(parent)
-        self.setWindowTitle("Set Date and Time")
+        self.setObjectName("timePanel")
+        self.setStyleSheet("#timePanel { background: palette(window); border: 2px solid palette(highlight); border-radius: 12px; }")
         now = QDateTime.currentDateTime()
         self.hour = now.time().hour()
         self.minute = now.time().minute()
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
+        layout.setContentsMargins(16,12,16,16)
 
         # The chosen date and time in words, so it can be checked at a glance.
         self.summary = QLabel()
@@ -58,10 +66,10 @@ class DateDialog(QDialog):
 
         buttons = QHBoxLayout()
         cancel = self._BigButton("Cancel")
-        cancel.clicked.connect(self.reject)
+        cancel.clicked.connect(lambda: self.closed.emit(False))
         ok = self._BigButton("Set Time")
         ok.setDefault(True)
-        ok.clicked.connect(self.accept)
+        ok.clicked.connect(lambda: self.closed.emit(True))
         buttons.addWidget(cancel)
         buttons.addStretch(1)
         buttons.addWidget(ok)
@@ -113,18 +121,33 @@ class DateDialog(QDialog):
     def dateTime(self):
         return QDateTime(self.calendar.selectedDate(), QTime(self.hour, self.minute, 0))
 
-    # static method to create the dialog and return (date, time, accepted)
+    @staticmethod
+    def ShowOver(parent):
+        """Dims the parent window and shows the panel centered on it. Returns (backdrop, panel)."""
+        backdrop = QWidget(parent)
+        backdrop.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        backdrop.setObjectName("timeBackdrop")
+        # Scoped by name so the dimming doesn't spill onto the panel's widgets.
+        backdrop.setStyleSheet("#timeBackdrop { background: rgba(0, 0, 0, 150); }")
+        backdrop.setGeometry(parent.rect())
+        panel = DateDialog(backdrop)
+        # Nearly fill the touchscreen (800x480 on the 7" display).
+        panel.setFixedSize(min(760, parent.width()-40), min(440, parent.height()-40))
+        centered = QGridLayout(backdrop)
+        centered.addWidget(panel, 0, 0, Qt.AlignmentFlag.AlignCenter)
+        backdrop.show()
+        backdrop.raise_()
+        return backdrop, panel
+
     @staticmethod
     def getDateTime(parent = None):
-        dialog = DateDialog(parent)
-        dialog.setWindowFlags(parent.windowFlags() & ~QtCore.Qt.WindowType.FramelessWindowHint | QtCore.Qt.WindowType.WindowStaysOnTopHint)
-        # Nearly fill the touchscreen (800x480 on the 7" display).
-        screen = parent.screen().availableGeometry()
-        dialog.resize(min(760, screen.width()-40), min(440, screen.height()-40))
-        result = dialog.exec()
-        date = dialog.dateTime()
-        # Seconds since the epoch, or 0 if cancelled.
-        if result==QtWidgets.QDialog.DialogCode.Accepted:
-            return(date.toSecsSinceEpoch())
-        else:
-            return 0
+        """Seconds since the epoch, or 0 if cancelled."""
+        backdrop, panel = DateDialog.ShowOver(parent)
+        result = []
+        loop = QEventLoop()
+        panel.closed.connect(lambda accepted: (result.append(accepted), loop.quit()))
+        loop.exec()
+        date = panel.dateTime()
+        backdrop.hide()
+        backdrop.deleteLater()
+        return date.toSecsSinceEpoch() if result and result[0] else 0
