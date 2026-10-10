@@ -93,7 +93,7 @@ autorun=0
 The app needs no `/home/pi` or `/media/pi` symlinks:
 
 - `GetUSBDrives()` checks `/media/<user>`, plus `/media/pi` if it exists.
-- Updates are a single `PyMCU_<version>.mcu` file on a USB stick, installed with **Update MCU**. See [Updating.md](Updating.md) for building and installing them.
+- Updates are a single `PyMCU_<version>.mcu` file on a USB stick, installed with **Update MCU**. Building them: [Packaging.md](Packaging.md). Installing them: [Updating.md](Updating.md).
 - Unmounting uses plain `umount`, which works for desktop mounts through udisks2's `umount.udisks2` helper.
 
 **How the app handles USB (3.5.0).**

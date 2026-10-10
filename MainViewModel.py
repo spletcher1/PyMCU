@@ -807,7 +807,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.SetNormalProgramReadInterval()
 
     def RunUpdate(self):
-        # Package built by CreateVersion.sh, see docs/Updating.md.
+        # Package built by CreateVersion.sh: docs/Packaging.md (build), docs/Updating.md (install).
         files = FindUpdateFiles()
         if(len(files)!=1):
             reason = "No update file (.mcu) found on the USB." if len(files)==0 else \

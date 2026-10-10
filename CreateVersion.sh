@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds PyMCU_<version>.mcu (a .tar.gz), the USB update package (see docs/Updating.md).
+# Builds PyMCU_<version>.mcu (a .tar.gz), the USB update package (see docs/Packaging.md).
 # The package holds the last commit, not uncommitted edits, so every update is reproducible.
 cd "$(dirname "$(readlink -f "$0")")"
 VERSION=$(git show HEAD:MainViewModel.py | sed -n 's/^APP_VERSION = "\(.*\)"/\1/p')

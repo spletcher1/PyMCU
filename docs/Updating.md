@@ -1,70 +1,53 @@
-# Updating an MCU from a USB stick
+# Updating the MCU
 
 Last updated: 2026-10-09 (PyMCU 3.5.0)
 
-An update is a single file, `PyMCU_<version>.mcu`. You build it from the repo and send it to the user. The user copies it onto a USB stick and presses **Update MCU**. The MCU checks the file, installs it, confirms the new code loads, and restarts. If anything fails, it keeps the version it had.
+Updates come as one file named like `PyMCU_3.5.1.mcu`. Installing it takes about a minute. If anything goes wrong, the MCU keeps the version it had and your data is never touched.
 
-## 1. Build the update (maintainer)
+## You need
 
-1. Raise the version in **both** places, using the same number:
-    - `APP_VERSION` in `MainViewModel.py` (shown in the About box and in the update prompt)
-    - `version` in `pyproject.toml`
-2. Commit the changes. The package is built from the last commit, so uncommitted edits are left out and every package matches a commit.
-3. Run `./CreateVersion.sh` in the repo. It prints, for example:
+- The `.mcu` update file you were sent
+- A USB stick
+- An MCU that is **not running an experiment**. The Update MCU button is locked while a program runs.
+- For some updates, an internet connection on the MCU. You'll be told if your update needs one.
+
+## Steps
+
+1. **Copy the update file onto the USB stick.**
+    - Copy the `.mcu` file as it is. Don't open, unzip or rename it.
+    - It can go at the top level of the stick or in a folder named `FLICUpdates`.
+    - Put only **one** update file on the stick. Delete older `.mcu` files first.
+    - The stick can also hold your `FLICData` and `FLICPrograms` folders.
+2. **Plug the stick into the MCU.** The status bar shows "USB connected...".
+3. **Open the update.** Tap **About** on the toolbar, then **Settings**, then **Update MCU**.
+4. **Check the version and confirm.** The prompt names the file and shows the new version next to the installed one, for example:
 
     ```
-    Created PyMCU_3.5.1.mcu (version 3.5.1, commit 1a2b3c4).
+    Install PyMCU 3.5.1 from PyMCU_3.5.1.mcu?
+    Installed now: 3.5.0. The MCU restarts when the update is done.
     ```
 
-    It warns if there are uncommitted changes.
-4. Optionally tag the commit (`git tag v3.5.1 && git push --tags`) so you can rebuild the same package later.
-5. Test it on a bench MCU before sending it out (section 4).
+    Tap **Yes** to install, or **No** to leave everything as it is.
+5. **Wait.** The status bar shows "Updating to 3.5.1... do not remove USB or power." Leave the stick in and the power on.
+6. **The MCU restarts by itself.** The status bar shows "Update to 3.5.1 installed. Restarting... remove USB."
+7. **Check.** After the restart, remove the stick and tap **About**. It should show the new version.
 
-The package contains the app's code, `images/`, `RunMCU.sh`, `pyproject.toml` and `uv.lock`. It never contains, and so never touches, the MCU's recorded data (`FLICData`), its programs (`FLICPrograms`), its light/dark theme setting (`theme.txt`), its log or its Python environment (`.venv`).
+## Messages
 
-The `.mcu` file is an ordinary `.tar.gz` with a different extension. The extension stops browsers (notably Safari on a Mac) from unpacking it on download. The MCU still accepts `.tgz` files built by older versions of `CreateVersion.sh`.
-
-## 2. Instructions to send with the file
-
-> 1. Copy the attached file `PyMCU_3.5.1.mcu` onto a USB stick. Don't open, unzip or rename it. Put only this one update file on the stick.
-> 2. Make sure no experiment is running on the MCU.
-> 3. Plug the stick into the MCU.
-> 4. Tap **About** on the toolbar, then **Settings**, then **Update MCU**.
-> 5. Check the version in the prompt and tap **Yes**. Leave the stick in and the power on until the MCU restarts (about a minute).
-> 6. After the restart, remove the stick. **About** should show the new version.
->
-> If the MCU shows "Update failed", nothing was changed. Send us the message it shows.
-
-The file can be at the top level of the stick or in a folder named `FLICUpdates`. A stick that also holds `FLICData` or `FLICPrograms` works too.
-
-## 3. What the MCU does when Update MCU is pressed
-
-| Step | What happens | If it fails |
+| Message | Meaning | What to do |
 | --- | --- | --- |
-| Find the file | Looks for one `.mcu` (or `.tgz`) at the top of each USB drive and in its `FLICUpdates` folder. Hidden files, such as the `._` copies a Mac writes, are ignored. | "No update file (.mcu) found on the USB." or "More than one update file …; leave only one." |
-| Check the file | Reads the whole archive and rejects it if it's damaged, holds unsafe paths (absolute or `..`) or links, or has no `MainViewModel.py`. | "Update not started: …". Nothing changed. |
-| Confirm | Shows the package's version next to the installed one. | Cancel leaves everything as it was. |
-| Back up | Saves every file the update will replace. | |
-| Unpack | Unpacks over the app folder. Buttons stay locked until it finishes. | Files restored. |
-| New packages | If `uv.lock` changed, runs `uv sync --frozen` to install the new Python packages. **Needs an internet connection.** | Files and packages restored. "… is the MCU online?" |
-| Load check | Imports the updated `MainViewModel.py` in a separate process, which catches typing errors and missing packages. | Files restored, with the error shown. |
-| Restart | Flushes the disk and reboots (`sudo shutdown -r now`). | "Update installed. Restart the MCU to use it." The sudoers step in [Pi5Setup.md](Pi5Setup.md) section 7 is missing. |
+| The Update MCU button is greyed out | No USB stick detected, or a program is running or data is copying | Plug in the stick and wait a second; stop the experiment first |
+| No update file (.mcu) found on the USB. | The file isn't on the stick, or the browser changed it | Copy the `.mcu` file again; check the name ends in `.mcu` |
+| More than one update file on the USB (…); leave only one. | Several `.mcu`/`.tgz` files on the stick | Delete all but the new one |
+| Update not started: Not a readable update package … | The file is damaged, often from an incomplete download | Download and copy it again |
+| Update failed: Installing new Python packages failed (is the MCU online?) … The previous version was kept. | This update needs internet | Connect the MCU to a network and try again, or contact us |
+| Update failed: The updated code does not load … The previous version was kept. | The update has a problem | Nothing changed. Send us the message |
+| Update installed. Restart the MCU to use it. | Installed, but the MCU couldn't restart itself | Use **Power Off**, then power it on again. Tell us, since this unit needs a settings fix |
 
-The Update MCU button only works with a USB drive present. It is locked while a program runs or data is copying, so an update can't restart the MCU mid-experiment.
+In every "Update failed" or "Update not started" case, nothing on the MCU changed and it keeps working as before.
 
-Every step is written to `~/PyMCU/mcu.log` (look for lines starting with `Installing update` and `Update:`).
+## Good to know
 
-## 4. Before sending an update
-
-- [ ] Version raised in `MainViewModel.py` and `pyproject.toml`, and committed
-- [ ] `./CreateVersion.sh` gave no uncommitted-changes warning
-- [ ] Installed on a bench MCU with **Update MCU**; About shows the new version after the restart
-- [ ] If `pyproject.toml` or `uv.lock` changed: the user's MCU has internet during the update, or you update it yourself over SSH (`git pull && uv sync`)
-
-## 5. Limits
-
-- **Only for MCUs already on 3.5.0 or later.** This process needs the uv setup from [Pi5Setup.md](Pi5Setup.md). Older MCUs (a pip virtual environment under `/home/pi`, older update code) must not get a 3.5 package: their old updater would unpack it without checks, and the new `RunMCU.sh` would then fail to start. Set those up fresh from Pi5Setup.md.
-- **New Python packages need internet.** Without it, the update rolls back cleanly and the MCU keeps working on the old version.
-- **No undo button.** To go back a version, send the older `.mcu` file. Rebuild it from its tag if needed.
-- **Files are not deleted.** A file removed from the repo stays on the MCU after an update. That's harmless unless the code looks for it.
-- **Not signed.** Anyone who can build a package and get it onto a stick can install it, the same as anyone with the source. Physical access to the MCU is the control.
+- **Your data and programs are safe.** Updates never change recorded data (`FLICData`), saved programs (`FLICPrograms`) or the light/dark theme setting.
+- **Going back** to an older version works the same way, with the older `.mcu` file.
+- **For support,** the MCU keeps a log of each update at `~/PyMCU/mcu.log`, which we can read remotely.
