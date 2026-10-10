@@ -184,7 +184,7 @@ Use a rechargeable lithium-manganese cell, such as the official Raspberry Pi RTC
 dtparam=rtc_bbat_vchg=3000000
 ```
 
-Check with `cat /sys/class/rtc/rtc0/charging_voltage` (should print `3000000`) and `cat /sys/class/rtc/rtc0/battery_voltage` (non-zero with the battery connected). The About box shows the same reading as "Clock battery", for example `2.95 V, OK, charging`: OK at 2.5 V and above, low below that, not detected under 0.5 V. A new ML-2020 usually arrives partly discharged and reads low until it has charged for a day or so with the Pi powered. Never enable charging with a CR2032 or other non-rechargeable coin cell: it can leak or swell.
+Check with `cat /sys/class/rtc/rtc0/charging_voltage` (should print `3000000`) and `cat /sys/class/rtc/rtc0/battery_voltage` (non-zero with the battery connected). The About box shows the same reading as "Clock battery", for example `2.95 V, OK, charging`: OK at 2.5 V and above, low below that, "no battery connected" under 0.5 V. A new ML-2020 usually arrives partly discharged and reads low until it has charged for a day or so with the Pi powered. Never enable charging with a CR2032 or other non-rechargeable coin cell: it can leak or swell.
 
 **DS3231 no longer used.** Older MCUs had a DS3231 module at I2C address `0x68`. Version 3.5.0 does not use it: leave `dtoverlay=i2c-rtc,ds3231` out of `config.txt`, so it can't compete with the built-in RTC for `/dev/rtc0`. The module can be removed.
 

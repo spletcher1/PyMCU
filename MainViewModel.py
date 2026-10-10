@@ -89,7 +89,7 @@ def GetRTCBatteryText():
     except (OSError, ValueError):
         return "unavailable"
     if(volts<0.5):
-        return "not detected"
+        return "no battery connected"
     state = "OK" if volts>=2.5 else "low"
     try:
         charging = ReadMicrovolts("charging_voltage")>0
