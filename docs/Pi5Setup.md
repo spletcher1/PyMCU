@@ -34,8 +34,9 @@ Set the timezone in raspi-config, Localisation Options.
 The app lives in `~/PyMCU` and runs from a uv environment defined by `pyproject.toml` (Python 3.13). No sudo or system Python packages are needed.
 
 1. Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh` (installs to `~/.local/bin/uv`).
-2. Clone the branch: `git clone -b v3_Dev https://github.com/spletcher1/PyMCU.git ~/PyMCU`
-3. Build the environment: `cd ~/PyMCU && uv sync`
+2. Log in to GitHub (the repo is private): `sudo apt install gh`, then `gh auth login` (GitHub.com, HTTPS, log in with a web browser) and `gh auth setup-git`. This also lets `git pull` and `git push` work later.
+3. Clone the branch: `git clone -b v3_Dev https://github.com/spletcher1/PyMCU.git ~/PyMCU`
+4. Build the environment: `cd ~/PyMCU && uv sync`
 
 GPIO uses `adafruit-lgpio`, a prebuilt wheel of lgpio 0.2.2. The plain `lgpio` package compiles from source and would need `sudo apt install swig liblgpio-dev` first.
 
@@ -119,12 +120,29 @@ show_mounts=0
 
 ```
 [panel]
-widgets_left=smenu spacing4
+widgets_left=spacing4
 widgets_right=tray power spacing2 connect spacing2 bluetooth spacing2 netman spacing2 volumepulse spacing2 clock spacing2 batt spacing2 squeek
 notify=false
 ```
 
-This removes the launchers, window list, ejecter and updater. The menu stays for maintenance, and the on-screen keyboard button (`squeek`) stays for touch input.
+This removes the menu button, launchers, window list, ejecter and updater. The on-screen keyboard button (`squeek`) stays for touch input.
+
+**Keyboard shortcuts.** A USB keyboard could otherwise open a terminal (Ctrl+Alt+T) or the app menu (Super) over the app. Unbind those and the shortcuts that close or switch away from the app in `~/.config/labwc/rc.xml`. labwc merges this file with the system defaults; keep any `<touch>` line already there.
+
+```xml
+<keyboard>
+  <keybind key="C-A-t"><action name="None" /></keybind>
+  <keybind key="W-Return"><action name="None" /></keybind>
+  <keybind key="Super_L" onRelease="yes"><action name="None" /></keybind>
+  <keybind key="A-F2"><action name="None" /></keybind>
+  <keybind key="A-F3"><action name="None" /></keybind>
+  <keybind key="A-F4"><action name="None" /></keybind>
+  <keybind key="A-Tab"><action name="None" /></keybind>
+  <keybind key="A-space"><action name="None" /></keybind>
+</keyboard>
+```
+
+Apply with `kill -HUP $(pgrep -x labwc)` or a reboot. Volume, screenshot, lock (Ctrl+Alt+L) and the shutdown dialog (Ctrl+Alt+Del) still work. With no menu or terminal on the device, maintenance is over SSH (for example Cursor's remote connection). To restore the shortcuts, delete the `<keyboard>` block.
 
 **Cursor.** When the hostname contains `MCU`, `main()` in `MainViewModel.py` sets a blank cursor, so no pointer shows even before the first touch. A plugged-in mouse also shows no pointer over the app.
 
@@ -132,6 +150,8 @@ This removes the launchers, window list, ejecter and updater. The menu stays for
 
 ## 7. Optional steps (need sudo)
 
+- **SSH key-only login:** keep SSH on, since remote maintenance depends on it. From your computer run `ssh-copy-id flic@<pi>` and confirm you (and Cursor) connect without a password. Only then add `PasswordAuthentication no` to `/etc/ssh/sshd_config.d/kiosk.conf` and run `sudo systemctl restart ssh`. Doing it in the other order locks you out.
+- **Password:** give the user a strong password. sudo asks for it, so it is what stops a user who gets past the app from changing the system.
 - **Hostname:** `sudo raspi-config nonint do_hostname FLICMCU`, then reboot.
 - **Quieter boot:** add `logo.nologo vt.global_cursor_default=0 loglevel=3` to the single line in `/boot/firmware/cmdline.txt`. `quiet splash` is already there. This hides the Pi logos, the console cursor and most kernel messages at boot and shutdown.
 - **RTC:** the app runs `sudo hwclock -s` when the time is set. If a DS3231 is fitted, add `dtoverlay=i2c-rtc,ds3231` to `config.txt`. The Pi 5's built-in RTC needs no overlay.
@@ -168,6 +188,7 @@ Confirmed on 9 Oct 2026: all Python imports load, and `RunMCU.sh` starts the app
 - [ ] A USB stick mounts under `/media/<user>/` with no pop-up
 - [ ] Copy data to USB, then remove it once the app reports it unmounted
 - [ ] Desktop behind the app is black with no icons; taskbar shows no ejecter, updater or notifications
+- [ ] With a USB keyboard, Ctrl+Alt+T, Super, Alt+F4 and Alt+Tab do nothing over the app
 - [ ] Boot shows the FLIC splash, if the custom splash was installed
 - [ ] A DFM on the serial port and the environmental sensors are detected
 
