@@ -49,10 +49,14 @@ labwc runs `~/.config/labwc/autostart` at login, which launches `RunMCU.sh`. The
 # Started at login from ~/.config/labwc/autostart.
 cd "$(dirname "$(readlink -f "$0")")"
 export QT_QPA_PLATFORM=wayland
-exec "$HOME/.local/bin/uv" run --no-sync python MainViewModel.py
+# Keep app output in mcu.log (previous run's log rotated to mcu.log.1 once it passes 5 MB).
+if [ -f mcu.log ] && [ "$(stat -c %s mcu.log)" -gt 5000000 ]; then mv mcu.log mcu.log.1; fi
+exec "$HOME/.local/bin/uv" run --no-sync python -u MainViewModel.py >>mcu.log 2>&1
 ```
 
 It changes into its own folder because the app reads `Mainwindow.ui` and `theme.txt`, and writes `FLICData/`, relative to the working directory. `--no-sync` stops uv from touching the network at boot.
+
+**Log file.** Everything the app prints goes to `~/PyMCU/mcu.log`: the version at each start, failed copies, unmounts, clock and power-off errors, and the full traceback of any unexpected error. The app logs such errors and keeps running instead of closing. Check this file first when a user reports a problem.
 
 Add this line to the end of `~/.config/labwc/autostart`:
 
@@ -74,7 +78,7 @@ This replaces the `[idle]` section of the old `wayfire.ini`. Keep `myapp.showFul
 
 ## 5. USB drives and updates
 
-USB drives mount automatically at `/media/<user>/<label>`, with no pop-up. The app copies data there and unmounts the drive when done.
+USB drives mount automatically at `/media/<user>/<label>`, with no pop-up. The app copies data there and unmounts the drive when a copy succeeds.
 
 Create `~/.config/pcmanfm/default/pcmanfm.conf` from `/etc/xdg/pcmanfm/default/pcmanfm.conf` and set, under `[volume]`:
 
@@ -91,6 +95,13 @@ The app needs no `/home/pi` or `/media/pi` symlinks:
 - `GetUSBDrives()` checks `/media/<user>`, plus `/media/pi` if it exists.
 - Updates from a USB stick (`FLICUpdates/*.tgz`) unpack into the app's own folder. Build the package with `CreateVersion.sh`, which writes `NewVersion.tgz`.
 - Unmounting uses plain `umount`, which works for desktop mounts through udisks2's `umount.udisks2` helper.
+
+**How the app handles USB (3.5.0).**
+
+- **Detection:** once a second the app checks which drives are actually mounted. Plugging other USB devices (keyboard, hub) in or out no longer changes the buttons. A folder left behind by a stick pulled without unmounting is ignored.
+- **Locking:** Save data, Move programs and Update are enabled only with a drive present, and stay locked while a program runs or a copy is in progress.
+- **Save data:** cancelling leaves the stick mounted. After a successful copy the app flushes the data and unmounts, and says so only if the unmount worked. A failed copy shows the reason (for example "No space left on device") and leaves the stick mounted for a retry. Files are copied without permission bits, so FAT-formatted sticks work.
+- **Programs:** `.txt` files are found in any letter case (`PROGRAM.TXT`). Files saved on Windows with characters such as `°` or `µ` preview instead of crashing the app.
 
 **Which drive is used.** Each USB action uses the first drive, in name order, that has its folder at the top level. Drives without that folder are ignored, so an unrelated second stick does no harm.
 
@@ -148,13 +159,41 @@ Apply with `kill -HUP $(pgrep -x labwc)` or a reboot. Volume, screenshot, lock (
 
 **Dialogs.** Message boxes already set the main window as parent and use `WindowStaysOnTopHint`, so they stay in front under Wayland.
 
-## 7. Optional steps (need sudo)
+## 7. System settings (need sudo)
+
+### Required: power-off, clock and update reboot
+
+The app powers off the Pi, sets the clock and reboots after an update with `sudo -n`, which never prompts for a password. New Raspberry Pi OS users need a password for sudo, so allow exactly these commands. Without this, those buttons report an error and do nothing.
+
+```sh
+sudo apt install util-linux-extra      # provides hwclock
+echo 'flic ALL=(root) NOPASSWD: /usr/sbin/shutdown, /usr/bin/date, /usr/sbin/hwclock' | sudo tee /etc/sudoers.d/pymcu
+sudo chmod 440 /etc/sudoers.d/pymcu
+sudo visudo -cf /etc/sudoers.d/pymcu   # must print "parsed OK"
+```
+
+Replace `flic` with the actual user name. Check with `sudo -n /usr/sbin/hwclock -r`, which should print the RTC time without asking for a password.
+
+### Required: real-time clock battery
+
+Version 3.5.0 uses only the Pi 5's built-in RTC (`/dev/rtc0`). Setting the time in the app runs `date` and then `hwclock -w`, which writes it to the RTC. The RTC keeps time through power loss only with a battery on the J5 (BAT) connector.
+
+Use a rechargeable lithium-manganese cell, such as the official Raspberry Pi RTC battery (ML-2020). **Charging is off by default** (`/sys/class/rtc/rtc0/charging_voltage` reads `0`). Turn it on by adding this under `[all]` in `/boot/firmware/config.txt`, then reboot:
+
+```
+dtparam=rtc_bbat_vchg=3000000
+```
+
+Check with `cat /sys/class/rtc/rtc0/charging_voltage` (should print `3000000`) and `cat /sys/class/rtc/rtc0/battery_voltage` (non-zero with the battery connected). Never enable charging with a CR2032 or other non-rechargeable coin cell: it can leak or swell.
+
+**DS3231 no longer used.** Older MCUs had a DS3231 module at I2C address `0x68`. Version 3.5.0 does not use it: leave `dtoverlay=i2c-rtc,ds3231` out of `config.txt`, so it can't compete with the built-in RTC for `/dev/rtc0`. The module can be removed.
+
+### Optional
 
 - **SSH key-only login:** keep SSH on, since remote maintenance depends on it. From your computer run `ssh-copy-id flic@<pi>` and confirm you (and Cursor) connect without a password. Only then add `PasswordAuthentication no` to `/etc/ssh/sshd_config.d/kiosk.conf` and run `sudo systemctl restart ssh`. Doing it in the other order locks you out.
 - **Password:** give the user a strong password. sudo asks for it, so it is what stops a user who gets past the app from changing the system.
 - **Hostname:** `sudo raspi-config nonint do_hostname FLICMCU`, then reboot.
 - **Quieter boot:** add `logo.nologo vt.global_cursor_default=0 loglevel=3` to the single line in `/boot/firmware/cmdline.txt`. `quiet splash` is already there. This hides the Pi logos, the console cursor and most kernel messages at boot and shutdown.
-- **RTC:** the app runs `sudo hwclock -s` when the time is set. If a DS3231 is fitted, add `dtoverlay=i2c-rtc,ds3231` to `config.txt`. The Pi 5's built-in RTC needs no overlay.
 
 ### Custom boot splash
 
@@ -189,6 +228,9 @@ Confirmed on 9 Oct 2026: all Python imports load, and `RunMCU.sh` starts the app
 - [ ] Copy data to USB, then remove it once the app reports it unmounted
 - [ ] Desktop behind the app is black with no icons; taskbar shows no ejecter, updater or notifications
 - [ ] With a USB keyboard, Ctrl+Alt+T, Super, Alt+F4 and Alt+Tab do nothing over the app
+- [ ] Power off from the app works (sudoers step done)
+- [ ] Set the time in the app, power off, unplug for a while: the time is still right (RTC battery charging)
+- [ ] Unplugging a keyboard or mouse leaves the USB buttons unchanged
 - [ ] Boot shows the FLIC splash, if the custom splash was installed
 - [ ] A DFM on the serial port and the environmental sensors are detected
 

@@ -16,6 +16,7 @@ class FLICDataCopy(object):
         self.numFiles=0
         self.numCopied=0
         self.copySuccess=False
+        self.errorMessage=""
        
     def GetProgressString(self):   
         if(self.numFiles<=0):
@@ -58,6 +59,7 @@ class FLICDataCopy(object):
     
     def copyFilesWithProgress(self):
         self.copySuccess=False
+        self.errorMessage=""
         self.isDataTransferring=True
         try:           
             self.numFiles = self.countFiles(self.sourcePath)
@@ -75,13 +77,15 @@ class FLICDataCopy(object):
                         srcFile = os.path.join(path, sfile)
 
                         destFile = os.path.join(path.replace(self.sourcePath, self.targetPath), sfile)                        
-                        shutil.copy(srcFile, destFile)
+                        # Contents only: copying permission bits fails on FAT-formatted sticks.
+                        shutil.copyfile(srcFile, destFile)
                         self.numCopied += 1
                                     
             self.isDataTransferring=False
             self.copySuccess=True
-        except:
-            print("File Transfer Exception ")
+        except Exception as e:
+            # e.g. "No space left on device" or "Read-only file system"; shown to the user.
+            self.errorMessage=str(e)
             self.isDataTransferring=False
             self.copySuccess=False
         return

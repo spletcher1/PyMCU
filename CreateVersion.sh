@@ -3,4 +3,4 @@
 cd "$(dirname "$(readlink -f "$0")")"
 /bin/tar --exclude='./FLICData' --exclude='./FLICPrograms' --exclude='./docs' --exclude='./.git' \
     --exclude='./.venv' --exclude='./__pycache__' --exclude='./.vscode' --exclude='./.lgd-nfy*' \
-    --exclude='./theme.txt' --exclude='./NewVersion.tgz' -zcvf ./NewVersion.tgz .
+    --exclude='./theme.txt' --exclude='./mcu.log*' --exclude='./NewVersion.tgz' -zcvf ./NewVersion.tgz .

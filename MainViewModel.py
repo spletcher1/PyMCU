@@ -1,10 +1,9 @@
 import sys
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtCore import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-import pyudev
 import datetime
 import getpass
 import time
@@ -18,10 +17,13 @@ import os
 import subprocess
 import glob
 import shutil
+import traceback
 import FLICDataCopy
 from TimeInputDialog import DateDialog
 
 APP_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+# Shown in the About box; keep in step with the version in pyproject.toml.
+APP_VERSION = "3.5.0"
 
 # Durations of the simple program buttons, by button text.
 SIMPLE_PROGRAM_MINUTES = {"30 min":30, "60 min":60, "3 hours":180, "6 hours":360, "12 hours":720, "24 hours":1440, "5 days":7200}
@@ -44,11 +46,12 @@ STATUS_LABELS = {
 
 def GetUSBDrives():
     """Mount points of attached USB drives. Raspberry Pi OS mounts them under /media/<user>;
-    /media/pi is checked too for systems set up with that symlink."""
+    /media/pi is checked too for systems set up with that symlink. Folders left behind by a
+    drive that was pulled without unmounting are skipped: only real mount points count."""
     drives = []
     for root in dict.fromkeys(os.path.realpath(r) for r in ("/media/pi", "/media/"+getpass.getuser())):
         try:
-            drives += [f.path for f in os.scandir(root) if f.is_dir()]
+            drives += [f.path for f in os.scandir(root) if f.is_dir() and os.path.ismount(f.path)]
         except OSError:
             pass
     return sorted(drives)
@@ -61,16 +64,23 @@ def GetUSBDrive(folder):
             return drive
     return None
 
-class USBMonitorThread(QThread):
-    usb_event = pyqtSignal(str)
+def ListProgramFiles(directory):
+    """Program files (.txt in any letter case, e.g. PROGRAM.TXT from Windows) in a folder."""
+    try:
+        return [f.path for f in os.scandir(directory) if f.is_file() and f.name.lower().endswith(".txt")]
+    except OSError:
+        return []
 
-    def run(self):
-        context = pyudev.Context()
-        monitor = pyudev.Monitor.from_netlink(context)
-        monitor.filter_by(subsystem='usb')
-        for device in iter(monitor.poll, None):
-            if device.action in ('add','remove'):
-                self.usb_event.emit(device.action)
+def RunAsRoot(*command):
+    """Runs a command with sudo, never prompting for a password (see the sudoers step in
+    docs/Pi5Setup.md). Returns an error message, or None on success."""
+    try:
+        result = subprocess.run(["sudo","-n",*command],capture_output=True,text=True,timeout=60)
+    except (OSError,subprocess.TimeoutExpired) as e:
+        return str(e)
+    if result.returncode!=0:
+        return (result.stderr or result.stdout).strip() or "exit code "+str(result.returncode)
+    return None
 
 class MyMainWindow(QtWidgets.QMainWindow):
     # The DFM group announces new data from its worker threads. Re-emitting it as a Qt signal
@@ -116,6 +126,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.DFMButtons = {}
         self.UpdateProgramGUI()
         self.isUSBAttached=False
+        self.isCopyingData=False
         self.DisableButtons()
 
         self.main_widget = QtWidgets.QWidget(self)
@@ -135,22 +146,15 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.currentChosenProgramFile=""
         self.currentProgramFileDirectory=""
 
-        self.usb_monitor_thread = USBMonitorThread()
-        self.usb_monitor_thread.usb_event.connect(self.device_connected)
-        self.usb_monitor_thread.start()
-
         self.fastUpdateCheckBox.setChecked(False)
         self.zoomPlotCheckBox.setChecked(False)
-
-        self.updateButton.setEnabled(False)
 
         self.currentDFMType = Enums.DFMTYPE.PLETCHERV3
 
         self.isMessageUpdateNeeded=False
 
-        ## Check for USB upon startup
-        if(len(GetUSBDrives())>0):
-            self.SetUSBAttached(True)
+        ## Check for USB upon startup; UpdateGUI keeps checking once a second.
+        self.CheckUSB()
 
         self.is_theme_dark=is_theme_dark
         ## Only need to skip first check if it happens automatically
@@ -184,19 +188,20 @@ class MyMainWindow(QtWidgets.QMainWindow):
         msg = self._MessageBox(QMessageBox.Icon.Question,title,text,buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         return msg.exec()==QMessageBox.StandardButton.Yes
 
-    def device_connected(self,action):
-        if(action=="add"):
-            self.SetUSBAttached(True)
-        elif(action=="remove"):
-            self.SetUSBAttached(False)
+    def CheckUSB(self):
+        # Based on what is actually mounted, so other USB devices (keyboard, hub) coming and
+        # going don't change it, and it can't get stuck after a missed event.
+        isAttached = len(GetUSBDrives())>0
+        if(isAttached!=self.isUSBAttached):
+            self.isUSBAttached=isAttached
+            self.StatusBar.showMessage("USB connected..." if isAttached else "USB removed...",2000)
+            self.UpdateUSBButtons()
 
-    def SetUSBAttached(self,isAttached):
-        self.isUSBAttached=isAttached
-        self.StatusBar.showMessage("USB connected..." if isAttached else "USB removed...",2000)
-        self.saveDataAction.setEnabled(isAttached)
-        self.MoveProgramButton.setEnabled(isAttached)
-        self.updateButton.setEnabled(isAttached)
-        QApplication.processEvents()
+    def UpdateUSBButtons(self):
+        # USB actions need a drive and are locked while a program runs or data is copying.
+        isAllowed = self.isUSBAttached and not self.areButtonsLocked
+        for control in (self.saveDataAction,self.MoveProgramButton,self.updateButton):
+            control.setEnabled(isAllowed)
 
     def _ControlsLockedDuringProgram(self):
         return [self.clearDFMAction, self.clearMessagesAction, self.deleteDataAction, self.powerOffAction,
@@ -205,15 +210,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.toggleOutputsAction, self.LoadProgramButton, self.DeleteProgramButton, self.SetDateAndTimeButton]
 
     def DisableButtons(self):
-        for control in self._ControlsLockedDuringProgram()+[self.saveDataAction,self.MoveProgramButton]:
+        self.areButtonsLocked=True
+        for control in self._ControlsLockedDuringProgram():
             control.setEnabled(False)
+        self.UpdateUSBButtons()
 
     def EnableButtons(self):
+        if(self.isCopyingData):
+            return
+        self.areButtonsLocked=False
         for control in self._ControlsLockedDuringProgram():
             control.setEnabled(True)
-        if(self.isUSBAttached==True):
-            self.saveDataAction.setEnabled(True)
-            self.MoveProgramButton.setEnabled(True)
+        self.UpdateUSBButtons()
 
     def SetStartTimeNow(self):
         self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))
@@ -340,11 +348,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
         secs= DateDialog.getDateTime(self)
         if(secs==0):
             return
-        ss1 = "'@"+str(secs)+"'"
-        ss2 = "sudo hwclock --set --date=\"$(date --date="+ss1+")\""
-        os.system(ss2)
-        time.sleep(1)
-        os.system("sudo hwclock -s")
+        # Set the system clock, then write it to the Pi 5's built-in RTC (rtc0) so it survives
+        # power-off on the RTC battery.
+        newTime = datetime.datetime.fromtimestamp(secs).strftime("%Y-%m-%d %H:%M:%S")
+        error = RunAsRoot("/usr/bin/date","-s","@"+str(secs))
+        if(error is None):
+            error = RunAsRoot("/usr/sbin/hwclock","-w")
+        if(error is None):
+            self.StatusBar.showMessage("Clock set to "+newTime+".",self.statusmessageduration)
+        else:
+            print("Setting the clock failed: "+error)
+            self.StatusBar.showMessage("Clock not set: "+error,self.statusmessageduration)
 
     def GetFreeMegaBytes(self):
         stat = os.statvfs(APP_DIRECTORY)
@@ -363,7 +377,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V2; P5)"
         else:
             stext = "Flidea Master Control Unit (V3; P5)"
-        ss="Version: 2.0.0\nIP: " + hostip
+        ss="Version: " + APP_VERSION + "\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(self.GetFreeMegaBytes())) +" MB"
         msg = self._MessageBox(QMessageBox.Icon.Information,"About MCU",stext,ss)
         settingsButton = msg.addButton("Settings",QMessageBox.ButtonRole.YesRole)
@@ -463,7 +477,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
            self._Confirm("Power Off","Are you REALLY sure that you would like to power off?")):
             print("Shutting down")
             self.theDFMGroup.MP.StopReading()
-            subprocess.call("sudo nohup shutdown -h now", shell=True)
+            error = RunAsRoot("/usr/sbin/shutdown","-h","now")
+            if(error is not None):
+                print("Power off failed: "+error)
+                self.StatusBar.showMessage("Power off failed: "+error,self.statusmessageduration)
 
     def AssureClearMessages(self):
         if(self._Confirm("Clear Messages","Are you sure that you would like to clear messages?")):
@@ -579,6 +596,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.EnableButtons()
             self.fastUpdateCheckBox.setEnabled(False)
+        self.CheckUSB()
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
         if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:
             self.UpdateDFMPageGUI()
@@ -597,8 +615,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
         if(curr == None):
             return
         self.currentChosenProgramFile = curr.text()
-        with open(self.currentProgramFileDirectory+self.currentChosenProgramFile,"r") as f:
-            self.ProgramPreviewTextBox.setText(f.read())
+        # Files saved on Windows may not be UTF-8 (e.g. a degree sign); show them anyway.
+        try:
+            with open(self.currentProgramFileDirectory+self.currentChosenProgramFile,"r",encoding="utf-8-sig",errors="replace") as f:
+                self.ProgramPreviewTextBox.setText(f.read())
+        except OSError as e:
+            self.ProgramPreviewTextBox.setText("Cannot read this file: "+str(e))
 
     def LoadProgramClicked(self):
         if(self.currentChosenProgramFile!=""):
@@ -640,12 +662,13 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.StatusBar.showMessage("No USB with a FLICPrograms folder found.",self.statusmessageduration)
             return
         try:
-            files=glob.glob(drive+"/FLICPrograms/*.txt")
+            files=ListProgramFiles(drive+"/FLICPrograms")
+            os.makedirs("./FLICPrograms",exist_ok=True)
             for i in files:
-                shutil.copy(i,"./FLICPrograms/")
-        except OSError:
-            print("Normal except: problem moving program")
-            self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)
+                shutil.copyfile(i,os.path.join("./FLICPrograms",os.path.basename(i)))
+        except OSError as e:
+            print("Problem moving programs: "+str(e))
+            self.StatusBar.showMessage("Problem moving programs: "+str(e),self.statusmessageduration)
             return
         if(len(files)==0):
             self.StatusBar.showMessage("No .txt files found.",self.statusmessageduration)
@@ -657,7 +680,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def LoadFilesListWidget(self):
         self.FilesListWidget.clear()
         self.currentProgramFileDirectory ="./FLICPrograms/"
-        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
+        files=ListProgramFiles(self.currentProgramFileDirectory)
         files.sort(reverse=True)
         for f in files:
             h, t = os.path.split(f)
@@ -670,54 +693,59 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.GotoProgramLoadPage()
 
     def SaveDataToUSB( self ):
-        try:
-            drive = GetUSBDrive("FLICData")
-            if drive is None:
-                self.StatusBar.showMessage("No USB with a FLICData folder found.",self.statusmessageduration)
-                return
-            msg = self._MessageBox(QMessageBox.Icon.Warning,"Data Transfer","Do not remove USB until copy is noted as complete.",
-                                   "This may take several minutes.\nPress Okay to begin.",
-                                   QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
-            returnVal=msg.exec()
-
-            QApplication.processEvents()
-            if returnVal==QMessageBox.StandardButton.Ok:
-                self.DisableButtons()
-                self.GoToMessagesPage()
-                self.StatusBar.showMessage("Copying data files...",120000)
-                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)
-                self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
-                QApplication.processEvents()
-                destPath = drive+'/FLICData'
-                # Data is recorded to ./FLICData (see DFMGroup.WriteStarter).
-                sourcePath=os.path.abspath("FLICData")
-                tmp=FLICDataCopy.FLICDataCopy("Copying files: ")
-                tmp.StartDataTransfer(sourcePath,destPath)
-                while(tmp.isDataTransferring):
-                    self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
-                    QApplication.processEvents()
-                    time.sleep(0.2)
-                if(tmp.copySuccess):
-                    self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)
-                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.ANNOTATION)
-                else:
-                    self.StatusBar.showMessage("Data copy failed.",self.statusmessageduration)
-                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)
-                self.EnableButtons()
-            else:
-                self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)
-
-            command = "umount " + '"'+drive+'"'
-            os.system(command)
-            self.isUSBAttached=False
-            self.saveDataAction.setEnabled(False)
-            self.MoveProgramButton.setEnabled(False)
-            QApplication.processEvents()
-            self.StatusBar.showMessage("USB unmounted. Ready to remove.",self.statusmessageduration)
-        except Exception:
-            print("Except: Problem saving data to USB.")
-            self.StatusBar.showMessage("Problem saving data to USB.",self.statusmessageduration)
+        drive = GetUSBDrive("FLICData")
+        if drive is None:
+            self.StatusBar.showMessage("No USB with a FLICData folder found.",self.statusmessageduration)
             return
+        # Data is recorded to ./FLICData (see DFMGroup.WriteStarter).
+        sourcePath=os.path.abspath("FLICData")
+        tmp=FLICDataCopy.FLICDataCopy("Copying files: ")
+        if(tmp.countFiles(sourcePath)==0):
+            self.StatusBar.showMessage("No local data to copy.",self.statusmessageduration)
+            return
+        msg = self._MessageBox(QMessageBox.Icon.Warning,"Data Transfer","Do not remove USB until copy is noted as complete.",
+                               "This may take several minutes.\nPress Okay to begin.",
+                               QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        if msg.exec()!=QMessageBox.StandardButton.Ok:
+            # The drive stays mounted, so programs can still be moved or the copy retried.
+            self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)
+            return
+
+        self.DisableButtons()
+        self.isCopyingData=True
+        try:
+            self.GoToMessagesPage()
+            self.StatusBar.showMessage("Copying data files...",120000)
+            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)
+            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
+            QApplication.processEvents()
+            tmp.StartDataTransfer(sourcePath,drive+'/FLICData')
+            while(tmp.isDataTransferring):
+                self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
+                QApplication.processEvents()
+                time.sleep(0.2)
+            if(not tmp.copySuccess):
+                print("Data copy failed: "+tmp.errorMessage)
+                self.StatusBar.showMessage("Data copy failed: "+tmp.errorMessage,self.statusmessageduration)
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed! "+tmp.errorMessage, Enums.MESSAGETYPE.ERROR)
+                return
+
+            # Flush everything to the stick before saying it can be removed.
+            os.sync()
+            result = subprocess.run(["umount",drive],capture_output=True,text=True)
+            if(result.returncode==0):
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete. USB unmounted.", Enums.MESSAGETYPE.ANNOTATION)
+                self.StatusBar.showMessage("Data copy complete. USB unmounted, ready to remove.",self.statusmessageduration)
+            else:
+                error = result.stderr.strip()
+                print("Unmount failed: "+error)
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete, but USB did not unmount: "+error, Enums.MESSAGETYPE.ERROR)
+                self.StatusBar.showMessage("Copy complete, but USB did not unmount. Wait, then remove it.",self.statusmessageduration)
+        finally:
+            self.isMessageUpdateNeeded=True
+            self.isCopyingData=False
+            self.EnableButtons()
+            self.CheckUSB()
 
     def ZoomPlotChanged(self):
         if(self.zoomPlotCheckBox.isChecked()):
@@ -756,16 +784,24 @@ class MyMainWindow(QtWidgets.QMainWindow):
             if(len(files)==1):
                 self.StatusBar.showMessage("Updating...",self.statusmessageduration)
                 time.sleep(1)
-                command = "/bin/tar -C \"" + APP_DIRECTORY + "\" -xvf " + "\""+files[0]+"\""
-                os.system(command)
+                result = subprocess.run(["/bin/tar","-C",APP_DIRECTORY,"-xf",files[0]],capture_output=True,text=True)
+                if(result.returncode!=0):
+                    print("Update failed: "+result.stderr)
+                    self.StatusBar.showMessage("Update failed: "+result.stderr.strip(),self.statusmessageduration)
+                    return
                 self.StatusBar.showMessage("Update complete. Rebooting. Remove USB.",self.statusmessageduration)
+                QApplication.processEvents()
                 time.sleep(5)
-                os.system("sudo shutdown -r now")
+                error = RunAsRoot("/usr/sbin/shutdown","-r","now")
+                if(error is not None):
+                    print("Reboot failed: "+error)
+                    self.StatusBar.showMessage("Update installed. Restart the MCU to use it.",self.statusmessageduration)
             else:
                 self.StatusBar.showMessage("Update failed.",self.statusmessageduration)
                 self.GotoDFMPage()
-        except Exception:
-            pass
+        except Exception as e:
+            print("Update failed: "+str(e))
+            self.StatusBar.showMessage("Update failed: "+str(e),self.statusmessageduration)
 
 
 def check_theme(app):
@@ -797,7 +833,16 @@ def set_dark_theme(app):
     palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
     app.setPalette(palette)
 
+def LogException(excType,excValue,excTraceback):
+    # PyQt6 aborts the whole app on an error inside a button or timer handler unless
+    # sys.excepthook is replaced. Log it (RunMCU.sh sends output to mcu.log) and keep running.
+    print(datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")+" Unhandled error:")
+    traceback.print_exception(excType,excValue,excTraceback)
+    sys.stdout.flush()
+
 def main():
+    sys.excepthook=LogException
+    print(datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")+" PyMCU "+APP_VERSION+" starting")
     if("MCU" in platform.node()):
         theBoard=Board.BoardSetup()
     else:

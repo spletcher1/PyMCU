@@ -134,3 +134,4 @@ dmypy.json
 .vs/
 .lgd-nfy*
 NewVersion.tgz
+mcu.log*
