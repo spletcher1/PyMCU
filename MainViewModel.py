@@ -51,7 +51,15 @@ def GetUSBDrives():
             drives += [f.path for f in os.scandir(root) if f.is_dir()]
         except OSError:
             pass
-    return drives
+    return sorted(drives)
+
+def GetUSBDrive(folder):
+    """First attached USB drive that has the given top-level folder, or None.
+    Drives without it (e.g. a second, unrelated stick) are ignored."""
+    for drive in GetUSBDrives():
+        if os.path.isdir(os.path.join(drive, folder)):
+            return drive
+    return None
 
 class USBMonitorThread(QThread):
     usb_event = pyqtSignal(str)
@@ -627,11 +635,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def MoveProgramFilesToLocal(self):
         self.StatusBar.showMessage("Moving programs from USB...",self.statusmessageduration)
-        drives = GetUSBDrives()
+        drive = GetUSBDrive("FLICPrograms")
+        if drive is None:
+            self.StatusBar.showMessage("No USB with a FLICPrograms folder found.",self.statusmessageduration)
+            return
         try:
-            if(len(drives)==0):
-                raise OSError("No USB drive")
-            files=glob.glob(drives[0]+"/FLICPrograms/*.txt")
+            files=glob.glob(drive+"/FLICPrograms/*.txt")
             for i in files:
                 shutil.copy(i,"./FLICPrograms/")
         except OSError:
@@ -662,10 +671,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def SaveDataToUSB( self ):
         try:
-            drives = GetUSBDrives()
-            if len(drives)==0:
-                self.StatusBar.showMessage("USB not found.",self.statusmessageduration)
-                print("not found")
+            drive = GetUSBDrive("FLICData")
+            if drive is None:
+                self.StatusBar.showMessage("No USB with a FLICData folder found.",self.statusmessageduration)
                 return
             msg = self._MessageBox(QMessageBox.Icon.Warning,"Data Transfer","Do not remove USB until copy is noted as complete.",
                                    "This may take several minutes.\nPress Okay to begin.",
@@ -680,7 +688,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)
                 self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
                 QApplication.processEvents()
-                destPath = drives[0]+'/FLICData'
+                destPath = drive+'/FLICData'
                 # Data is recorded to ./FLICData (see DFMGroup.WriteStarter).
                 sourcePath=os.path.abspath("FLICData")
                 tmp=FLICDataCopy.FLICDataCopy("Copying files: ")
@@ -699,7 +707,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             else:
                 self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)
 
-            command = "umount " + '"'+drives[0]+'"'
+            command = "umount " + '"'+drive+'"'
             os.system(command)
             self.isUSBAttached=False
             self.saveDataAction.setEnabled(False)
@@ -743,8 +751,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def RunUpdate(self):
         try:
-            drives = GetUSBDrives()
-            files = glob.glob(drives[0]+"/FLICUpdates/*.tgz") if drives else []
+            drive = GetUSBDrive("FLICUpdates")
+            files = glob.glob(drive+"/FLICUpdates/*.tgz") if drive else []
             if(len(files)==1):
                 self.StatusBar.showMessage("Updating...",self.statusmessageduration)
                 time.sleep(1)
@@ -795,6 +803,9 @@ def main():
     else:
         theBoard=Board.BoardMock()
     app = QtWidgets.QApplication(sys.argv)
+    if("MCU" in platform.node()):
+        # Touch-screen kiosk: no mouse cursor, even before the first touch.
+        app.setOverrideCursor(Qt.CursorShape.BlankCursor)
     is_theme_dark=check_theme(app)
     myapp = MyMainWindow(theBoard,is_theme_dark)
     myapp.showFullScreen()

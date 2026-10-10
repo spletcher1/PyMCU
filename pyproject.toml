@@ -1,0 +1,28 @@
+[project]
+name = "pymcu"
+version = "3.0.0.dev0"
+description = "FLIC/DFM master control unit GUI for Raspberry Pi"
+requires-python = ">=3.13"
+dependencies = [
+    # GUI
+    "PyQt6",
+    "matplotlib",
+    "numpy",
+    # DFM communication
+    "pyserial",
+    "cobs",
+    "smbus2",
+    "pyudev",
+    # GPIO (lgpio is the pin factory gpiozero needs on the Pi 5)
+    "gpiozero",
+    "adafruit-lgpio",
+    # Environmental sensors (board/busio come from adafruit-blinka)
+    "adafruit-blinka",
+    "adafruit-circuitpython-tsl2591",
+    "adafruit-circuitpython-tsl2561",
+    "adafruit-circuitpython-si7021",
+]
+
+[tool.uv]
+# Flat collection of scripts run via `uv run python MainViewModel.py`, not an installable package
+package = false
