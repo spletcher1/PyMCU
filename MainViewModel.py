@@ -77,6 +77,26 @@ def FindUpdateFiles():
                 pass
     return sorted(found)
 
+def GetRTCBatteryText():
+    """Voltage and state of the Pi 5 RTC battery (J5), e.g. "2.95 V, OK, charging".
+    Thresholds suit a rechargeable ML-2020 (3.0 V nominal, 2.0 V when exhausted); the voltage
+    doesn't fall evenly with charge, so no percentage is shown."""
+    def ReadMicrovolts(name):
+        with open("/sys/class/rtc/rtc0/"+name) as f:
+            return int(f.read().strip())
+    try:
+        volts = ReadMicrovolts("battery_voltage")/1e6
+    except (OSError, ValueError):
+        return "unavailable"
+    if(volts<0.5):
+        return "not detected"
+    state = "OK" if volts>=2.5 else "low"
+    try:
+        charging = ReadMicrovolts("charging_voltage")>0
+    except (OSError, ValueError):
+        charging = False
+    return "{:.2f} V, {}, {}".format(volts, state, "charging" if charging else "charging off")
+
 def ListProgramFiles(directory):
     """Program files (.txt in any letter case, e.g. PROGRAM.TXT from Windows) in a folder."""
     try:
@@ -392,6 +412,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3; P5)"
         ss="Version: " + APP_VERSION + "\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(self.GetFreeMegaBytes())) +" MB"
+        ss=ss+"\nClock battery: " + GetRTCBatteryText()
         msg = self._MessageBox(QMessageBox.Icon.Information,"About MCU",stext,ss)
         settingsButton = msg.addButton("Settings",QMessageBox.ButtonRole.YesRole)
         msg.addButton("Okay",QMessageBox.ButtonRole.NoRole)
