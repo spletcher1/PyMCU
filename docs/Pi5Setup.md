@@ -74,6 +74,8 @@ The screen turns off after 60 seconds idle and wakes on touch. Turn on screen bl
 swayidle -w timeout 60 'wlopm --off \*' resume 'wlopm --on \*' &
 ```
 
+After setup, change the time from the app: About → Settings → **Screen off after**, with − and + stepping through Never, 15 s to 3600 s. The app rewrites this `swayidle` line, so the time survives a reboot, and restarts `swayidle` so it applies at once. Never removes the line.
+
 This replaces the `[idle]` section of the old `wayfire.ini`. Keep `myapp.showFullScreen()`: the 10/5/25 note says recent PyQt no longer blocks blanking in full screen.
 
 ## 5. USB drives and updates

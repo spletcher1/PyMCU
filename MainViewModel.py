@@ -19,11 +19,15 @@ import shutil
 import traceback
 import FLICDataCopy
 import MCUUpdate
+import ScreenBlank
 from TimeInputDialog import DateDialog
 
 APP_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 # Shown in the About box; keep in step with the version in pyproject.toml.
 APP_VERSION = "3.5.0"
+
+# Screen blanking times offered on the settings page, in seconds (0 = never).
+SCREEN_BLANK_STEPS = [0, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1800, 3600]
 
 # Durations of the simple program buttons, by button text.
 SIMPLE_PROGRAM_MINUTES = {"30 min":30, "60 min":60, "3 hours":180, "6 hours":360, "12 hours":720, "24 hours":1440, "5 days":7200}
@@ -152,6 +156,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.theDFMGroup = DFMGroup.DFMGroup(self.theBoard)
         super(MyMainWindow,self).__init__()
         self.InitializeGUI()
+        self.BuildScreenBlankSetting()
         self.statusmessageduration=5000
         self.activeDFMNum=-1
         self.activeDFM=None
@@ -202,6 +207,58 @@ class MyMainWindow(QtWidgets.QMainWindow):
         QtCore.QTimer.singleShot(0,self.UpdateGUI)
 
         self.CheckForLowStorageWarning()
+
+    def BuildScreenBlankSetting(self):
+        # Settings row "Screen off after: [-] 60 s [+]". Changes are saved about a second after
+        # the last tap, so stepping through values doesn't restart swayidle each time.
+        row = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(row)
+        layout.setContentsMargins(0,0,0,0)
+        layout.addWidget(QtWidgets.QLabel("Screen off after:"))
+        self.screenBlankSeconds = ScreenBlank.ReadSeconds()
+        self.screenBlankLabel = QtWidgets.QLabel()
+        self.screenBlankLabel.setMinimumWidth(70)
+        self.screenBlankLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        for text, step in (("\u2212",-1),(None,0),("+",1)):
+            if text is None:
+                layout.addWidget(self.screenBlankLabel)
+                continue
+            button = QtWidgets.QPushButton(text)
+            button.setFixedSize(60,50)
+            button.setFont(QFont('Arial', 16, QFont.Weight.Bold))
+            button.clicked.connect(lambda checked=False, s=step: self.StepScreenBlank(s))
+            layout.addWidget(button)
+        layout.addStretch(1)
+        self.groupBox.layout().addWidget(row, 3, 0)
+        self.groupBox.layout().setRowStretch(4, 1)  # keep the settings rows packed at the top
+        self.screenBlankTimer = QtCore.QTimer(self)
+        self.screenBlankTimer.setSingleShot(True)
+        self.screenBlankTimer.timeout.connect(self.SaveScreenBlank)
+        self.ShowScreenBlank()
+
+    def ShowScreenBlank(self):
+        self.screenBlankLabel.setText("Never" if self.screenBlankSeconds==0 else str(self.screenBlankSeconds)+" s")
+
+    def StepScreenBlank(self,step):
+        # Move to the next listed value; a hand-edited time not in the list snaps to its neighbour.
+        current = self.screenBlankSeconds
+        if step>0:
+            larger = [v for v in SCREEN_BLANK_STEPS if v>current]
+            self.screenBlankSeconds = larger[0] if larger else SCREEN_BLANK_STEPS[-1]
+        else:
+            smaller = [v for v in SCREEN_BLANK_STEPS if v<current]
+            self.screenBlankSeconds = smaller[-1] if smaller else SCREEN_BLANK_STEPS[0]
+        self.ShowScreenBlank()
+        self.screenBlankTimer.start(1200)
+
+    def SaveScreenBlank(self):
+        error = ScreenBlank.SetSeconds(self.screenBlankSeconds)
+        if(error is None):
+            when = "never" if self.screenBlankSeconds==0 else "after "+str(self.screenBlankSeconds)+" s"
+            self.StatusBar.showMessage("Screen will turn off "+when+".",self.statusmessageduration)
+        else:
+            print("Screen blank setting failed: "+error)
+            self.StatusBar.showMessage("Screen off time not saved: "+error,self.statusmessageduration)
 
     def _MessageBox(self,icon,title,text,informativeText=None,buttons=None):
         # On Wayland a dialog stays in front only with a parent and these window flags, and the
