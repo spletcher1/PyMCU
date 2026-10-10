@@ -847,6 +847,9 @@ def set_dark_theme(app):
     palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
     palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
+    # Grey out disabled controls (and other-month days in the calendar).
+    for role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText):
+        palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(127, 127, 127))
     app.setPalette(palette)
 
 def LogException(excType,excValue,excTraceback):
