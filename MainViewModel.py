@@ -558,8 +558,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         errors = dfm.currentDFMErrors
         boxes = (self.I2CErrorBox, self.OERRErrorBox, self.PacketErrorBox, self.SIErrorBox,
                  self.TSLErrorBox, self.FERRErrorBox, self.InterruptErrorBox, self.MiscErrorBox)
+        self.LayOutErrorBoxes(boxes, errors.display)
         for box, entry in zip(boxes, errors.display):
-            box.setVisible(entry is not None)
             if(entry is None):
                 continue
             label, description, bits = entry
@@ -568,6 +568,22 @@ class MyMainWindow(QtWidgets.QMainWindow):
             box.setChecked(errors.GetStatus(bits)!=Enums.REPORTEDERRORSTATUS.NEVER)
 
         self.UpdateDFMButtonTextColors()
+
+    def LayOutErrorBoxes(self, boxes, display):
+        # Fill the grid slots in order (down the first column, then the second) with the boxes
+        # in use, so a hidden one (e.g. bit 1 on firmware before 2.0.2) leaves no gap under
+        # No Ack; any empty slot ends up last.
+        if(getattr(self,"errorBoxDisplay",None) is display):
+            return
+        self.errorBoxDisplay = display
+        layout = self.DFMErrorGroupBox.layout()
+        slots = [(0,0),(1,0),(4,0),(5,0),(0,1),(1,1),(4,1),(5,1)]
+        shown = [box for box, entry in zip(boxes, display) if entry is not None]
+        for box in boxes:
+            layout.removeWidget(box)
+            box.setVisible(box in shown)
+        for box, (row, col) in zip(shown, slots):
+            layout.addWidget(box, row, col)
 
     def ProgramEnded(self):
         self.RunProgramButton.setText("Run Program")
