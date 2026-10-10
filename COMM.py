@@ -8,15 +8,21 @@ bus. The protocol is defined by the DFM firmware (DFMV3_V2/src/UART2.c, and DFMV
     linkage requests carry a payload followed by a 4-byte big-endian checksum (see Checksum32).
   * A DFM answers 5 ms (firmware 2.0.x) or 15 ms (older firmware) after a request, plus 2-3 ms
     to turn its driver on. After its last byte it keeps driving the bus for another 2-3 ms.
-  * A status reply holds up to 60 56-byte status packets. The DFM keeps them until it is ACKed,
-    so packets that were never ACKed are sent again with the next status request. Firmware 2.0.2
-    and later also take a partial ACK: [ID, 0xF9, index of the last packet kept, checksum]. The
-    DFM then sends again only the packets after that one.
+  * A status reply holds up to 60 56-byte status packets (28 127-byte packets from firmware
+    4.0.0). The DFM keeps them until it is ACKed, so packets that were never ACKed are sent again
+    with the next status request. Firmware 2.0.2 and later also take a partial ACK: [ID, 0xF9,
+    index of the last packet kept, checksum]. The DFM then sends again only the packets after
+    that one.
+  * Firmware 4.0.0 and later take the Paradigm instruction (0xF7, ParadigmInstructionPayload)
+    instead of the old instruction (0xFD), and report Paradigm state in each status packet
+    (StatusPacket.V4_PACKET_SIZE).
   * Buffer resets, instructions and linkages are answered with [ID] (ACK) or [0xFE] (NACK).
 
 I2CCOMM talks to legacy V2 DFMs over I2C.
 """
 import platform
+import re
+import struct
 import sys
 import time
 
@@ -39,12 +45,18 @@ LATEST_STATUS_REQUEST = 0xEA
 VERSION_REQUEST = 0xEB
 BUFFER_RESET_REQUEST = 0xFE
 INSTRUCTION_REQUEST = 0xFD
+PARADIGM_INSTRUCTION_REQUEST = 0xF7
 LINKAGE_REQUEST = 0xFB
 ACK = 0xFA
 PARTIAL_ACK = 0xF9
 PARTIAL_ACK_FIRMWARE = (2, 0, 2)
+PARADIGM_FIRMWARE = (4, 0, 0)
 # Firmware MAXPACKETS. A reply this full means more packets are waiting on the DFM.
 MAX_STATUS_PACKETS = 60
+MAX_STATUS_PACKETS_V4 = 28
+# Paradigm instruction thresholds that set a Well On or Off.
+THRESHOLD_ON = 0xFFFE
+THRESHOLD_OFF = 0xFFFF
 
 ENVMON_ID = 99
 
@@ -77,26 +89,59 @@ def _Field(value, size):
     return (value & ((1 << (8 * size)) - 1)).to_bytes(size, "big")
 
 
+def FirmwareVersionTuple(version):
+    """(major, minor, patch) from a firmware version (str, or bytes as GetVersion returns), or ()."""
+    if isinstance(version, bytes):
+        version = version.decode("ascii", errors="replace")
+    match = re.match(r"\s*(\d+)\.(\d+)\.(\d+)", version or "")
+    return tuple(int(g) for g in match.groups()) if match else ()
+
+
 def SupportsPartialAck(version):
-    """True if DFM firmware with this version string (bytes, as GetVersion returns) takes partial ACKs."""
-    try:
-        return tuple(int(p) for p in version.decode("ascii").split(".")) >= PARTIAL_ACK_FIRMWARE
-    except (UnicodeDecodeError, ValueError):
-        return False
+    """True if DFM firmware with this version takes partial ACKs."""
+    return FirmwareVersionTuple(version) >= PARTIAL_ACK_FIRMWARE
+
+
+def UsesParadigmFirmware(version):
+    """True if DFM firmware with this version takes the Paradigm instruction and sends 127-byte
+    status packets (firmware 4.0.0 and later)."""
+    return FirmwareVersionTuple(version) >= PARADIGM_FIRMWARE
 
 
 def InstructionPayload(instruction, timingSize):
-    """Instruction packet body: dark, frequency, pulse width, decay, delay, max time on and the
-    12 thresholds. Decay, delay and max time on are 2 bytes for V1.5 firmware and 4 for V2.
+    """Instruction packet body for firmware before 4.0.0: dark, frequency, pulse width, decay,
+    delay, max time on and the 12 thresholds. Decay, delay and max time on are 2 bytes for V1.5
+    firmware and 4 for V2.
 
     A -1 threshold goes out as 0xFFFF, which the firmware treats as 'never on'.
     """
+    frequency, pulseWidth, decay, delay, maxTimeOn = instruction.paradigm.LegacyFields()
     payload = bytes((1 if instruction.theDarkState == Enums.DARKSTATE.ON else 0,))
-    payload += _Field(instruction.frequency, 2) + _Field(instruction.pulseWidth, 2)
-    for value in (instruction.decay, instruction.delay, instruction.maxTimeOn):
+    payload += _Field(frequency, 2) + _Field(pulseWidth, 2)
+    for value in (decay, delay, maxTimeOn):
         payload += _Field(value, timingSize)
     for threshold in instruction.adjustedThresholds:
         payload += _Field(threshold, 2)
+    return payload
+
+
+def ParadigmInstructionPayload(instruction, number, keepState):
+    """Paradigm instruction body for firmware 4.0.0 and later. The layout is ParseParadigmInstruction()
+    in DFMV3_V2 src/LEDControl.c: instruction number, Paradigm type, flags (bit 0: keep the Wells'
+    Paradigm state), dark, frequency, pulse width, Event gap, Acclimation, the type's 5 settings and
+    the 12 thresholds (0xFFFE On, 0xFFFF Off)."""
+    paradigm = instruction.paradigm
+    payload = struct.pack(">HBBBHHHH", number & 0xFFFF, int(paradigm.type), 1 if keepState else 0,
+                          1 if instruction.theDarkState == Enums.DARKSTATE.ON else 0,
+                          paradigm.frequency, paradigm.pulseWidth, paradigm.eventGapMs, paradigm.acclimation)
+    payload += struct.pack(">5I", *paradigm.SettingsWords())
+    for threshold in instruction.adjustedThresholds:
+        if threshold == 0:
+            payload += struct.pack(">H", THRESHOLD_ON)
+        elif threshold < 0:
+            payload += struct.pack(">H", THRESHOLD_OFF)
+        else:
+            payload += struct.pack(">H", min(threshold, 0xFFFD))
     return payload
 
 
@@ -218,6 +263,12 @@ class UARTCOMM:
 
     def SendInstructionDFMV2_0(self, ID, anInstruction):
         self._SendChecksummedRequest(ID, INSTRUCTION_REQUEST, InstructionPayload(anInstruction, 4))
+        return self._ReadAck(ID)
+
+    def SendParadigmInstruction(self, ID, anInstruction, number, keepState):
+        """Firmware 4.0.0 and later. Returns True if the DFM ACKed it."""
+        self._SendChecksummedRequest(ID, PARADIGM_INSTRUCTION_REQUEST,
+                                     ParadigmInstructionPayload(anInstruction, number, keepState))
         return self._ReadAck(ID)
     #endregion
 

@@ -1,0 +1,75 @@
+# One DFM per Paradigm type (needs DFM firmware 4.0.0 for DFMs 5 and 6, and for Acclimation).
+# Choice chambers: the A wells use threshold 20 and the B wells are Off; linkage lights both.
+[General]
+ExpDurationMin: 360
+Linkage: 1,1,2,2,3,3,4,4,5,5,6,6
+Baseline: Yes
+
+[Paradigm Open]
+Type: OpenLoop
+Frequency: 40
+PulseWidth: 8
+
+[Paradigm Closed]
+Type: ClosedLoop
+Frequency: 40
+PulseWidth: 8
+HoldMs: 500
+MaxOnMs: 2500
+
+[Paradigm Interval1Min]
+Type: FixedInterval
+Frequency: 40
+PulseWidth: 8
+ActivationMs: 1000
+LockoutMs: 60000
+
+[Paradigm NotFeeding]
+Type: NonFeeding
+Frequency: 40
+PulseWidth: 8
+OnDelayMs: 500
+MaxOnMs: 0
+
+[Paradigm PR10]
+Type: ProgressiveRatio
+Frequency: 40
+PulseWidth: 8
+ActivationMs: 500
+Series: Arithmetic
+Step: 10
+Cap: 200
+Acclimation: 10
+
+[Paradigm FR5]
+Type: FixedRatio
+Frequency: 40
+PulseWidth: 8
+ActivationMs: 500
+Ratio: 5
+
+[DFM]
+ID: 1
+Interval: Open, Lit, On,Off,On,Off,On,Off,On,Off,On,Off,On,Off, 360
+
+[DFM]
+ID: 2
+Interval: Closed, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360
+
+[DFM]
+ID: 3
+Interval: Interval1Min, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360
+
+[DFM]
+ID: 4
+Interval: NotFeeding, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360
+
+[DFM]
+ID: 5
+# 30 minutes of simple closed loop, then progressive ratio.
+Interval: Closed, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 30
+Interval: PR10, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 330
+
+[DFM]
+ID: 6
+Interval: FR5, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360

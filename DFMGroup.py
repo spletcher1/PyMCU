@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 
+import COMM
 import DataGetter
 import DFM
 import Enums
@@ -13,8 +14,11 @@ import Event
 import Message
 import MessagesList
 import Program
+import StatusPacket
 
-DATA_FILE_HEADER = "Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Temp,Humid,LUX,VoltsIn,Dark,OptoFreq,OptoPW,OptoCol1,OptoCol2,Error,Index\n"
+# DFM data files add the Paradigm columns; the Environmental Monitor's keep the old ones.
+DATA_FILE_HEADER = StatusPacket.DATA_COLUMNS + "," + StatusPacket.PARADIGM_COLUMNS + "\n"
+ENVMON_FILE_HEADER = StatusPacket.DATA_COLUMNS + "\n"
 # A new data file is started every 12 hours.
 DATA_FILE_SECONDS = 43200
 
@@ -145,7 +149,7 @@ class DFMGroup:
 
     def _OpenDataFile(self,theDFM):
         f=open(self.currentOutputDirectory+"/"+theDFM.outputFile,"w+")
-        f.write(DATA_FILE_HEADER)
+        f.write(ENVMON_FILE_HEADER if theDFM.DFMType==Enums.DFMTYPE.ENVMONV3 else DATA_FILE_HEADER)
         self.theFiles[theDFM.ID]=f
         self.writeStartTimes[theDFM.ID]=datetime.datetime.today()
 
@@ -371,34 +375,47 @@ class DFMGroup:
             elif(self.currentProgram.IsAfterExperiment()):
                 self.StopCurrentProgram()
 
-            if(self.currentProgram.IsDuringExperiment()):
+            # No instructions until baselining is done, so thresholds are never partly baselined.
+            if(self.currentProgram.IsDuringExperiment() and
+               not any(d.isCalculatingBaseline for d in self.theDFMs.values())):
                 self.UpdateDFMInstructions()
 
     def UpdateDFMInstructions(self):
         for d in self.theDFMs.values():
-            d.UpdateInstruction(self.currentProgram.GetCurrentInstruction(d.ID),self.currentProgram.autoBaseline)
+            instruct, index, cycle = self.currentProgram.GetCurrentPosition(d.ID)
+            d.UpdateInstruction(instruct,self.currentProgram.autoBaseline,index,cycle)
     #endregion
 
     #region Program Methods
     def LoadTextProgram(self,programPath):
+        """Returns False if the file has a problem; currentProgram.loadError says what and where."""
         with open(programPath,encoding="utf-8-sig") as f:
             lines = f.readlines()
-        result=self.currentProgram.LoadProgram(lines,self.theDFMs)
-        if (result==False):
-            self.LoadSimpleProgram(datetime.datetime.today() + datetime.timedelta(minutes=1),datetime.timedelta(minutes=180))
-        return result
+        return self.currentProgram.LoadProgram(lines,self.theDFMs)
 
     def LoadSimpleProgram(self,startTime,duration):
         self.currentProgram.CreateSimpleProgram(startTime,duration)
 
     def CheckProgramCompatibility(self):
-        # V1.5 firmware takes only 2-byte decay, delay and max time on.
+        """Why the loaded Program can't run on the DFMs present, one line per problem (empty if it can)."""
+        problems = []
         for d in self.theDFMs.values():
-            if(d.DFMType==Enums.DFMTYPE.PLETCHERV3 and d.DFMSubType == Enums.DFMSUBTYPE.V1_5):
+            if(d.DFMType==Enums.DFMTYPE.ENVMONV3):
+                continue
+            needed = self.currentProgram.FirmwareNeeded(d.ID)
+            if(d.DFMType==Enums.DFMTYPE.PLETCHERV3 and COMM.UsesParadigmFirmware(d.firmwareVersion)):
+                continue
+            if(needed and d.DFMType!=Enums.DFMTYPE.PLETCHERV3):
+                problems.append("DFM {} is a V2 DFM, which can't run {}.".format(d.ID, " or ".join(needed)))
+            elif(needed):
+                problems.append("DFM {} (firmware {}) can't run {}. That needs DFM firmware 4.0.0 or later.".format(
+                    d.ID, d.firmwareVersion, " or ".join(needed)))
+            elif(d.DFMType==Enums.DFMTYPE.PLETCHERV3 and d.DFMSubType == Enums.DFMSUBTYPE.V1_5):
+                # V1.5 firmware takes only 2-byte decay, delay and max time on.
                 tmp = self.currentProgram.theInstructionSets.get(d.ID)
                 if(tmp is not None and tmp.IsVersion1_5Compatible()==False):
-                    return False
-        return True
+                    problems.append("DFM {} (firmware {}) can't take times above 65535 ms.".format(d.ID, d.firmwareVersion))
+        return problems
 
     def StopCurrentProgram(self):
         if(len(self.theDFMs)==0):

@@ -108,6 +108,9 @@ class DataGetter:
         return self._Request(COMMANDTYPE.INSTRUCTION_V2,[ID,currentInstruction],3) is True
     def SendInstructionDFMV1_5(self,ID,currentInstruction):
         return self._Request(COMMANDTYPE.INSTRUCTION_V1_5,[ID,currentInstruction],3) is True
+    def SendParadigmInstruction(self,ID,currentInstruction,number,keepState):
+        ## Firmware 4.0.0 and later.
+        return self._Request(COMMANDTYPE.INSTRUCTION_PARADIGM,[ID,currentInstruction,number,keepState],3) is True
     def SendLinkage(self,ID,currentLinkage):
         return self._Request(COMMANDTYPE.LINKAGE,[ID,currentLinkage],3) is True
     def GetVersion(self,ID):
@@ -247,6 +250,8 @@ class DataGetter:
             self._Answer(command, self.theCOMM.SendInstructionDFMV1_5(args[0],args[1]))
         elif(commandType==COMMANDTYPE.INSTRUCTION_V2):
             self._Answer(command, self.theCOMM.SendInstructionDFMV2_0(args[0],args[1]))
+        elif(commandType==COMMANDTYPE.INSTRUCTION_PARADIGM):
+            self._Answer(command, self.theCOMM.SendParadigmInstruction(args[0],args[1],args[2],args[3]))
         elif(commandType==COMMANDTYPE.SEND_DARK):
             self.theCOMM.SendDark(args[0],args[1])
         elif(commandType==COMMANDTYPE.SEND_FREQ):
@@ -313,7 +318,9 @@ class DataGetter:
                 # Queued before the ACK: if the ACK fails the DFM just sends the packets again.
                 self.data_q.put(packList)
                 self._Acknowledge(info,packList)
-                if(len(payload) >= COMM.MAX_STATUS_PACKETS*StatusPacket.V3_PACKET_SIZE):
+                recordSize = self._RecordSize(info)
+                maxRecords = COMM.MAX_STATUS_PACKETS_V4 if recordSize == StatusPacket.V4_PACKET_SIZE else COMM.MAX_STATUS_PACKETS
+                if(len(payload) >= maxRecords*recordSize):
                     lagging.append(info)
             except Exception as e:
                 print(f"Get status exception ({info.ID}): {e!r}")
@@ -330,6 +337,12 @@ class DataGetter:
              COMM.SupportsPartialAck(self.firmwareVersions.get(info.ID, b""))):
             # The good packets are kept, so the DFM need only send the rest again.
             self.theCOMM.SendPartialAck(info.ID, packList[numGood-1].recordIndex)
+
+    def _RecordSize(self,info):
+        """Status record size: 127 bytes from DFM firmware 4.0.0, 56 before (and for the EnvMon)."""
+        if(info.DFMType==DFMTYPE.PLETCHERV3 and COMM.UsesParadigmFirmware(self.firmwareVersions.get(info.ID, b""))):
+            return StatusPacket.V4_PACKET_SIZE
+        return StatusPacket.V3_PACKET_SIZE
 
     def _FailedPacket(self,info,result):
         packet=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
@@ -352,15 +365,16 @@ class DataGetter:
             self.currentReadIndex+=1
             return [currentStatusPacket]
 
-        numPacketsReceived, extraBytes = divmod(len(bytesData),StatusPacket.V3_PACKET_SIZE)
+        recordSize = self._RecordSize(info)
+        numPacketsReceived, extraBytes = divmod(len(bytesData),recordSize)
         if(numPacketsReceived==0 or extraBytes!=0):
-            print("Wrong num bytes: " + str(len(bytesData)/StatusPacket.V3_PACKET_SIZE))
+            print("Wrong num bytes: " + str(len(bytesData)/recordSize))
             return self._FailedPacket(info,PROCESSEDPACKETRESULT.WRONGNUMBYTES)
         currentStatusPackets=[]
         for i in range(0,numPacketsReceived):
             tmpPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)
             # This gets the startTime of the experiment.  The others get the time of the packet
-            tmpPacket.ProcessStatusPacket(bytesData,self.startTime,i)
+            tmpPacket.ProcessStatusPacket(bytesData,self.startTime,i,recordSize)
             if(info.DFMType==DFMTYPE.ENVMONV3):
                 ## This works here because the EnvMon will always be called first each round of read values.
                 self.EnvMonV3_Temperature=tmpPacket.temp

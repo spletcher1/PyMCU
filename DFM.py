@@ -1,6 +1,10 @@
 import array
+import collections
+import datetime
+import random
 import time
 
+import COMM
 import DataBuffer
 import DFMErrors
 import Enums
@@ -27,6 +31,12 @@ READ_FAILURES = {
     Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET: ("Incomplete packet received", Enums.CURRENTSTATUS.ERROR),
 }
 
+# What an instruction number stood for: the Interval index (from 0) and Cycle, or None for
+# instructions outside the Program (idle, outputs on).
+InstructionInfo = collections.namedtuple("InstructionInfo", "index cycle instruction")
+# Instruction numbers remembered, for records that arrive after later instructions were sent.
+INSTRUCTION_HISTORY = 256
+
 class DFM:
     DFM_message = Event.Event()
     #region Initialization, etc.
@@ -50,6 +60,16 @@ class DFM:
         self.baselineSamples=0
         self.isCalculatingBaseline=False
         self.currentInstruction = Instruction.DFMInstruction()
+        self.currentPosition = (None, None)
+        # Firmware 4.0.0 repeats the number of the instruction in use in every record. Starting
+        # at a random number makes a number left over from an earlier run unlikely to match.
+        self.instructionNumber = random.randint(1, 0xFFFF)
+        self.instructionInfo = collections.OrderedDict()
+        self.lastSentParadigmName = None
+        # Activation totals carried past the DFM's 16-bit count.
+        self.lastActivationsRaw = [0]*12
+        self.activationTotals = [0]*12
+        self.lastParadigmPacket = None
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
         # This is true because we need to get this ASAP for each DFM upon connection.
@@ -100,22 +120,17 @@ class DFM:
             return tmp.analogValues
         resultArray=array.array("i",(0 for i in range(0,12)))
         for i in range(0,12):
-            # Values over 40000 carry the firmware's +65536 'in training' flag.
-            value = tmp.analogValues[i]-self.signalBaselines[i]
-            if(tmp.analogValues[i]>40000):
-                value -= 65536
-            resultArray[i]=max(value,0)
+            resultArray[i]=max(tmp.analogValues[i]-self.signalBaselines[i],0)
         return resultArray
 
     def SetIdleStatus(self):
-        ## Idle is opto off, dark running as its has been, and default other parameters.
-        self.currentInstruction = Instruction.DFMInstruction()
-        self.isInstructionUpdateNeeded=True
+        ## Idle: every Well Off.
+        self._SetInstruction(Instruction.DFMInstruction())
 
     def SetOutputsOn(self):
-        self.currentInstruction = Instruction.DFMInstruction()
-        self.currentInstruction.SetOptoValues([0]*12)
-        self.isInstructionUpdateNeeded=True
+        instruct = Instruction.DFMInstruction()
+        instruct.SetOptoValues([Instruction.ON]*12)
+        self._SetInstruction(instruct)
 
     def SetOutputsOff(self):
         self.SetIdleStatus()
@@ -163,6 +178,8 @@ class DFM:
             self.reportedDarkState = Enums.DARKSTATE.OFF
         else:
             self.reportedDarkState = Enums.DARKSTATE.ON
+        if(last.isV4):
+            self.lastParadigmPacket = last
 
         for sp in currentStatusPackets:
             if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
@@ -191,6 +208,9 @@ class DFM:
             self.bufferResetCount = currentStatusPackets[0].bufferResetCount
             self.sampleIndex=1
             self.lastDFMIndex=0
+            # A buffer reset also restarts the DFM's Activation counts.
+            self.lastActivationsRaw = [0]*12
+            self.activationTotals = [0]*12
         newPackets=[]
         for sp in currentStatusPackets:
             if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
@@ -206,6 +226,7 @@ class DFM:
                 s="({:d}) Repeated index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
                 self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
             else:
+                self._AddParadigmState(sp)
                 self._AddPacket(sp,saveDataToQueue)
                 newPackets.append(sp)
 
@@ -215,6 +236,24 @@ class DFM:
         if(newPackets):
             self.UpdateReportedValues(newPackets,saveDataToQueue)
         self.CheckStatus()
+
+    def _AddParadigmState(self,sp):
+        """Adds what the record's instruction number stands for (Interval, Cycle, Paradigm, light
+        settings) and the Activation totals, carried past the DFM's 16-bit count."""
+        if not sp.isV4:
+            return
+        info = self.instructionInfo.get(sp.instructionNumber)
+        if info is not None:
+            sp.interval = info.index
+            sp.cycle = info.cycle
+            sp.paradigmName = info.instruction.paradigm.name
+            sp.optoFrequency = info.instruction.paradigm.frequency
+            sp.optoPulseWidth = info.instruction.paradigm.pulseWidth
+            sp.darkStatus = info.instruction.theDarkState.value
+        for w in range(0,12):
+            self.activationTotals[w] += (sp.activationsRaw[w] - self.lastActivationsRaw[w]) & 0xFFFF
+            self.lastActivationsRaw[w] = sp.activationsRaw[w]
+        sp.activationTotals = list(self.activationTotals)
 
     def _AddPacket(self,sp,saveDataToQueue):
         sp.sample = self.sampleIndex
@@ -246,14 +285,32 @@ class DFM:
     #endregion
 
     #region Updating
-    def UpdateInstruction(self,instruct,useBaseline):
-        # There is no instruction before a program starts or for Constant programs; keep the current one.
-        if(instruct is None or instruct is self.currentInstruction):
+    def UpdateInstruction(self,instruct,useBaseline,index=None,cycle=None):
+        """Starts sending the Program's instruction for an Interval (index from 0) in a Cycle. It is
+        sent again when the Interval or Cycle changes, even if the instruction itself doesn't."""
+        # There is no instruction before a program starts; keep the current one.
+        if(instruct is None or (instruct is self.currentInstruction and (index,cycle) == self.currentPosition)):
             return
-        self.currentInstruction = instruct
         if(useBaseline):
-            self.currentInstruction.SetBaseline(self.signalBaselines)
+            instruct.SetBaseline(self.signalBaselines)
+        self._SetInstruction(instruct,index,cycle)
+
+    def _SetInstruction(self,instruct,index=None,cycle=None):
+        self.currentInstruction = instruct
+        self.currentPosition = (index,cycle)
+        self.instructionNumber = self.instructionNumber % 0xFFFF + 1
+        self.instructionInfo[self.instructionNumber] = InstructionInfo(index,cycle,instruct)
+        while len(self.instructionInfo) > INSTRUCTION_HISTORY:
+            self.instructionInfo.popitem(last=False)
         self.isInstructionUpdateNeeded=True
+
+    def GetCurrentParadigmState(self):
+        """For the DFM page: (Paradigm name, type name, Interval from 1 or None, Cycle or None, the
+        last record with Paradigm state or None)."""
+        paradigm = self.currentInstruction.paradigm
+        index, cycle = self.currentPosition
+        return (paradigm.name, paradigm.typeName, None if index is None else index+1, cycle,
+                self.lastParadigmPacket)
 
     def CheckStatus(self):
         if(self.DFMType == Enums.DFMTYPE.PLETCHERV3):
@@ -323,11 +380,23 @@ class DFM:
                 isFailed = True
         if(self.isInstructionUpdateNeeded and not self.isVersionGetNeeded):
             self.isInstructionUpdateNeeded=False
-            if(self.DFMSubType == Enums.DFMSUBTYPE.V2):
+            paradigm = self.currentInstruction.paradigm
+            if(COMM.UsesParadigmFirmware(self.firmwareVersion)):
+                # The Wells keep their Paradigm state while the Paradigm stays the same.
+                keepState = paradigm.name == self.lastSentParadigmName
+                isSent = self.MP.SendParadigmInstruction(self.ID, self.currentInstruction, self.instructionNumber, keepState)
+            elif(paradigm.FirmwareNeeded()):
+                # Checked before a Program starts, so only reached if the firmware changed since.
+                s="({:d}) Firmware {} can't run {}".format(self.ID, self.firmwareVersion, paradigm.FirmwareNeeded())
+                self.NewMessage(self.ID,datetime.datetime.today(),0,s,Enums.MESSAGETYPE.ERROR)
+                isSent = True
+            elif(self.DFMSubType == Enums.DFMSUBTYPE.V2):
                 isSent = self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)
             else:
                 isSent = self.MP.SendInstructionDFMV1_5(self.ID, self.currentInstruction)
-            if not isSent:
+            if isSent:
+                self.lastSentParadigmName = paradigm.name
+            else:
                 self.isInstructionUpdateNeeded=True
                 print("Instruction update NACKed")
                 # The firmware NACKs an instruction in the wrong format, so check the version again.

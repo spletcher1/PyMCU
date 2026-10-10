@@ -12,6 +12,7 @@ import DFMGroup
 import Enums
 import Board
 import DFMPlot
+import StatusPacket
 import socket
 import os
 import subprocess
@@ -24,12 +25,16 @@ from TimeInputDialog import DateDialog
 
 APP_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 # Shown in the About box; keep in step with the version in pyproject.toml.
-APP_VERSION = "3.5.0"
+APP_VERSION = "4.0.0"
 
 # Screen blanking times offered on the settings page, in seconds (0 = never).
 SCREEN_BLANK_STEPS = [0, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1800, 3600]
 
 # Durations of the simple program buttons, by button text.
+# Wells in row-major order, and the columns of the DFM page's Well table.
+WELL_NAMES = ["{}{}".format(row, side) for row in range(1, 7) for side in "AB"]
+WELL_TABLE_COLUMNS = ["Phase", "Activations", "Requirement", "Progress", "On ms"]
+
 SIMPLE_PROGRAM_MINUTES = {"30 min":30, "60 min":60, "3 hours":180, "6 hours":360, "12 hours":720, "24 hours":1440, "5 days":7200}
 
 # DFM button text color for each status, as (light theme, dark theme).
@@ -171,6 +176,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.main_widget = QtWidgets.QWidget(self)
         self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=self.defaultBackgroundColor,width=5, height=4, dpi=100)
         self.DFMPlotLayout.addWidget(self.theDFMDataPlot)
+        self.BuildParadigmDisplay()
 
         self.programDuration = datetime.timedelta(minutes=180)
         self.SetProgramStartTime(datetime.datetime.today())
@@ -357,6 +363,12 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.RunProgramButton.setEnabled(True)
             self.fastUpdateCheckBox.setChecked(False)
         else:
+            problems = self.theDFMGroup.CheckProgramCompatibility()
+            if(problems):
+                # A Program the DFMs can't run would quietly do something else, so it doesn't start.
+                self._MessageBox(QMessageBox.Icon.Warning,"Program not started",
+                                 "This program can't run on every DFM.","\n".join(problems)).exec()
+                return
             self.RunProgramButton.setEnabled(False)
             self.DisableButtons()
             QApplication.processEvents()
@@ -632,15 +644,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.DarkModeLabel.setText("Yes")
         else:
             self.DarkModeLabel.setText("No")
-        self.FrequencyLabel.setText("{:d}Hz".format(dfm.reportedOptoFrequency))
-        self.PulseWidthLabel.setText("{:d}ms".format(dfm.reportedOptoPulsewidth))
+        self.UpdateParadigmDisplay(dfm)
 
         self.FirmwareLabel.setText(dfm.firmwareVersion)
-
-        if (dfm.DFMType==Enums.DFMTYPE.PLETCHERV3 or dfm.DFMType==Enums.DFMTYPE.ENVMONV3):
-            self.OptoStateLabel.setText("0x{:03X}".format(dfm.reportedOptoStateCol1))
-        else:
-            self.OptoStateLabel.setText("{:02X},{:02X}".format(dfm.reportedOptoStateCol1,dfm.reportedOptoStateCol2))
 
         self.CurrentStatusLabel.setText(STATUS_LABELS[dfm.status])
         if(dfm.pastStatus==Enums.PASTSTATUS.PASTERROR):
@@ -739,14 +745,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 if(self.theDFMGroup.LoadTextProgram(fn)):
                     self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration)
                     self.GoToProgramPage()
-                    if(self.theDFMGroup.CheckProgramCompatibility()==False):
-                        self._MessageBox(QMessageBox.Icon.Information,"Compatibility Check","Warning: Check program compatibility!",
-                                         "Version 1.5 DFM are not compatible with decay, delay, or maxtime values > 65536!").exec()
+                    problems = self.theDFMGroup.CheckProgramCompatibility()
+                    if(problems):
+                        self._MessageBox(QMessageBox.Icon.Warning,"Compatibility Check","This program can't run on every DFM, so it won't start.",
+                                         "\n".join(problems)).exec()
                 else:
                     self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)
+                    self._MessageBox(QMessageBox.Icon.Warning,"Program not loaded",self.currentChosenProgramFile,
+                                     self.theDFMGroup.currentProgram.loadError).exec()
                 self.UpdateProgramGUI()
-            except Exception:
-                print("Normal except: problem loading program")
+            except Exception as e:
+                print("Normal except: problem loading program: {!r}".format(e))
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)
@@ -856,6 +865,65 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.isCopyingData=False
             self.EnableButtons()
             self.CheckUSB()
+
+    def BuildParadigmDisplay(self):
+        # The DFM page shows the Paradigm in the status labels that showed the raw opto settings,
+        # and each Well's Paradigm state in a table that takes the plot's place ("Well details").
+        self.label_6.setText("Paradigm:")
+        self.label_7.setText("Type:")
+        self.label_8.setText("Interval:")
+        # The values column was sized for frequency and pulse width numbers; Type names such as
+        # ProgressiveRatio need about 75 pixels.
+        self.frame_6.setMaximumWidth(80)
+        self.WellTable = QtWidgets.QTableWidget(12, len(WELL_TABLE_COLUMNS), self.main_widget)
+        self.WellTable.setHorizontalHeaderLabels(WELL_TABLE_COLUMNS)
+        self.WellTable.setVerticalHeaderLabels(WELL_NAMES)
+        self.WellTable.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.WellTable.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.WellTable.verticalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.WellTable.setVisible(False)
+        self.DFMPlotLayout.addWidget(self.WellTable)
+        self.wellDetailsCheckBox = QtWidgets.QCheckBox("Well details")
+        self.verticalLayout_11.addWidget(self.wellDetailsCheckBox)
+        self.wellDetailsCheckBox.stateChanged.connect(self.WellDetailsChanged)
+
+    def WellDetailsChanged(self):
+        showTable = self.wellDetailsCheckBox.isChecked()
+        self.WellTable.setVisible(showTable)
+        self.theDFMDataPlot.setVisible(not showTable)
+        if(self.activeDFM is not None):
+            self.UpdateDFMPageGUI()
+
+    def UpdateParadigmDisplay(self, dfm):
+        if not hasattr(dfm, "GetCurrentParadigmState"):
+            # The Environmental Monitor has no Paradigm.
+            for label in (self.FrequencyLabel, self.PulseWidthLabel, self.OptoStateLabel):
+                label.setText("-")
+            return
+        name, typeName, interval, cycle, record = dfm.GetCurrentParadigmState()
+        # Paradigm names can be any length: show what fits, and the whole Paradigm in the tooltip.
+        self.FrequencyLabel.setText(self.FrequencyLabel.fontMetrics().elidedText(
+            name, QtCore.Qt.TextElideMode.ElideRight, self.FrequencyLabel.contentsRect().width()))
+        self.FrequencyLabel.setToolTip(dfm.currentInstruction.paradigm.Describe())
+        self.PulseWidthLabel.setText(typeName)
+        self.OptoStateLabel.setText("-" if interval is None else "{} (Cycle {})".format(interval, cycle))
+        if not self.WellTable.isVisible():
+            return
+        for w in range(0,12):
+            if record is None:
+                values = ["-"]*len(WELL_TABLE_COLUMNS)
+            else:
+                isRatio = record.paradigmType in StatusPacket.RATIO_TYPES and record.requirement[w] > 0
+                totals = record.activationTotals if record.activationTotals is not None else record.activationsRaw
+                values = ["Acclimation" if record.phases[w] else "Main", str(totals[w]),
+                          str(record.requirement[w]) if isRatio else "", str(record.progress[w]) if isRatio else "",
+                          str(record.onMs[w])]
+            for column, value in enumerate(values):
+                item = self.WellTable.item(w, column)
+                if item is None:
+                    item = QtWidgets.QTableWidgetItem()
+                    self.WellTable.setItem(w, column, item)
+                item.setText(value)
 
     def ZoomPlotChanged(self):
         if(self.zoomPlotCheckBox.isChecked()):

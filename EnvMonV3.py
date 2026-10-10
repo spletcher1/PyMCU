@@ -158,7 +158,7 @@ class EnvironmentalMonitorV3:
 
     #region Updating                
  
-    def UpdateInstruction(self,instruct,useBaseline):
+    def UpdateInstruction(self,instruct,useBaseline,index=None,cycle=None):
         # Kept for the program description only: the EnvMon has no instruction command yet.
         if(instruct is not None):
             self.currentInstruction = instruct

@@ -2,6 +2,8 @@
 
 This is the plan for DFM firmware 4.0.0 and the matching PyMCU. It records every decision made in the October 2026 design review. The terms used here are defined in [../CONTEXT.md](../CONTEXT.md). The reasons for the two less obvious choices are in [adr/0001](adr/0001-ratio-paradigms-count-events.md) and [adr/0002](adr/0002-status-records-carry-paradigm-state.md).
 
+**Status (October 2026):** stages 1–4 are implemented on `v4_Dev` in both repos and pass their PC tests. The bench checks for each stage have not been run yet. Where the implementation settled a detail the plan left open, this document now describes the implementation.
+
 ## Goal
 
 Today the DFM guesses the paradigm from which settings are zero, a pulse width above 30000 and bits hidden in the frequency. The data file can't say what a fly was doing, beyond a training flag added into the well values. After v4:
@@ -58,9 +60,10 @@ Every Paradigm has `Frequency` (1–500 Hz) and `PulseWidth` (1 ms up to, but no
 - **When Paradigm state carries over:**
   - Paradigm state (Phase, Requirement, Progress, timers) carries across Interval changes while the Interval names the same Paradigm. That includes Repeating wraps and threshold-only changes.
   - It resets when the Paradigm changes.
+  - PyMCU sets the instruction's keep-state flag when the Paradigm name is the same as the last one it sent. The DFM keeps the state only if the flag is set and the Type is also unchanged.
   - The Activation total per Well runs for the whole recording.
 - **Recording start:**
-  - All Paradigm state and Activation totals reset when recording starts.
+  - All Paradigm state and Activation totals reset when recording starts. The DFM does this when it receives the buffer reset (0xFE) that PyMCU already sends at the start of recording, before the first instruction.
   - PyMCU sends no instruction until baselining has finished.
 
 ## Program file format
@@ -108,22 +111,33 @@ Interval: PR10, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 330
 
 ### Instruction, command 0xF7
 
-Checksummed like today's instruction. Decoded layout:
+Checksummed like today's instruction. Decoded layout, big-endian, as `ParseParadigmInstruction()` in DFMV3_V2 `src/LEDControl.c` reads it:
 
-| Field | Bytes |
-|---|---|
-| ID, command | 1 + 1 |
-| Instruction number | 2 |
-| Type: 0 OpenLoop, 1 ClosedLoop, 2 FixedInterval, 3 NonFeeding, 4 ProgressiveRatio, 5 FixedRatio. Codes 6–15 are reserved. | 1 |
-| Dark | 1 |
-| Frequency, PulseWidth | 2 + 2 |
-| EventGapMs | 2 |
-| Acclimation N | 2 |
-| Settings: 5 numbers whose meaning depends on the Type, in the order of the table above. Series is 0 for Arithmetic and 1 for Exponential. Scale and Rate are sent in thousandths. | 5 × 4 |
-| Thresholds: 0xFFFF = Off, 0xFFFE = On | 12 × 2 |
-| Checksum | 4 |
+| Offset | Field | Bytes |
+|---|---|---|
+| 0 | ID, command | 1 + 1 |
+| 2 | Instruction number | 2 |
+| 4 | Type: 0 OpenLoop, 1 ClosedLoop, 2 FixedInterval, 3 NonFeeding, 4 ProgressiveRatio, 5 FixedRatio. Other codes, and a Series other than 0 or 1, are NACKed. | 1 |
+| 5 | Flags: bit 0 = keep the Wells' Paradigm state (see "When Paradigm state carries over"). Other bits are 0. | 1 |
+| 6 | Dark | 1 |
+| 7 | Frequency, PulseWidth | 2 + 2 |
+| 11 | EventGapMs | 2 |
+| 13 | Acclimation N | 2 |
+| 15 | Settings: 5 numbers whose meaning depends on the Type (below). Unused slots are 0. | 5 × 4 |
+| 35 | Thresholds in the 0–1023 units of the data file's W1–W12, after baselining: 0xFFFF = Off, 0xFFFE = On | 12 × 2 |
+| 59 | Checksum | 4 |
 
-That's 62 bytes in total.
+That's 63 bytes in total. The settings slots are:
+
+| Type | Slot 1 | Slot 2 | Slot 3 | Slot 4 | Slot 5 |
+|---|---|---|---|---|---|
+| ClosedLoop | HoldMs | MaxOnMs | | | |
+| FixedInterval | ActivationMs | LockoutMs | | | |
+| NonFeeding | OnDelayMs | MaxOnMs | | | |
+| ProgressiveRatio | ActivationMs | Series: 0 Arithmetic, 1 Exponential | FirstRequirement, or Scale × 1000 | Step, or Rate × 1000 | Cap (0 = 65,535) |
+| FixedRatio | ActivationMs | Ratio | | | |
+
+PyMCU's `tests/test_protocol.py` and the firmware's `tests/test_ledcontrol.c` check the same 63 example bytes, so the two sides can't drift apart.
 
 - The DFM replies ACK or NACK as today, and repeats the instruction number in every Status record.
 - Linkage stays a separate message (0xFB).
@@ -131,20 +145,20 @@ That's 62 bytes in total.
 
 ### Status record
 
-| Field | Bytes |
-|---|---|
-| ID, error flags | 1 + 1 |
-| Instruction number, Type | 2 + 1 |
-| Phase bits: 1 = Acclimation, one per Well | 2 |
-| Well signals: the average of the last 128 scans, which is what PyMCU records today | 12 × 2 |
-| VoltsIn, LED snapshot | 2 + 2 |
-| On-time in ms during the 200 ms, per Well | 12 × 1 |
-| Activations per Well (wraps at 65,536) | 12 × 2 |
-| Requirement per Well | 12 × 2 |
-| Progress per Well | 12 × 2 |
-| Index, checksum | 4 + 4 |
+| Offset | Field | Bytes |
+|---|---|---|
+| 0 | ID, error flags | 1 + 1 |
+| 2 | Instruction number, Type | 2 + 1 |
+| 5 | Phase bits: 1 = Acclimation, one per Well (bit 0 = Well 1). Wells set to On or Off are always 0. | 2 |
+| 7 | Well signals: the average of the last 128 scans, which is what PyMCU records today | 12 × 2 |
+| 31 | VoltsIn, LED snapshot | 2 + 2 |
+| 35 | On-time in ms during the 200 ms, per Well | 12 × 1 |
+| 47 | Activations per Well since the last buffer reset (wraps at 65,536) | 12 × 2 |
+| 71 | Requirement per Well (ratio Types only, otherwise 0) | 12 × 2 |
+| 95 | Progress per Well (ratio Types only, otherwise 0) | 12 × 2 |
+| 119 | Index, checksum | 4 + 4 |
 
-That's about 127 bytes, against 56 today. That budget sets the buffer at about 780 records, about 2.6 minutes of outage, and at most 28 records per reply. See confirmation C3.
+That's 127 bytes, against 56 today. The buffer holds 780 records, about 2.6 minutes of outage, and a reply carries at most 28 records. See confirmation C3.
 
 The reliability protocol from 3.5.0 is unchanged: ACK, partial ACK, re-polling full replies, and overrun recovery.
 
@@ -168,8 +182,9 @@ The reliability protocol from 3.5.0 is unchanged: ACK, partial ACK, re-polling f
   - Appended: `Interval`, `Cycle`, `Paradigm`, `Phase1–12`, `Activations1–12`, `Requirement1–12`, `Progress1–12`, `OnMs1–12`.
   - Requirement and Progress are empty for Types other than the two ratio Types, and all new columns are empty for older firmware.
 - **GUI:**
-  - The DFM page shows the Paradigm name and Type, the Interval and Cycle, and a 12-Well table of Phase, Activations, and Requirement with Progress. This replaces the raw Hz, ms and Optostate display.
-  - Load errors appear as a message.
+  - The DFM page's Status panel shows the Paradigm name, its Type and the Interval with its Cycle, in place of the raw Hz, ms and Optostate. The value column is widened from 45 to 80 pixels for this.
+  - A "Well details" checkbox swaps the plot for a 12-Well table of Phase, Activations, Requirement, Progress and On ms.
+  - Load errors appear as a message. Run Program refuses to start, with a message naming each DFM and feature, when a DFM's firmware can't run the Program.
 - **Bug fixes:**
   - Constant Programs never sending an instruction.
   - `HH:MM` start times failing.
@@ -178,14 +193,17 @@ The reliability protocol from 3.5.0 is unchanged: ACK, partial ACK, re-polling f
 ## Testing
 
 - **Firmware:**
-  - The Paradigm logic moves into a C module with no hardware calls. It is compiled by XC32 for the DFM, and by a free PC compiler (w64devkit) for unit tests that feed simulated Well signals 1 ms at a time.
-  - Tests cover each Type, Events and the Event gap, Acclimation giving exactly N Activations, both Series (including the published exponential values), state carrying over between Intervals, linkage, and wrap-around of the totals.
-- **PyMCU:** standard-library `unittest` tests with the hardware modules stubbed. They cover:
+  - The Paradigm logic is in `src/LEDControl.c`, a C module with no hardware calls. It is compiled by XC32 for the DFM, and on a PC for unit tests that feed simulated Well signals 1 ms at a time.
+  - `python tests/run_tests.py` builds and runs the tests with gcc, clang or cc if one is installed, and otherwise with Zig's C compiler (`pip install ziglang`).
+  - Tests cover each Type, Events and the Event gap, Acclimation giving exactly N Activations, both Series (including the published exponential values), state carrying over between Intervals, linkage, wrap-around of the totals, the instruction bytes and the record layout.
+- **PyMCU:** standard-library `unittest` tests in `tests/`, with the hardware modules stubbed; run `python -m unittest discover -s tests`. They cover:
   - Loading new and old files, including the refusals and error messages.
   - Encoding the instruction bytes.
   - Parsing the record.
-  - Carrying totals past a wrap.
+  - Instruction numbers and the keep-state flag.
+  - Carrying totals past a wrap, and resetting them at a buffer reset.
   - The data columns.
+  - The check before a Program starts.
 - **Bench:** each stage ends with a test on real DFMs before the next stage starts.
 
 ## Delivery stages
@@ -205,15 +223,15 @@ The reliability protocol from 3.5.0 is unchanged: ACK, partial ACK, re-polling f
    - The data columns and the DFM page.
 
    Bench: a multi-DFM recording with no gaps, and Phase, Activations and Requirement matching what the LEDs did.
-4. **Documentation:** rewrite the users' conventions document as `docs/ProgramFormat.md`. It covers every Type with a worked example and a "Converting old programs" section, and is exported to .txt or PDF. The firmware README is updated and links to `CONTEXT.md`.
+4. **Documentation:** rewrite the users' conventions document as `docs/ProgramFormat.md`. It covers every Type with a worked example and a "Converting old programs" section. `python docs/export_program_format.py` writes the plain-text copy, `docs/ProgramFormat.txt`; run it after each edit. The firmware README is updated and links to `CONTEXT.md`.
 
 No 4.0.0 build is deployed before stage 3. Development builds report 4.0.0 from stage 1.
 
-## Confirmations needed before stage 1
+## Confirmations
 
-These came up while writing the plan.
+These came up while writing the plan. Each was accepted as proposed and is implemented that way.
 
-- **C1 – ClosedLoop `MaxOnMs`:** the agreed wording, "the timer restarts whenever the LED goes off", would let a cut-off LED come straight back on. Proposed rule: the timer starts with each Activation. After a cut-off, the LED stays off until the current Event ends, and the next Event starts a fresh timer. This matches the old document's "any interruption in feeding resets the timer".
-- **C2 – FixedInterval trigger:** the old document says the LED comes on when the Lockout ends "if the fly is still interacting". Proposed rule: once the Lockout has passed, contact starts an Activation, including contact already in progress. A new Event is not required.
-- **C3 – Record size:** the earlier estimate was about 100 bytes and about 1,000 records (3.3 minutes). The real layout is about 127 bytes, about 780 records (about 2.6 minutes) and at most 28 records per reply. Dropping Requirement, which PyMCU can work out from the Type settings, gives about 103 bytes and about 950 records (about 3.2 minutes), but makes Requirement depend on PyMCU's arithmetic. Proposed: accept 127 bytes.
+- **C1 – ClosedLoop `MaxOnMs`:** the agreed wording, "the timer restarts whenever the LED goes off", would let a cut-off LED come straight back on. Rule: the timer starts with each Activation. After a cut-off, the LED stays off until the current Event ends, and the next Event starts a fresh timer. This matches the old document's "any interruption in feeding resets the timer".
+- **C2 – FixedInterval trigger:** the old document says the LED comes on when the Lockout ends "if the fly is still interacting". Rule: once the Lockout has passed, contact starts an Activation, including contact already in progress. A new Event is not required.
+- **C3 – Record size:** the earlier estimate was about 100 bytes and about 1,000 records (3.3 minutes). The record is 127 bytes, with 780 records (about 2.6 minutes) and at most 28 records per reply. Dropping Requirement, which PyMCU can work out from the Type settings, would have given about 103 bytes and about 950 records (about 3.2 minutes), but would have made Requirement depend on PyMCU's arithmetic. 127 bytes was accepted.
 - **C4 – Progressive-ratio counting:** k counts Main-phase Activations only, so Acclimation Activations don't move the Requirement along.

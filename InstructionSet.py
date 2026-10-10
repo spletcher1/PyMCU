@@ -1,222 +1,181 @@
-import Instruction
-from Enums import INSTRUCTIONSETTYPE
-import Enums
-import datetime
 import array
+import datetime
 
+import Enums
+import Instruction
+import Paradigm
+from Enums import INSTRUCTIONSETTYPE
+
+PROGRAM_TYPE_NAMES = {
+    INSTRUCTIONSETTYPE.LINEAR: "Linear",
+    INSTRUCTIONSETTYPE.REPEATING: "Repeating",
+    INSTRUCTIONSETTYPE.CIRCADIAN: "Circadian",
+    INSTRUCTIONSETTYPE.CONSTANT: "Constant",
+}
+
+
+def ProgramTypeFromString(text):
+    for programType, name in PROGRAM_TYPE_NAMES.items():
+        if text.strip().lower() == name.lower():
+            return programType
+    raise ValueError("ProgramType must be Linear, Repeating, Circadian or Constant, not '{}'".format(text.strip()))
+
+
+def LinkageFromString(text):
+    values = [v.strip() for v in text.split(",")]
+    try:
+        linkage = [int(v) for v in values]
+    except ValueError:
+        raise ValueError("Linkage must be 12 whole numbers") from None
+    if len(linkage) != 12:
+        raise ValueError("Linkage must have 12 values, not {}".format(len(linkage)))
+    return array.array("i", linkage)
 
 
 class InstructionSet:
+    """A DFM's (or the Environmental Monitor's) Intervals and how they follow each other."""
     def __init__(self):
         self.Clear()
-    def __str__(self):
-        s = "Program Type: "
-        if(self.instructionSetType == INSTRUCTIONSETTYPE.LINEAR):
-            s+="Linear"
-        elif(self.instructionSetType == INSTRUCTIONSETTYPE.CIRCADIAN):
-            s+="Circadian"
-        elif(self.instructionSetType == INSTRUCTIONSETTYPE.REPEATING):
-            s+="Repeating"
-        elif(self.instructionSetType == INSTRUCTIONSETTYPE.CONSTANT):
-            s+="Constant"
 
-        s+="\n"
+    def __str__(self):
+        s = "Program Type: " + PROGRAM_TYPE_NAMES[self.instructionSetType] + "\n"
         for i in self.instructions:
             s+=str(i)+"\n"
         return s
+
     def __len__(self):
         return len(self.instructions)
 
-    def RaiseError(self, s):
-        print(s)
+    def Clear(self):
+        self.instructions=[]
+        self.instructionSetType = INSTRUCTIONSETTYPE.LINEAR
+        self.linkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
+        # Old-style settings that old Interval lines (14 numbers) use.
+        self.optoDelay=0
+        self.optoDecay=0
+        self.optoFrequency=40
+        self.optoPulseWidth=8
+        self.maxTimeOn = 0
+
     def GetDuration(self):
         tmp = datetime.timedelta(seconds=0)
         for i in self.instructions:
             tmp = tmp+i.duration
         return tmp
 
-    def _GetInstruction(self,td : datetime.timedelta):
-        if(td.total_seconds()<=0):
-            return None
-        for i in self.instructions:            
-            if (td.total_seconds() > i.elapsedStart.total_seconds()) and (td.total_seconds() <= i.GetElapsedEnd().total_seconds()):
-                return i
-        return self.instructions[-1]
-    
-    def GetInstruction(self,now,startTime):
-        if(len(self.instructions) <=0) : return None
-        if(self.instructionSetType == INSTRUCTIONSETTYPE.LINEAR):
-            return self._GetInstruction(now-startTime)
-        elif(self.instructionSetType == INSTRUCTIONSETTYPE.CIRCADIAN):
-            # We are now assuming circaidan programs start at midnight
-            elapsedSecondsFromMidnight = now.hour*60*60+now.minute*60+now.second
-            return self._GetInstruction(datetime.timedelta(seconds=elapsedSecondsFromMidnight))
-        elif(self.instructionSetType == INSTRUCTIONSETTYPE.REPEATING):
-            ts = now-startTime
-            lastInstruction = self.instructions[-1]
-            diff = ts.total_seconds() % lastInstruction.GetElapsedEnd().total_seconds()
-            return self._GetInstruction(datetime.timedelta(seconds=diff))
-        else:
-            return None
-    
-    def IsVersion1_5Compatible(self):
-        for i in self.instructions:
-            if(i.IsVersion1_5Compatible() == False):
-                return False            
-        return True
+    #region Adding Intervals
+    def AddInterval(self, darkstate, paradigm, thresholds, minutes):
+        start = self.instructions[-1].GetElapsedEnd() if self.instructions else datetime.timedelta(seconds=0)
+        tmp = Instruction.DFMInstruction(darkstate, paradigm, datetime.timedelta(seconds=minutes*60), start)
+        tmp.SetOptoValues(thresholds)
+        self.instructions.append(tmp)
 
+    def AddSimpleInstruction(self,darkstate,dur,startt):
+        tmp = Instruction.DFMInstruction(darkstate, Paradigm.Paradigm.Idle(), dur, startt)
+        self.instructions.append(tmp)
+
+    @staticmethod
+    def _ParseOldValues(tokens):
+        """Dark state, thresholds and minutes from an old Interval line (14 or 19 numbers)."""
+        if len(tokens) not in (14, 19):
+            raise Paradigm.ParadigmError("An Interval line without a Paradigm name has 14 or 19 numbers, not {}".format(len(tokens)))
+        try:
+            values = [int(t) for t in tokens[:-1]]
+            minutes = float(tokens[-1])
+        except ValueError:
+            raise Paradigm.ParadigmError("Interval values must be numbers") from None
+        if values[0] not in (0, 1):
+            raise Paradigm.ParadigmError("The first Interval value (dark running) must be 0 or 1")
+        darkstate = Enums.DARKSTATE.ON if values[0] == 1 else Enums.DARKSTATE.OFF
+        thresholds = []
+        for t in values[1:13]:
+            if t < -1:
+                raise Paradigm.ParadigmError("Thresholds are 0 (always on), -1 (always off) or a signal level, not {}".format(t))
+            thresholds.append(Instruction.OFF if t > 1023 else t)
+        if minutes <= 0:
+            raise Paradigm.ParadigmError("An Interval must last more than 0 minutes")
+        return darkstate, thresholds, values[13:], minutes
+
+    def AddLegacyInterval(self, tokens):
+        """An Interval line in the form used before Paradigms: dark, 12 thresholds, then either the
+        minutes or frequency, pulse width, decay, delay, max time on and the minutes."""
+        darkstate, thresholds, opto, minutes = self._ParseOldValues(tokens)
+        if opto:
+            paradigm = Paradigm.Paradigm.Legacy(*opto)
+        else:
+            paradigm = Paradigm.Paradigm.Legacy(self.optoFrequency, self.optoPulseWidth, self.optoDecay,
+                                                self.optoDelay, self.maxTimeOn)
+        self.AddInterval(darkstate, paradigm, thresholds, minutes)
+
+    def AddEnvMonInterval(self, tokens):
+        """An Environmental Monitor Interval: dark, relay and pin states (in the threshold slots)
+        and the minutes."""
+        darkstate, states, _, minutes = self._ParseOldValues(tokens)
+        self.AddInterval(darkstate, Paradigm.Paradigm.Idle(), states, minutes)
+    #endregion
+
+    #region Which Interval is running
+    def _IndexAt(self, seconds):
+        for index, i in enumerate(self.instructions):
+            if i.elapsedStart.total_seconds() <= seconds < i.GetElapsedEnd().total_seconds():
+                return index
+        return len(self.instructions)-1
+
+    def GetPosition(self, now, startTime):
+        """(instruction, Interval index from 0, Cycle from 1), or (None, None, None) before the start."""
+        if not self.instructions:
+            return None, None, None
+        if self.instructionSetType == INSTRUCTIONSETTYPE.CIRCADIAN:
+            # Circadian programs run on the time of day.
+            seconds = now.hour*3600 + now.minute*60 + now.second + now.microsecond/1e6
+            cycle = (now.date() - startTime.date()).days + 1
+        else:
+            seconds = (now - startTime).total_seconds()
+            if seconds <= 0:
+                return None, None, None
+            cycle = 1
+            if self.instructionSetType == INSTRUCTIONSETTYPE.CONSTANT:
+                return self.instructions[0], 0, 1
+            if self.instructionSetType == INSTRUCTIONSETTYPE.REPEATING:
+                total = self.instructions[-1].GetElapsedEnd().total_seconds()
+                cycle = int(seconds // total) + 1
+                seconds = seconds % total
+        index = self._IndexAt(seconds)
+        return self.instructions[index], index, cycle
+
+    def GetInstruction(self, now, startTime):
+        return self.GetPosition(now, startTime)[0]
+    #endregion
+
+    def Paradigms(self):
+        seen = {}
+        for i in self.instructions:
+            seen.setdefault(i.paradigm.name, i.paradigm)
+        return list(seen.values())
+
+    def FirmwareNeeded(self):
+        """What these Intervals need DFM firmware 4.0.0 for (empty if older firmware can run them)."""
+        return sorted({p.FirmwareNeeded() for p in self.Paradigms() if p.FirmwareNeeded()})
+
+    def IsVersion1_5Compatible(self):
+        return all(i.IsVersion1_5Compatible() for i in self.instructions)
 
     def Validate(self):
+        """A problem with the Intervals as a whole, or None."""
         if(self.instructionSetType==INSTRUCTIONSETTYPE.CIRCADIAN):
             if(len(self.instructions)==0):
-                return False
-            totalSeconds = self.instructions[-1].GetElapsedEnd().total_seconds()
-            if(totalSeconds!=86400):
-                return False
-            else:
-                return True
-        else:
-            return True
+                return "A Circadian program needs Intervals"
+            totalMinutes = self.instructions[-1].GetElapsedEnd().total_seconds()/60
+            if(totalMinutes!=1440):
+                return "Circadian Intervals must add up to 1440 minutes, not {:g}".format(totalMinutes)
+        return None
 
-    def AddSimpleInstruction(self,darkstate,dur,startt):        
-        tmp= Instruction.DFMInstruction(darkstate,self.optoFrequency,self.optoPulseWidth,self.optoDecay,self.optoDelay,self.maxTimeOn,dur,startt)
-        self.instructions.append(tmp)
-        return True
-
-    def AddDefaultInstruction(self):
-        self.AddInstruction(Instruction.DFMInstruction())
-
-    def AddInstruction(self, instruct:Instruction.DFMInstruction):
-        if(len(self.instructions)==0):
-            referencedStart = datetime.timedelta(seconds=0)
-        else:
-            lastoi = self.instructions[-1]
-            referencedStart = lastoi.GetElapsedEnd()
-        tmp=Instruction.DFMInstruction(instruct.theDarkState,instruct.frequency,instruct.pulseWidth,instruct.decay,instruct.delay,instruct.maxTimeOn,instruct.duration,referencedStart)
-        tmp.SetOptoValues(instruct.optoValues)
-        self.instructions.append(tmp)        
-        return True
-
-    def AddInstructionFromString(self,s):
-        ss = s.split(",")
-        if(len(ss)==14):
-            if(int(ss[0]) == 0):
-                ds = Enums.DARKSTATE.OFF
-            elif(int(ss[0])==1):
-                ds= Enums.DARKSTATE.ON            
-            ov = array.array("i",(-1 for jj in range(0,12)))
-            for x in range(0,12):
-                ov[x]=int(ss[x+1])
-            for ii in range(0,12):
-                if(ov[ii]>1023): 
-                    ov[ii]=-1          
-            dur = datetime.timedelta(seconds=(float(ss[13])*60))            
-            tmp = Instruction.DFMInstruction(ds,self.optoFrequency,self.optoPulseWidth,self.optoDecay,self.optoDelay,self.maxTimeOn,dur,0)
-            tmp.SetOptoValues(ov)
-            self.AddInstruction(tmp)
-        ## If Freq, PW, Decay, Delay, and MaxTime are also defined
-        elif(len(ss)==19):
-            if(int(ss[0]) == 0):
-                ds = Enums.DARKSTATE.OFF
-            elif(int(ss[0])==1):
-                ds= Enums.DARKSTATE.ON            
-            ov = array.array("i",(-1 for jj in range(0,12)))
-            for x in range(0,12):
-                ov[x]=int(ss[x+1])
-            for ii in range(0,12):
-                if(ov[ii]>1023): 
-                    ov[ii]=-1       
-            freq = int(ss[13])
-            pw = int(ss[14])
-            decay = int(ss[15])
-            delay = int(ss[16])
-            maxTime = int(ss[17])   
-            dur = datetime.timedelta(seconds=(float(ss[18])*60))            
-            tmp = Instruction.DFMInstruction(ds,freq,pw,decay,delay,maxTime,dur,0)
-            tmp.SetOptoValues(ov)
-            self.AddInstruction(tmp)
-        else:
-            self.RaiseError("Wrong instruction string length.")
-            raise Exception("Wrong instruction string length.")
-
-    def SetProgramTypeFromString(self,pt):
-        if(pt.lower()=="linear"):
-            self.instructionSetType = INSTRUCTIONSETTYPE.LINEAR
-        elif(pt.lower()=="repeating"):
-            self.instructionSetType = INSTRUCTIONSETTYPE.REPEATING
-        elif(pt.lower()=="circadian"):
-            self.instructionSetType = INSTRUCTIONSETTYPE.CIRCADIAN
-        elif(pt.lower()=="constant"):
-            self.instructionSetType = INSTRUCTIONSETTYPE.CONSTANT
-        else:
-            self.instructionSetType = INSTRUCTIONSETTYPE.CONSTANT
-
-    def SetLinkageFromString(self,lk):
-        ss = lk.split(",")
-        if(len(ss)==12):
-            for x in range(0,12):
-                self.linkage[x]=int(ss[x])
-
-    def Clear(self):
-        self.instructions=[]
-        self.instructionSetType = INSTRUCTIONSETTYPE.LINEAR 
-        self.linkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
-        self.optoDelay=0
-        self.optoDecay=0
-        self.optoFrequency=40
-        self.optoPulseWidth=8
-        self.maxTimeOn = 0
-            
-   
     def ToString(self,duration,startTime):
-        s="Linkage: "
-        for i in self.linkage:
-            s+=str(i)+","
-        s=s[:-1]
-        s+="\n"
-        s+="Opto Frequency: " + str(self.optoFrequency) +"Hz\n"
-        s+="Opto Pulsewidth: " + str(self.optoPulseWidth) + "ms\n"
-        s+="Opto Delay: " + str(self.optoDelay) + "ms\n"
-        s+="Opto Decay: " + str(self.optoDecay) + "ms\n"
-        s+="Max Time On: " + str(self.maxTimeOn) + "ms\n"
-
-        s += "Program Type: "
-        if(self.instructionSetType == INSTRUCTIONSETTYPE.LINEAR):
-            s+="Linear"
-        elif(self.instructionSetType == INSTRUCTIONSETTYPE.CIRCADIAN):
-            s+="Circadian"
-        elif(self.instructionSetType == INSTRUCTIONSETTYPE.REPEATING):
-            s+="Repeating"
-        elif(self.instructionSetType == INSTRUCTIONSETTYPE.CONSTANT):
-            s+="Constant"
-        s+="\n"
-        
+        s="Linkage: " + ",".join(str(i) for i in self.linkage) + "\n"
+        s+="Program Type: " + PROGRAM_TYPE_NAMES[self.instructionSetType] + "\n"
         for i in self.instructions:
             if (i.elapsedStart < duration):
                 tmp = (startTime+i.elapsedStart).strftime("%m/%d/%Y %H:%M:%S")
                 s+="(" + tmp +") "
                 s+=str(i)+"\n"
-
         return s
-#region Testing
-def ModuleTest():
-    tmp = InstructionSet()
-    tmp.instructionSetType = INSTRUCTIONSETTYPE.CIRCADIAN
-    tmp.AddDefaultInstruction()
-    tmp.AddDefaultInstruction()  
-    #tmp2 = Instruction.DFMInstruction(dur=datetime.timedelta(minutes=60))
-    #tmp.AddInstruction(tmp2)
-    tmp.AddInstructionFromString("1,10,11,12,13,14,15,16,17,18,19,20,21,30,12,1000,0,0,30,2")
-    tmp.SetProgramTypeFromString("circadian")
-    tmp.SetLinkageFromString("1,2,3,1,5,6,7,1,9,10,1,12")
-    print(tmp.ToString(datetime.timedelta(minutes=800),datetime.datetime.today()-datetime.timedelta(minutes=800)))
-    
-
-
-if __name__=="__main__" :
-    ModuleTest()    
-#endregion
-
-
-
-        
