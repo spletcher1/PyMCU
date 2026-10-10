@@ -130,8 +130,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Visual Studio cache, lgpio notification pipe, update package built by CreateVersion.sh
+# Visual Studio cache, lgpio notification pipe, update packages built by CreateVersion.sh
 .vs/
 .lgd-nfy*
-NewVersion.tgz
+PyMCU_*.mcu
+PyMCU_*.tgz
 mcu.log*

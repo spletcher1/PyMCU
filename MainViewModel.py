@@ -15,10 +15,10 @@ import DFMPlot
 import socket
 import os
 import subprocess
-import glob
 import shutil
 import traceback
 import FLICDataCopy
+import MCUUpdate
 from TimeInputDialog import DateDialog
 
 APP_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -63,6 +63,19 @@ def GetUSBDrive(folder):
         if os.path.isdir(os.path.join(drive, folder)):
             return drive
     return None
+
+def FindUpdateFiles():
+    """Update packages (.mcu, or .tgz from older builds) at the top of any USB drive or in its
+    FLICUpdates folder. Hidden files are skipped, e.g. the ._ copies a Mac leaves on FAT sticks."""
+    found = []
+    for drive in GetUSBDrives():
+        for folder in (drive, os.path.join(drive,"FLICUpdates")):
+            try:
+                found += [f.path for f in os.scandir(folder) if f.is_file() and not f.name.startswith(".")
+                          and f.name.lower().endswith((".mcu",".tgz"))]
+            except OSError:
+                pass
+    return sorted(found)
 
 def ListProgramFiles(directory):
     """Program files (.txt in any letter case, e.g. PROGRAM.TXT from Windows) in a folder."""
@@ -794,30 +807,42 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.theDFMGroup.SetNormalProgramReadInterval()
 
     def RunUpdate(self):
-        try:
-            drive = GetUSBDrive("FLICUpdates")
-            files = glob.glob(drive+"/FLICUpdates/*.tgz") if drive else []
-            if(len(files)==1):
-                self.StatusBar.showMessage("Updating...",self.statusmessageduration)
-                time.sleep(1)
-                result = subprocess.run(["/bin/tar","-C",APP_DIRECTORY,"-xf",files[0]],capture_output=True,text=True)
-                if(result.returncode!=0):
-                    print("Update failed: "+result.stderr)
-                    self.StatusBar.showMessage("Update failed: "+result.stderr.strip(),self.statusmessageduration)
-                    return
-                self.StatusBar.showMessage("Update complete. Rebooting. Remove USB.",self.statusmessageduration)
-                QApplication.processEvents()
-                time.sleep(5)
-                error = RunAsRoot("/usr/sbin/shutdown","-r","now")
-                if(error is not None):
-                    print("Reboot failed: "+error)
-                    self.StatusBar.showMessage("Update installed. Restart the MCU to use it.",self.statusmessageduration)
-            else:
-                self.StatusBar.showMessage("Update failed.",self.statusmessageduration)
-                self.GotoDFMPage()
-        except Exception as e:
-            print("Update failed: "+str(e))
-            self.StatusBar.showMessage("Update failed: "+str(e),self.statusmessageduration)
+        # Package built by CreateVersion.sh, see docs/Updating.md.
+        files = FindUpdateFiles()
+        if(len(files)!=1):
+            reason = "No update file (.mcu) found on the USB." if len(files)==0 else \
+                     "More than one update file on the USB ("+", ".join(os.path.basename(f) for f in files)+"); leave only one."
+            self.StatusBar.showMessage("Update not started: "+reason,self.statusmessageduration)
+            return
+        error = MCUUpdate.CheckArchive(files[0])
+        if(error):
+            self.StatusBar.showMessage("Update not started: "+error,self.statusmessageduration)
+            return
+        newVersion = MCUUpdate.ReadArchiveVersion(files[0]) or "unknown"
+        if(not self._Confirm("Update MCU","Install PyMCU "+newVersion+" from "+os.path.basename(files[0])+"?\n\n"+
+                             "Installed now: "+APP_VERSION+". The MCU restarts when the update is done.")):
+            self.StatusBar.showMessage("Update canceled.",self.statusmessageduration)
+            return
+
+        self.DisableButtons()
+        self.StatusBar.showMessage("Updating to "+newVersion+"... do not remove USB or power.",600000)
+        QApplication.processEvents()
+        print("Installing update "+files[0]+" ("+APP_VERSION+" -> "+newVersion+")")
+        success, message = MCUUpdate.InstallUpdate(files[0], APP_DIRECTORY)
+        print("Update: "+message)
+        if(not success):
+            self.StatusBar.showMessage("Update failed: "+message,self.statusmessageduration)
+            self.EnableButtons()
+            return
+        self.StatusBar.showMessage("Update to "+newVersion+" installed. Restarting... remove USB.",self.statusmessageduration)
+        QApplication.processEvents()
+        os.sync()
+        time.sleep(3)
+        error = RunAsRoot("/usr/sbin/shutdown","-r","now")
+        if(error is not None):
+            print("Reboot failed: "+error)
+            self.StatusBar.showMessage("Update installed. Restart the MCU to use it.",self.statusmessageduration)
+            self.EnableButtons()
 
 
 def check_theme(app):

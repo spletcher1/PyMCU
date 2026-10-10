@@ -93,7 +93,7 @@ autorun=0
 The app needs no `/home/pi` or `/media/pi` symlinks:
 
 - `GetUSBDrives()` checks `/media/<user>`, plus `/media/pi` if it exists.
-- Updates from a USB stick (`FLICUpdates/*.tgz`) unpack into the app's own folder. Build the package with `CreateVersion.sh`, which writes `NewVersion.tgz`.
+- Updates are a single `PyMCU_<version>.mcu` file on a USB stick, installed with **Update MCU**. See [Updating.md](Updating.md) for building and installing them.
 - Unmounting uses plain `umount`, which works for desktop mounts through udisks2's `umount.udisks2` helper.
 
 **How the app handles USB (3.5.0).**
@@ -103,13 +103,13 @@ The app needs no `/home/pi` or `/media/pi` symlinks:
 - **Save data:** cancelling leaves the stick mounted. After a successful copy the app flushes the data and unmounts, and says so only if the unmount worked. A failed copy shows the reason (for example "No space left on device") and leaves the stick mounted for a retry. Files are copied without permission bits, so FAT-formatted sticks work.
 - **Programs:** `.txt` files are found in any letter case (`PROGRAM.TXT`). Files saved on Windows with characters such as `°` or `µ` preview instead of crashing the app.
 
-**Which drive is used.** Each USB action uses the first drive, in name order, that has its folder at the top level. Drives without that folder are ignored, so an unrelated second stick does no harm.
+**Which drive is used.** Save data and Move programs use the first drive, in name order, that has their folder at the top level. Drives without that folder are ignored, so an unrelated second stick does no harm.
 
 | Action | Folder required on the stick |
 | --- | --- |
 | Save data | `FLICData` |
 | Move programs | `FLICPrograms` (`.txt` files) |
-| Update | `FLICUpdates` (one `.tgz`) |
+| Update | none: one `.mcu` file at the top of the stick or in `FLICUpdates` |
 
 Prepare each stick with the folders it will be used for. A blank stick is rejected with "No USB with a FLICData folder found."
 
