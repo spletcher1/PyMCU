@@ -249,7 +249,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def SetProgramStartTime(self,theTime):
         self.programStartTime = theTime
         self.programEndTime = self.programStartTime + self.programDuration
-        self.StartTimeLabel.setText(self.programStartTime.strftime("%m/%d/%Y %H:%M"))
+        self.StartTimeLabel.setText(self.programStartTime.strftime(
+            "<table><tr><td>Day:&nbsp;</td><td>%a %m/%d/%Y</td></tr><tr><td>Time:&nbsp;</td><td>%H:%M</td></tr></table>"))
         self.theDFMGroup.currentProgram.startTime = self.programStartTime
         self.UpdateProgramGUI()
         self.StatusBar.showMessage("Set program start time: " + self.programStartTime.strftime("%m/%d/%Y %H:%M:%S") ,self.statusmessageduration)
