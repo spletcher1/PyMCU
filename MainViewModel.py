@@ -167,7 +167,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def _MessageBox(self,icon,title,text,informativeText=None,buttons=None):
         # On Wayland a dialog stays in front only with a parent and these window flags, and the
-        # flags must be set after the parent (see NotesForPI5).
+        # flags must be set after the parent (see docs/Pi5Setup.md).
         msg = QMessageBox()
         msg.setParent(self)
         msg.setIcon(icon)

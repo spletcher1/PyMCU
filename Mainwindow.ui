@@ -1867,7 +1867,7 @@
   <action name="powerOffAction">
    <property name="icon">
     <iconset>
-     <normaloff>exit.png</normaloff>exit.png</iconset>
+     <normaloff>images/exit.png</normaloff>images/exit.png</iconset>
    </property>
    <property name="text">
     <string>Power Off</string>
@@ -1876,7 +1876,7 @@
   <action name="findDFMAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-find.png</normaloff>gtk-find.png</iconset>
+     <normaloff>images/gtk-find.png</normaloff>images/gtk-find.png</iconset>
    </property>
    <property name="text">
     <string>Find DFM</string>
@@ -1885,7 +1885,7 @@
   <action name="clearDFMAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-cancel.png</normaloff>gtk-cancel.png</iconset>
+     <normaloff>images/gtk-cancel.png</normaloff>images/gtk-cancel.png</iconset>
    </property>
    <property name="text">
     <string>Clear DFM</string>
@@ -1894,7 +1894,7 @@
   <action name="messagesAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-select-all.png</normaloff>gtk-select-all.png</iconset>
+     <normaloff>images/gtk-select-all.png</normaloff>images/gtk-select-all.png</iconset>
    </property>
    <property name="text">
     <string>Messages</string>
@@ -1906,7 +1906,7 @@
   <action name="programAction">
    <property name="icon">
     <iconset>
-     <normaloff>gnome-stock-text-indent.png</normaloff>gnome-stock-text-indent.png</iconset>
+     <normaloff>images/gnome-stock-text-indent.png</normaloff>images/gnome-stock-text-indent.png</iconset>
    </property>
    <property name="text">
     <string>Programs</string>
@@ -1918,7 +1918,7 @@
   <action name="aboutMCUAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-about.png</normaloff>gtk-about.png</iconset>
+     <normaloff>images/gtk-about.png</normaloff>images/gtk-about.png</iconset>
    </property>
    <property name="text">
     <string>About</string>
@@ -1930,7 +1930,7 @@
   <action name="saveDataAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-floppy.png</normaloff>gtk-floppy.png</iconset>
+     <normaloff>images/gtk-floppy.png</normaloff>images/gtk-floppy.png</iconset>
    </property>
    <property name="text">
     <string>Export Data</string>
@@ -1942,7 +1942,7 @@
   <action name="deleteDataAction">
    <property name="icon">
     <iconset>
-     <normaloff>editdelete.png</normaloff>editdelete.png</iconset>
+     <normaloff>images/editdelete.png</normaloff>images/editdelete.png</iconset>
    </property>
    <property name="text">
     <string>Delete Data</string>
@@ -1954,7 +1954,7 @@
   <action name="dataAction">
    <property name="icon">
     <iconset>
-     <normaloff>gnome-monitor.png</normaloff>gnome-monitor.png</iconset>
+     <normaloff>images/gnome-monitor.png</normaloff>images/gnome-monitor.png</iconset>
    </property>
    <property name="text">
     <string>Live Data</string>
@@ -1966,7 +1966,7 @@
   <action name="clearMessagesAction">
    <property name="icon">
     <iconset>
-     <normaloff>editclear.png</normaloff>editclear.png</iconset>
+     <normaloff>images/editclear.png</normaloff>images/editclear.png</iconset>
    </property>
    <property name="text">
     <string>Clear Msg</string>
@@ -1978,7 +1978,7 @@
   <action name="toggleOutputsAction">
    <property name="icon">
     <iconset>
-     <normaloff>kcontrol.png</normaloff>kcontrol.png</iconset>
+     <normaloff>images/kcontrol.png</normaloff>images/kcontrol.png</iconset>
    </property>
    <property name="text">
     <string>Outputs</string>
@@ -1990,7 +1990,7 @@
   <action name="ejectAction">
    <property name="icon">
     <iconset>
-     <normaloff>USB.png</normaloff>USB.png</iconset>
+     <normaloff>images/USB.png</normaloff>images/USB.png</iconset>
    </property>
    <property name="text">
     <string>Eject USB</string>

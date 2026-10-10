@@ -4,7 +4,7 @@ Last updated: 2026-10-09
 
 ## Overview
 
-This guide replaces NotesForPI5 for a Raspberry Pi 5 running Raspberry Pi OS Trixie, the `v3_Dev` branch and PyQt6. It covers install, start on boot, screen blanking, USB drives and a near-kiosk desktop.
+This guide (it replaces the old NotesForPI5) is for a Raspberry Pi 5 running Raspberry Pi OS Trixie, the `v3_Dev` branch and PyQt6. It covers install, start on boot, screen blanking, USB drives and a near-kiosk desktop.
 
 What changed from the Bookworm notes:
 
@@ -88,7 +88,7 @@ autorun=0
 The app needs no `/home/pi` or `/media/pi` symlinks:
 
 - `GetUSBDrives()` checks `/media/<user>`, plus `/media/pi` if it exists.
-- Updates from a USB stick (`FLICUpdates/*.tgz`) unpack into the app's own folder. This applies both to the in-app update and to the standalone `CheckForUpdate.py`.
+- Updates from a USB stick (`FLICUpdates/*.tgz`) unpack into the app's own folder. Build the package with `CreateVersion.sh`, which writes `NewVersion.tgz`.
 - Unmounting uses plain `umount`, which works for desktop mounts through udisks2's `umount.udisks2` helper.
 
 **Which drive is used.** Each USB action uses the first drive, in name order, that has its folder at the top level. Drives without that folder are ignored, so an unrelated second stick does no harm.
@@ -138,7 +138,7 @@ This removes the launchers, window list, ejecter and updater. The menu stays for
 
 ### Custom boot splash
 
-The "Welcome to the Raspberry Pi Desktop" screen is the Plymouth theme `pix`, which centers `splash.png` on black. Copy it to a theme of your own rather than editing `pix`, which OS updates overwrite. This uses the FLIC logo from the repo (`MCU.png`, 800×480):
+The "Welcome to the Raspberry Pi Desktop" screen is the Plymouth theme `pix`, which centers `splash.png` on black. Copy it to a theme of your own rather than editing `pix`, which OS updates overwrite. This uses the FLIC logo from the repo (`images/MCU.png`, 800×480):
 
 ```sh
 T=/usr/share/plymouth/themes
@@ -147,7 +147,7 @@ cd $T/flic
 sudo mv pix.plymouth flic.plymouth
 sudo mv pix.script flic.script
 sudo sed -i 's/^Name=pix/Name=flic/; s/^Description=.*/Description=FLIC MCU splash/; s#themes/pix#themes/flic#g; s/pix\.script/flic.script/' flic.plymouth
-sudo cp ~/PyMCU/MCU.png splash.png
+sudo cp ~/PyMCU/images/MCU.png splash.png
 sudo plymouth-set-default-theme -R flic
 sudo reboot
 ```
