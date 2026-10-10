@@ -78,7 +78,8 @@ def FindUpdateFiles():
     return sorted(found)
 
 def GetRTCBatteryText():
-    """Voltage and state of the Pi 5 RTC battery (J5), e.g. "2.95 V, OK, charging".
+    """Lines for the About box on the Pi 5 RTC battery (J5), e.g. "Clock battery: 2.95 V, OK"
+    and "Battery charging: on". Kept short so they never run past the dialog's edge.
     Thresholds suit a rechargeable ML-2020 (3.0 V nominal, 2.0 V when exhausted); the voltage
     doesn't fall evenly with charge, so no percentage is shown."""
     def ReadMicrovolts(name):
@@ -87,15 +88,15 @@ def GetRTCBatteryText():
     try:
         volts = ReadMicrovolts("battery_voltage")/1e6
     except (OSError, ValueError):
-        return "unavailable"
+        return "Clock battery: unavailable"
     if(volts<0.5):
-        return "no battery connected"
+        return "Clock battery: none connected"
     state = "OK" if volts>=2.5 else "low"
     try:
         charging = ReadMicrovolts("charging_voltage")>0
     except (OSError, ValueError):
         charging = False
-    return "{:.2f} V, {}, {}".format(volts, state, "charging" if charging else "charging off")
+    return "Clock battery: {:.2f} V, {}\nBattery charging: {}".format(volts, state, "on" if charging else "off")
 
 def ListProgramFiles(directory):
     """Program files (.txt in any letter case, e.g. PROGRAM.TXT from Windows) in a folder."""
@@ -412,8 +413,10 @@ class MyMainWindow(QtWidgets.QMainWindow):
             stext = "Flidea Master Control Unit (V3; P5)"
         ss="Version: " + APP_VERSION + "\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(self.GetFreeMegaBytes())) +" MB"
-        ss=ss+"\nClock battery: " + GetRTCBatteryText()
+        ss=ss+"\n" + GetRTCBatteryText()
         msg = self._MessageBox(QMessageBox.Icon.Information,"About MCU",stext,ss)
+        # Leave room on the right so no line can touch the dialog's edge.
+        msg.setStyleSheet("QLabel#qt_msgbox_label, QLabel#qt_msgbox_informativelabel { min-width: 260px; padding-right: 12px; }")
         settingsButton = msg.addButton("Settings",QMessageBox.ButtonRole.YesRole)
         msg.addButton("Okay",QMessageBox.ButtonRole.NoRole)
         settingsButton.setEnabled(not self.theDFMGroup.currentProgram.isActive)
