@@ -219,7 +219,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def _ControlsLockedDuringProgram(self):
         return [self.clearDFMAction, self.clearMessagesAction, self.deleteDataAction, self.powerOffAction,
                 self.T30MinButton, self.T60MinButton, self.T3HrButton, self.T6HrButton, self.T12HrButton,
-                self.T24HrButton, self.T5DButton, self.CustomButton, self.StartTimeNowButton, self.StartTimeEdit,
+                self.T24HrButton, self.T5DButton, self.CustomButton, self.StartTimeNowButton, self.StartTimeSetButton,
                 self.toggleOutputsAction, self.LoadProgramButton, self.DeleteProgramButton, self.SetDateAndTimeButton]
 
     def DisableButtons(self):
@@ -239,18 +239,17 @@ class MyMainWindow(QtWidgets.QMainWindow):
     def SetStartTimeNow(self):
         self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))
 
-    def ManualStartTimeChange(self):
-        dt = self.StartTimeEdit.dateTime()
-        dt=dt.toPyDateTime()
-        dt = dt.replace(second=0,microsecond=0)
-        self.SetProgramStartTime(dt)
+    def SetStartTimeClicked(self):
+        initial = QtCore.QDateTime(self.programStartTime.replace(second=0,microsecond=0))
+        secs = DateDialog.getDateTime(self,title="Program start time",okText="Set Start",initial=initial)
+        if(secs==0):
+            return
+        self.SetProgramStartTime(datetime.datetime.fromtimestamp(secs))
 
     def SetProgramStartTime(self,theTime):
         self.programStartTime = theTime
         self.programEndTime = self.programStartTime + self.programDuration
-        ss=self.programStartTime.strftime("%m-%d-%Y %H:%M:%S")
-        qtDate = QtCore.QDateTime.fromString(ss,"MM-dd-yyyy HH:mm:ss")
-        self.StartTimeEdit.setDateTime(qtDate)
+        self.StartTimeLabel.setText(self.programStartTime.strftime("%m/%d/%Y %H:%M"))
         self.theDFMGroup.currentProgram.startTime = self.programStartTime
         self.UpdateProgramGUI()
         self.StatusBar.showMessage("Set program start time: " + self.programStartTime.strftime("%m/%d/%Y %H:%M:%S") ,self.statusmessageduration)
@@ -329,7 +328,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
         self.StartTimeNowButton.clicked.connect(self.SetStartTimeNow)
 
-        self.StartTimeEdit.dateTimeChanged.connect(self.ManualStartTimeChange)
+        self.StartTimeSetButton.clicked.connect(self.SetStartTimeClicked)
 
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
         self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)

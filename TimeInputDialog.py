@@ -13,17 +13,22 @@ class DateDialog(QFrame):
 
     closed = pyqtSignal(bool)
 
-    def __init__(self, parent = None):
+    def __init__(self, parent = None, title = "System date and time", okText = "Set Time", initial = None):
         super(DateDialog, self).__init__(parent)
         self.setObjectName("timePanel")
         self.setStyleSheet("#timePanel { background: palette(window); border: 2px solid palette(highlight); border-radius: 12px; }")
-        now = QDateTime.currentDateTime()
+        now = initial if initial is not None else QDateTime.currentDateTime()
         self.hour = now.time().hour()
         self.minute = now.time().minute()
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
         layout.setContentsMargins(16,12,16,16)
+
+        caption = QLabel(title)
+        caption.setFont(QFont('Arial', 12))
+        caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(caption)
 
         # The chosen date and time in words, so it can be checked at a glance.
         self.summary = QLabel()
@@ -67,7 +72,7 @@ class DateDialog(QFrame):
         buttons = QHBoxLayout()
         cancel = self._BigButton("Cancel")
         cancel.clicked.connect(lambda: self.closed.emit(False))
-        ok = self._BigButton("Set Time")
+        ok = self._BigButton(okText)
         ok.setDefault(True)
         ok.clicked.connect(lambda: self.closed.emit(True))
         buttons.addWidget(cancel)
@@ -122,7 +127,7 @@ class DateDialog(QFrame):
         return QDateTime(self.calendar.selectedDate(), QTime(self.hour, self.minute, 0))
 
     @staticmethod
-    def ShowOver(parent):
+    def ShowOver(parent, **options):
         """Dims the parent window and shows the panel centered on it. Returns (backdrop, panel)."""
         backdrop = QWidget(parent)
         backdrop.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -130,7 +135,7 @@ class DateDialog(QFrame):
         # Scoped by name so the dimming doesn't spill onto the panel's widgets.
         backdrop.setStyleSheet("#timeBackdrop { background: rgba(0, 0, 0, 150); }")
         backdrop.setGeometry(parent.rect())
-        panel = DateDialog(backdrop)
+        panel = DateDialog(backdrop, **options)
         # Nearly fill the touchscreen (800x480 on the 7" display).
         panel.setFixedSize(min(760, parent.width()-40), min(440, parent.height()-40))
         centered = QGridLayout(backdrop)
@@ -140,9 +145,9 @@ class DateDialog(QFrame):
         return backdrop, panel
 
     @staticmethod
-    def getDateTime(parent = None):
-        """Seconds since the epoch, or 0 if cancelled."""
-        backdrop, panel = DateDialog.ShowOver(parent)
+    def getDateTime(parent = None, **options):
+        """Seconds since the epoch, or 0 if cancelled. Options: title, okText, initial (QDateTime)."""
+        backdrop, panel = DateDialog.ShowOver(parent, **options)
         result = []
         loop = QEventLoop()
         panel.closed.connect(lambda accepted: (result.append(accepted), loop.quit()))

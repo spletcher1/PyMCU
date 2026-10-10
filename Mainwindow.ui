@@ -166,36 +166,9 @@
              </widget>
             </item>
             <item>
-             <widget class="QDateTimeEdit" name="StartTimeEdit">
-              <property name="minimumSize">
-               <size>
-                <width>0</width>
-                <height>50</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>170</width>
-                <height>16777215</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <pointsize>12</pointsize>
-               </font>
-              </property>
-              <property name="minimumDate">
-               <date>
-                <year>2019</year>
-                <month>12</month>
-                <day>14</day>
-               </date>
-              </property>
-              <property name="displayFormat">
-               <string>MM/dd/yyyy HH:mm</string>
-              </property>
-              <property name="calendarPopup">
-               <bool>false</bool>
+             <widget class="QLabel" name="StartTimeLabel">
+              <property name="text">
+               <string>--/--/---- --:--</string>
               </property>
              </widget>
             </item>
@@ -209,6 +182,19 @@
               </property>
               <property name="text">
                <string>Now</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="StartTimeSetButton">
+              <property name="maximumSize">
+               <size>
+                <width>170</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Set</string>
               </property>
              </widget>
             </item>
