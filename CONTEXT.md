@@ -103,3 +103,23 @@ Where a Well is in its Interval's sequence: Acclimation or Main.
 **Status record**:
 The snapshot a DFM reports for every 200 ms: Well signals, LED state and the Paradigm state of each Well.
 _Avoid_: Packet (that is the transport unit)
+
+**Scan**:
+One pass of the DFM's converter over every Well, giving one reading per Well. The DFM compares the Threshold against the sum of a Well's recent Scans, so a Scan is the finest signal the DFM has.
+_Avoid_: Sample, reading (ambiguous with the data file's rows)
+
+**Tick**:
+One millisecond of the DFM's clock, in which it decides once for every Well. Ticks are numbered from 0 within each Status record's 200 ms.
+_Avoid_: Step (a progressive ratio setting, and the firmware's word for advancing a state machine), ms index
+
+**Decision word**:
+What the DFM concluded for every Well after a Tick: whether it is in contact, whether its own Paradigm lights it (before Linkage), and whether an Event is in progress.
+_Avoid_: State bits, flags
+
+**Fine block**:
+What a Status record becomes in Fine mode: the record plus every Scan and every change of the Decision word during its 200 ms.
+_Avoid_: Fine packet, big record
+
+**Fine mode**:
+A DFM state that PyMCU sets for one DFM per bus for the length of a recording, in which the DFM reports Fine blocks instead of Status records. The Program file asks for it with `FineData`.
+_Avoid_: High-rate mode, streaming, debug mode

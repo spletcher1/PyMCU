@@ -225,6 +225,8 @@ The reliability protocol from 3.5.0 is unchanged: ACK, partial ACK, re-polling f
    Bench: a multi-DFM recording with no gaps, and Phase, Activations and Requirement matching what the LEDs did.
 4. **Documentation:** rewrite the users' conventions document as `docs/ProgramFormat.md`. It covers every Type with a worked example and a "Converting old programs" section. `python docs/export_program_format.py` writes the plain-text copy, `docs/ProgramFormat.txt`; run it after each edit. The firmware README is updated and links to `CONTEXT.md`.
 
+5. **Fine mode (firmware 4.1.0):** one DFM per bus reports every ADC scan and every decision change inside its Status record, which becomes a 2,304-byte block. Specified in [v4-fine-mode-plan.md](v4-fine-mode-plan.md); the reasoning is in [adr/0003](adr/0003-fine-data-over-the-bus.md). Starts only after stages 1–4 have passed their bench checks.
+
 No 4.0.0 build is deployed before stage 3. Development builds report 4.0.0 from stage 1.
 
 ## Confirmations
