@@ -26,6 +26,13 @@ APP_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 # Shown in the About box; keep in step with the version in pyproject.toml.
 APP_VERSION = "3.5.0"
 
+# The window is laid out for the original 800x480 touch display and fixed at that size in
+# Mainwindow.ui. On the MCU, a bigger screen (the 1280x720 Touch Display 2, or a monitor) scales
+# the whole app up by the largest quarter step at which the design still fits, through Qt's own
+# QT_SCALE_FACTOR, which scales widgets, fonts, style sheets, dialogs and the plot together. The
+# Touch Display 2 shows the app at 1.5x, as 1200x720. See RestartScaledToScreen.
+DESIGN_SIZE = (800, 480)
+
 # Screen blanking times offered on the settings page, in seconds (0 = never).
 SCREEN_BLANK_STEPS = [0, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1800, 3600]
 
@@ -965,17 +972,53 @@ def LogException(excType,excValue,excTraceback):
     traceback.print_exception(excType,excValue,excTraceback)
     sys.stdout.flush()
 
+def ScreenScaleFactor(app):
+    """Largest quarter-step factor at which the 800x480 design fits the primary screen, at least 1:
+    1.5 on the 1280x720 Touch Display 2, 1 on the 800x480 display."""
+    screen = app.primaryScreen()
+    if screen is None:
+        return 1
+    size = screen.size()
+    scale = min(size.width()/DESIGN_SIZE[0], size.height()/DESIGN_SIZE[1])
+    return max(1, int(scale*4)/4)
+
+def RestartScaledToScreen(app):
+    """Starts the app again with QT_SCALE_FACTOR set when the screen is bigger than the design.
+    Qt reads the factor only while the application object is being created, and the screen size
+    can only be asked from an application object, so this first run measures the screen and then
+    replaces itself with a run that has the factor set. Returns, and the caller carries on with
+    the given application, when no restart is needed: on an 800x480 screen, or when QT_SCALE_FACTOR
+    is already in the environment (QT_SCALE_FACTOR=1 in RunMCU.sh turns scaling off)."""
+    if "QT_SCALE_FACTOR" in os.environ:
+        return
+    scale = ScreenScaleFactor(app)
+    if scale <= 1:
+        return
+    os.environ["QT_SCALE_FACTOR"] = "{:g}".format(scale)
+    os.environ["PYTHONUNBUFFERED"] = "1"  # keeps the -u of RunMCU.sh, so mcu.log stays current
+    sys.stdout.flush()
+    command = [sys.executable, os.path.abspath(__file__)] + sys.argv[1:]
+    if os.name == "nt":
+        # On Windows exec hands the console back at once, so wait for the real app instead.
+        sys.exit(subprocess.call(command))
+    os.execv(command[0], command)
+
 def main():
     sys.excepthook=LogException
-    print(datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")+" PyMCU "+APP_VERSION+" starting")
-    if("MCU" in platform.node()):
-        theBoard=Board.BoardSetup()
-    else:
-        theBoard=Board.BoardMock()
     app = QtWidgets.QApplication(sys.argv)
     if("MCU" in platform.node()):
+        # A screen bigger than the 800x480 design (e.g. Touch Display 2): does not return, the
+        # app starts again scaled to fit.
+        RestartScaledToScreen(app)
+    scale = os.environ.get("QT_SCALE_FACTOR")
+    print(datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")+" PyMCU "+APP_VERSION+" starting"
+          +(" at screen scale "+scale if scale else ""))
+    if("MCU" in platform.node()):
+        theBoard=Board.BoardSetup()
         # Touch-screen kiosk: no mouse cursor, even before the first touch.
         app.setOverrideCursor(Qt.CursorShape.BlankCursor)
+    else:
+        theBoard=Board.BoardMock()
     is_theme_dark=check_theme(app)
     myapp = MyMainWindow(theBoard,is_theme_dark)
     myapp.showFullScreen()
