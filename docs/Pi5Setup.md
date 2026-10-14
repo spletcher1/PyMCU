@@ -159,6 +159,8 @@ Apply with `kill -HUP $(pgrep -x labwc)` or a reboot. Volume, screenshot, lock (
 
 **Cursor.** When the hostname contains `MCU`, `main()` in `MainViewModel.py` sets a blank cursor, so no pointer shows even before the first touch. A plugged-in mouse also shows no pointer over the app.
 
+**Screen size.** The window is laid out for the 800x480 touch display and fixed at that size in `Mainwindow.ui`. When the hostname contains `MCU` and the screen is bigger, `main()` starts the app again with Qt's `QT_SCALE_FACTOR` set to the largest quarter step at which the layout fits, which scales widgets, fonts, style sheets, dialogs and the plot together. On the 1280x720 Touch Display 2 that is 1.5, so the app shows as 1200x720 with a 40 px margin at each side. A factor already in the environment is kept, so `export QT_SCALE_FACTOR=1` in `RunMCU.sh` turns scaling off, and `QT_SCALE_FACTOR=1.5` previews the Touch Display 2 layout on any machine.
+
 **Dialogs.** Message boxes already set the main window as parent and use `WindowStaysOnTopHint`, so they stay in front under Wayland.
 
 ## 7. System settings (need sudo)
