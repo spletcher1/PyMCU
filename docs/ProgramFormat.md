@@ -385,12 +385,12 @@ In this example, Relay 1 and Outputs 1 and 2 are on for the first 2 hours. Then 
 
 ## Which DFMs can run what
 
-| Needs DFM firmware 4.0.0 or later | Also runs on older firmware and V2 DFMs |
-|---|---|
-| ProgressiveRatio, FixedRatio, and any Paradigm with Acclimation | OpenLoop, ClosedLoop, FixedInterval and NonFeeding |
+| Needs DFM firmware 4.0.0 or later | Runs on firmware 2.0.0 and later, and on V2 DFMs | Also runs on firmware 1.0.5 |
+|---|---|---|
+| ProgressiveRatio, FixedRatio, and any Paradigm with Acclimation | NonFeeding | OpenLoop, ClosedLoop and FixedInterval |
 
 - When a Program is loaded, the MCU warns about any DFM that can't run it, naming the DFM and the feature. Run Program then refuses to start until the DFM is updated or the Program changed.
-- Firmware 1.5 also can't take a time above 65535 ms (about 65 seconds).
+- Firmware 1.0.5 (the DFMs from 2021, which show `1.0.5` on their page) also can't take a time above 65535 ms (about 65 seconds), and would run NonFeeding as fixed interval without any warning, so the MCU refuses both for such a DFM.
 - Older firmware runs its own version of the four rules it supports, so details can differ. It doesn't use `EventGapMs`, for example. Use firmware 4.0.0 for new experiments.
 - The DFM's firmware version is on its page in the MCU (Firmware).
 

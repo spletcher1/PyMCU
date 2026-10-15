@@ -348,10 +348,11 @@ class MCUProgram():
         iset=self.theInstructionSets.get(dfmid)
         return iset.linkage if iset is not None else self.globalLinkage
 
-    def FirmwareNeeded(self,dfmid):
-        """What this DFM's Intervals need firmware 4.0.0 for (empty if older firmware can run them)."""
+    def FirmwareNeeded(self,dfmid,version=None):
+        """Why DFM firmware with this version tuple can't run this DFM's Intervals (empty if it
+        can). Without a version, only what needs 4.0.0 is reported."""
         iset=self.theInstructionSets.get(dfmid)
-        return iset.FirmwareNeeded() if iset is not None else []
+        return iset.FirmwareNeeded(version) if iset is not None else []
 
     def GetCurrentPosition(self,dfmid):
         """(instruction, Interval index from 0, Cycle from 1) for now, or (None, None, None)."""

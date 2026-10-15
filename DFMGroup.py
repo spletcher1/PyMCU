@@ -397,24 +397,24 @@ class DFMGroup:
         self.currentProgram.CreateSimpleProgram(startTime,duration)
 
     def CheckProgramCompatibility(self):
-        """Why the loaded Program can't run on the DFMs present, one line per problem (empty if it can)."""
+        """Why the loaded Program can't run on the DFMs present: one line per DFM, or an empty
+        list. Each DFM is checked against its own firmware (read at connection): ratio types and
+        Acclimation need 4.0.0, and a 1.0.5 board also can't take the NonFeeding type or times
+        above 65535 ms. A V2 (I2C) DFM runs the old settings, so only what needs 4.0.0 counts."""
         problems = []
-        for d in self.theDFMs.values():
+        for ID, d in sorted(self.theDFMs.items()):
             if(d.DFMType==Enums.DFMTYPE.ENVMONV3):
                 continue
-            needed = self.currentProgram.FirmwareNeeded(d.ID)
-            if(d.DFMType==Enums.DFMTYPE.PLETCHERV3 and COMM.UsesParadigmFirmware(d.firmwareVersion)):
+            if(d.DFMType!=Enums.DFMTYPE.PLETCHERV3):
+                needed = self.currentProgram.FirmwareNeeded(ID)
+                if(needed):
+                    problems.append("DFM {} is a V2 DFM, which can't run: {}".format(ID, "; ".join(needed)))
                 continue
-            if(needed and d.DFMType!=Enums.DFMTYPE.PLETCHERV3):
-                problems.append("DFM {} is a V2 DFM, which can't run {}.".format(d.ID, " or ".join(needed)))
-            elif(needed):
-                problems.append("DFM {} (firmware {}) can't run {}. That needs DFM firmware 4.0.0 or later.".format(
-                    d.ID, d.firmwareVersion, " or ".join(needed)))
-            elif(d.DFMType==Enums.DFMTYPE.PLETCHERV3 and d.DFMSubType == Enums.DFMSUBTYPE.V1_5):
-                # V1.5 firmware takes only 2-byte decay, delay and max time on.
-                tmp = self.currentProgram.theInstructionSets.get(d.ID)
-                if(tmp is not None and tmp.IsVersion1_5Compatible()==False):
-                    problems.append("DFM {} (firmware {}) can't take times above 65535 ms.".format(d.ID, d.firmwareVersion))
+            if(COMM.UsesParadigmFirmware(d.firmwareVersion)):
+                continue
+            needed = self.currentProgram.FirmwareNeeded(ID, COMM.FirmwareVersionTuple(d.firmwareVersion))
+            if(needed):
+                problems.append("DFM {} (firmware {}) can't run: {}".format(ID, d.firmwareVersion, "; ".join(needed)))
         return problems
 
     def StopCurrentProgram(self):

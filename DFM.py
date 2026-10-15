@@ -17,11 +17,8 @@ import OptoLid
 COMMAND_RETRY_INTERVAL = 1.0
 
 def UsesV2Instructions(version):
-    # Firmware 2.0 and later (e.g. 2.0.0, 2.0.1) take 4-byte decay, delay and max time on.
-    try:
-        return int(version.split(".")[0]) >= 2
-    except ValueError:
-        return False
+    # Firmware 2.0.0 and later take 4-byte decay, delay and max time on.
+    return COMM.FirmwareVersionTuple(version) >= (2, 0, 0)
 
 # Message and new status for each kind of failed read.
 READ_FAILURES = {
@@ -44,8 +41,9 @@ class DFM:
         self.MP = mp
         self.ID=id
         self.DFMType = dfmType
-        ## Set this to 1.5 and only change if found to be needed.
-        self.DFMSubType = Enums.DFMSUBTYPE.V1_5
+        ## Firmware 1.0.5 until the version is read. Those boards don't answer the request, so
+        ## this is also what they end up with.
+        self.DFMSubType = Enums.DFMSUBTYPE.V1_0_5
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
@@ -75,10 +73,12 @@ class DFM:
         # This is true because we need to get this ASAP for each DFM upon connection.
         self.isVersionGetNeeded = True
         self.isLinkageSetNeeded=False
+        # True after a version request that a 1.0.5 board didn't answer (see UpdateReportedValues).
+        self.maskProbeError = False
         self.retryTime=0.0
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
             # Narrowed down once the firmware version is known.
-            self.currentDFMErrors = DFMErrors.DFMErrors(DFMErrors.V3_ERROR_DISPLAY_BEFORE_2_0_2)
+            self.currentDFMErrors = DFMErrors.DFMErrors(DFMErrors.V3_ERROR_DISPLAY_BEFORE_3_5_0)
         else:
             self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
@@ -185,6 +185,11 @@ class DFM:
             if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
                 continue
             errorFlags = sp.errorFlags
+            if(self.maskProbeError and errorFlags & DFMErrors.P_TYPE_MASK):
+                # Firmware 1.0.5 flags the version request as an unknown command. That isn't the
+                # DFM's fault, so the one record that reports it is cleaned up and the box stays clear.
+                errorFlags &= ~DFMErrors.P_TYPE_MASK
+                self.maskProbeError = False
             if not isRecording:
                 # Packets aren't kept then, so an overflow loses nothing. It is also certain
                 # when the MCU asks for the latest packet only, as nothing drains the buffer.
@@ -348,10 +353,12 @@ class DFM:
         if(v is None):
             return False
         self.firmwareVersion = v.decode("utf-8", errors="replace")
+        # No answer means 1.0.5, and that board has just logged the request as an unknown command.
+        self.maskProbeError = (v == COMM.LEGACY_VERSION)
         if(UsesV2Instructions(self.firmwareVersion)):
             self.DFMSubType = Enums.DFMSUBTYPE.V2
         else:
-            self.DFMSubType = Enums.DFMSUBTYPE.V1_5
+            self.DFMSubType = Enums.DFMSUBTYPE.V1_0_5
         # The meaning of the error bits also depends on the firmware.
         self.currentDFMErrors.display = DFMErrors.V3ErrorDisplay(self.firmwareVersion)
         self.isVersionGetNeeded = False
@@ -385,15 +392,18 @@ class DFM:
                 # The Wells keep their Paradigm state while the Paradigm stays the same.
                 keepState = paradigm.name == self.lastSentParadigmName
                 isSent = self.MP.SendParadigmInstruction(self.ID, self.currentInstruction, self.instructionNumber, keepState)
-            elif(paradigm.FirmwareNeeded()):
-                # Checked before a Program starts, so only reached if the firmware changed since.
-                s="({:d}) Firmware {} can't run {}".format(self.ID, self.firmwareVersion, paradigm.FirmwareNeeded())
-                self.NewMessage(self.ID,datetime.datetime.today(),0,s,Enums.MESSAGETYPE.ERROR)
-                isSent = True
-            elif(self.DFMSubType == Enums.DFMSUBTYPE.V2):
-                isSent = self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)
             else:
-                isSent = self.MP.SendInstructionDFMV1_5(self.ID, self.currentInstruction)
+                # Older firmware misreads what it doesn't know and runs a different rule. The Program
+                # check refuses that before a start; this catches a board swapped since then. Nothing
+                # is sent, so the DFM keeps its last instruction.
+                reason = paradigm.FirmwareNeeded(COMM.FirmwareVersionTuple(self.firmwareVersion))
+                if(reason is not None):
+                    self.NewMessage(self.ID,datetime.datetime.today(),0,"DFM {} (firmware {}) can't run this Interval: {}".format(self.ID,self.firmwareVersion,reason),Enums.MESSAGETYPE.ERROR)
+                    isSent = True   # nothing to retry
+                elif(self.DFMSubType == Enums.DFMSUBTYPE.V2):
+                    isSent = self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)
+                else:
+                    isSent = self.MP.SendInstructionDFMV1_0_5(self.ID, self.currentInstruction)
             if isSent:
                 self.lastSentParadigmName = paradigm.name
             else:

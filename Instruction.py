@@ -45,10 +45,6 @@ class DFMInstruction:
     @property
     def maxTimeOn(self):
         return self.paradigm.LegacyFields()[4]
-
-    def IsVersion1_5Compatible(self):
-        # Firmware 1.5 takes 2-byte decay, delay and max time on.
-        return all(value>>16 == 0 for value in self.paradigm.LegacyFields()[2:])
     #endregion
 
     def SetOptoValues(self,vals):

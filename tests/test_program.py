@@ -163,8 +163,14 @@ class Timing(unittest.TestCase):
     def test_firmware_needed(self):
         program, ok = LoadFile("ParadigmExamples.txt")
         self.assertEqual(program.FirmwareNeeded(2), [])
-        self.assertEqual(program.FirmwareNeeded(5), ["the ProgressiveRatio Paradigm type"])
-        self.assertEqual(program.FirmwareNeeded(6), ["the FixedRatio Paradigm type"])
+        self.assertEqual(program.FirmwareNeeded(5), ["the ProgressiveRatio Paradigm type needs firmware 4.0.0"])
+        self.assertEqual(program.FirmwareNeeded(6), ["the FixedRatio Paradigm type needs firmware 4.0.0"])
+        # Firmware 1.0.5 also can't take NonFeeding or times above 65535 ms; 2.0.1 can.
+        program, ok = Load("[Paradigm NF]\nType: NonFeeding\nOnDelayMs: 500\n[DFM]\nID: 1\nInterval: NF, Lit, {}, 10".format(WELLS))
+        self.assertTrue(ok, program.loadError)
+        self.assertEqual(program.FirmwareNeeded(1), [])
+        self.assertEqual(program.FirmwareNeeded(1, (2, 0, 1)), [])
+        self.assertEqual(program.FirmwareNeeded(1, (1, 0, 5)), ["the NonFeeding Paradigm type needs firmware 2.0.0"])
 
 
 if __name__ == "__main__":

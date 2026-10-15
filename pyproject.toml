@@ -12,7 +12,7 @@ dependencies = [
     "pyserial",
     "cobs",
     "smbus2",
-    # GPIO (lgpio is the pin factory gpiozero needs on the Pi 5)
+    # GPIO (lgpio is the pin factory gpiozero uses on the Pi 4 and Pi 5 under Trixie)
     "gpiozero",
     "adafruit-lgpio",
     # Environmental sensors (board/busio come from adafruit-blinka)

@@ -10,7 +10,7 @@ bus. The protocol is defined by the DFM firmware (DFMV3_V2/src/UART2.c, and DFMV
     to turn its driver on. After its last byte it keeps driving the bus for another 2-3 ms.
   * A status reply holds up to 60 56-byte status packets (28 127-byte packets from firmware
     4.0.0). The DFM keeps them until it is ACKed, so packets that were never ACKed are sent again
-    with the next status request. Firmware 2.0.2 and later also take a partial ACK: [ID, 0xF9,
+    with the next status request. Firmware 3.5.0 and later also take a partial ACK: [ID, 0xF9,
     index of the last packet kept, checksum]. The DFM then sends again only the packets after
     that one.
   * Firmware 4.0.0 and later take the Paradigm instruction (0xF7, ParadigmInstructionPayload)
@@ -49,7 +49,8 @@ PARADIGM_INSTRUCTION_REQUEST = 0xF7
 LINKAGE_REQUEST = 0xFB
 ACK = 0xFA
 PARTIAL_ACK = 0xF9
-PARTIAL_ACK_FIRMWARE = (2, 0, 2)
+# The partial ACK and the buffer-overflow error bit both arrived in 3.5.0 (no 2.0.2 ever shipped).
+PARTIAL_ACK_FIRMWARE = (3, 5, 0)
 PARADIGM_FIRMWARE = (4, 0, 0)
 # Firmware MAXPACKETS. A reply this full means more packets are waiting on the DFM.
 MAX_STATUS_PACKETS = 60
@@ -110,8 +111,8 @@ def UsesParadigmFirmware(version):
 
 def InstructionPayload(instruction, timingSize):
     """Instruction packet body for firmware before 4.0.0: dark, frequency, pulse width, decay,
-    delay, max time on and the 12 thresholds. Decay, delay and max time on are 2 bytes for V1.5
-    firmware and 4 for V2.
+    delay, max time on and the 12 thresholds. Decay, delay and max time on are 2 bytes for
+    firmware 1.0.5 and 4 from 2.0.0.
 
     A -1 threshold goes out as 0xFFFF, which the firmware treats as 'never on'.
     """
@@ -257,7 +258,7 @@ class UARTCOMM:
         self._SendChecksummedRequest(ID, LINKAGE_REQUEST, bytes(linkage[i] for i in range(12)))
         return self._ReadAck(ID)
 
-    def SendInstructionDFMV1_5(self, ID, anInstruction):
+    def SendInstructionDFMV1_0_5(self, ID, anInstruction):
         self._SendChecksummedRequest(ID, INSTRUCTION_REQUEST, InstructionPayload(anInstruction, 2))
         return self._ReadAck(ID)
 

@@ -1,6 +1,6 @@
 """Screen blanking time, set from the app's settings page.
 
-Blanking is the swayidle line in ~/.config/labwc/autostart (see docs/Pi5Setup.md, section 4):
+Blanking is the swayidle line in ~/.config/labwc/autostart (see docs/MCUSetup.md, section 4):
 
     swayidle -w timeout 60 'wlopm --off \\*' resume 'wlopm --on \\*' &
 

@@ -22,7 +22,7 @@ class COMMANDTYPE(Enum):
     SET_GET_LATESTSTATUS=20
     SET_GET_NORMALSTATUS=21
     FIND_DFM=22
-    INSTRUCTION_V1_5=23
+    INSTRUCTION_V1_0_5=23
     INSTRUCTION_V2=24
     GET_VERSION=25
     INSTRUCTION_PARADIGM=26
@@ -87,6 +87,8 @@ class DFMTYPE(Enum):
     PLETCHERV3=3
     ENVMONV3=4
 
+# Which instruction format a V3 DFM takes: firmware 1.0.5 (2-byte times, nothing was ever
+# released as "1.5") or 2.0.0 and later (4-byte times).
 class DFMSUBTYPE(Enum):
-    V1_5=1
+    V1_0_5=1
     V2=2

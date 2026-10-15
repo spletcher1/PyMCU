@@ -153,12 +153,16 @@ class InstructionSet:
             seen.setdefault(i.paradigm.name, i.paradigm)
         return list(seen.values())
 
-    def FirmwareNeeded(self):
-        """What these Intervals need DFM firmware 4.0.0 for (empty if older firmware can run them)."""
-        return sorted({p.FirmwareNeeded() for p in self.Paradigms() if p.FirmwareNeeded()})
-
-    def IsVersion1_5Compatible(self):
-        return all(i.IsVersion1_5Compatible() for i in self.instructions)
+    def FirmwareNeeded(self, version=None):
+        """Why DFM firmware with this version tuple can't run these Intervals, one reason per
+        Paradigm in order and without repeats, or empty. Without a version, only what needs
+        4.0.0 is reported (see Paradigm.FirmwareNeeded)."""
+        reasons = []
+        for p in self.Paradigms():
+            reason = p.FirmwareNeeded(version)
+            if reason is not None and reason not in reasons:
+                reasons.append(reason)
+        return reasons
 
     def Validate(self):
         """A problem with the Intervals as a whole, or None."""

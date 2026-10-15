@@ -36,6 +36,8 @@ SERIES_NAMES = {Series.ARITHMETIC: "Arithmetic", Series.EXPONENTIAL: "Exponentia
 
 MAX_MS = 0xFFFFFFFF
 MAX_COUNT = 0xFFFF
+# Firmware 1.0.5 (DFMV3 before 2.0.0) has 2-byte decay, delay and max time on.
+MAX_MS_1_0_5 = 0xFFFF
 DEFAULT_EVENT_GAP_MS = 100
 # Old programs flagged non-feeding activation by adding this to OptoPW.
 NONFEEDING_PW_FLAG = 0x8000
@@ -246,12 +248,21 @@ class Paradigm:
             words = []
         return [int(w) for w in words] + [0] * (5 - len(words))
 
-    def FirmwareNeeded(self):
-        """What this Paradigm needs firmware 4.0.0 for, or None if older firmware can run it."""
+    def FirmwareNeeded(self, version=None):
+        """Why DFM firmware with this version (a tuple such as (1, 0, 5), as COMM.FirmwareVersionTuple
+        gives it) can't run this Paradigm, naming the firmware it needs, or None if it can. Ratio
+        types and Acclimation need 4.0.0. Firmware 1.0.5, the only one below 2.0.0, also doesn't
+        know the NonFeeding type (it would run fixed interval instead, with no warning) and its
+        2-byte times stop at 65535 ms. Without a version, only what needs 4.0.0 is reported."""
         if self.IsRatioType():
-            return "the {} Paradigm type".format(self.typeName)
+            return "the {} Paradigm type needs firmware 4.0.0".format(self.typeName)
         if self.acclimation > 0:
-            return "Acclimation"
+            return "Acclimation needs firmware 4.0.0"
+        if version is not None and version < (2, 0, 0):
+            if self.type == ParadigmType.NONFEEDING:
+                return "the NonFeeding Paradigm type needs firmware 2.0.0"
+            if max(self.LegacyFields()[2:]) > MAX_MS_1_0_5:
+                return "times above 65535 ms need firmware 2.0.0"
         return None
 
     def LegacyFields(self):
