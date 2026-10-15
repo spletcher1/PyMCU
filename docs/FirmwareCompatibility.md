@@ -6,7 +6,7 @@ PyMCU 3.5.1 drives every DFM that is not on firmware 4.0.0: the 1.0.5 boards fro
 
 ## The opto settings
 
-A Program file sets these in `[General]`, per DFM in a `[DFM]` section, or per Interval on a 19-number `Interval:` line (dark, 12 thresholds, OptoFrequency, OptoPW, OptoDecay, OptoDelay, MaxTimeOn, minutes). A 14-number line uses the section's values.
+A Program file sets these in `[General]`, per DFM in a `[DFM]` section, or per Interval on a 19-number `Interval:` line (dark, 12 thresholds, OptoFrequency, OptoPW, OptoDecay, OptoDelay, MaxTimeOn, minutes). A 14-number line uses the section's values. A `[DFM]` section with `ID: All` applies to every connected DFM the file doesn't list by number; the `OptoTest` programs in `FLICPrograms` use it, one per rule in the table below.
 
 | Setting | What it is | Accepted values |
 | --- | --- | --- |

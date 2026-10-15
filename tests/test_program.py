@@ -3,6 +3,8 @@ against the connected DFMs' firmware."""
 import support  # noqa: F401  (must come first)
 
 import datetime
+import os
+import types
 import unittest
 
 import COMM
@@ -92,6 +94,27 @@ class Loading(unittest.TestCase):
         start = Program.NextMinute()
         self.assertEqual((start.second, start.microsecond), (0, 0))
         self.assertTrue(before < start <= before + datetime.timedelta(minutes=1))
+
+    def test_id_all_covers_dfms_not_listed(self):
+        text = GENERAL + "[DFM]\nID: All\nInterval: 0,50,50,50,50,50,50,50,50,50,50,50,50,10\n" + DFM2 + \
+            "Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,10\n"
+        envMon = types.SimpleNamespace(ID=99, DFMType=Enums.DFMTYPE.ENVMONV3)
+        ok, program = Load(text, MakeDFM(ID=2), MakeDFM(ID=3), MakeDFM(ID=4), envMon)
+        self.assertTrue(ok, program.loadError)
+        sets = program.theInstructionSets
+        self.assertEqual(sorted(sets), [2, 3, 4, 99])
+        self.assertEqual(sets[2].instructions[0].optoValues[0], -1)     # its own section wins
+        self.assertEqual(sets[3].instructions[0].optoValues[0], 50)
+        self.assertEqual(sets[99].instructions[0].optoValues[0], -1)    # not the monitor
+        # Each DFM's baseline goes into its own Intervals.
+        self.assertIsNot(sets[3].instructions[0], sets[4].instructions[0])
+
+    def test_shipped_programs_load(self):
+        folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "FLICPrograms")
+        for name in sorted(os.listdir(folder)):
+            with open(os.path.join(folder, name), encoding="utf-8-sig") as f:
+                ok, program = Load(f.read(), MakeDFM(ID=2))
+            self.assertTrue(ok, name + ": " + program.loadError)
 
     def test_refusals_name_the_line(self):
         self.Refusal(GENERAL + DFM2 + "Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,10,5\n",

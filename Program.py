@@ -1,3 +1,4 @@
+import copy
 import datetime
 import Enums
 import InstructionSet
@@ -30,6 +31,8 @@ class MCUProgram():
         self.startTime = NextMinute()
         self.experimentDuration = datetime.timedelta(minutes=1)
         self.theInstructionSets.clear()
+        # The [DFM] section with 'ID: All', for connected DFMs the file doesn't list by number.
+        self.allInstructionSet = None
         self.optoFrequency = 40
         self.optoPulseWidth= 8
         self.optoDecay= 0
@@ -206,9 +209,12 @@ class MCUProgram():
                 self._SetGeneral(key,value,lineNumber)
             elif(section in ("dfm","envmon")):
                 if(key=="id"):
-                    ID = 99 if section=="envmon" else InstructionSet.CheckedInt("ID",value,lineNumber,1,99)
                     current = self._NewInstructionSet()
-                    self.theInstructionSets[ID] = current
+                    if(section=="dfm" and value.lower()=="all"):
+                        self.allInstructionSet = current
+                    else:
+                        ID = 99 if section=="envmon" else InstructionSet.CheckedInt("ID",value,lineNumber,1,99)
+                        self.theInstructionSets[ID] = current
                 elif(current is not None):
                     self._SetDFM(current,key,value,lineNumber)
 
@@ -262,16 +268,23 @@ class MCUProgram():
             iset.AddInstructionFromString(value,lineNumber)
 
     def _FillIn(self,dfmList):
-        """Drops DFMs that aren't connected, gives connected DFMs the file doesn't list a simple
-        program, and checks each program's Intervals."""
+        """Drops DFMs that aren't connected, gives connected DFMs the file doesn't list the
+        'ID: All' program or else a simple program, and checks each program's Intervals."""
         if(self.experimentDuration.total_seconds()==0):
-            for iset in self.theInstructionSets.values():
+            for iset in list(self.theInstructionSets.values()) + [self.allInstructionSet]:
+                if iset is None:
+                    continue
                 if iset.GetDuration() > self.experimentDuration:
                     self.experimentDuration = iset.GetDuration()
         connected = {d.ID for d in dfmList.values()}
         # Get rid of DFMs that are not in the experiment to simplify the description textbox.
         self.theInstructionSets = {ID: iset for ID, iset in self.theInstructionSets.items() if ID in connected}
         for ID in sorted(connected - set(self.theInstructionSets)):
+            # Not the environmental monitor, which has its own [EnvMon] section.
+            if(self.allInstructionSet is not None and dfmList[ID].DFMType != Enums.DFMTYPE.ENVMONV3):
+                # A copy each, as a DFM's baseline is stored in its Intervals.
+                self.theInstructionSets[ID] = copy.deepcopy(self.allInstructionSet)
+                continue
             InstructionSet.CheckOptoSettings(self.optoFrequency,self.optoPulseWidth,self.optoDecay,0)
             self.AddSimpleProgram(ID,self.experimentDuration)
             ss="DFM " + str(ID) + " not listed in program file. Adding simple program"
