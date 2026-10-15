@@ -179,6 +179,8 @@ Apply with `kill -HUP $(pgrep -x labwc)` or a reboot. Volume, screenshot, lock (
 
 **Screen size.** The window is laid out for the 800x480 touch display and fixed at that size in `Mainwindow.ui`. When the hostname contains `MCU` and the screen is bigger, `main()` starts the app again with Qt's `QT_SCALE_FACTOR` set to the largest quarter step at which the layout fits, which scales widgets, fonts, style sheets, dialogs and the plot together. On the 1280x720 Touch Display 2 that is 1.5, so the app shows as 1200x720 with a 40 px margin at each side. A factor already in the environment is kept, so `export QT_SCALE_FACTOR=1` in `RunMCU.sh` turns scaling off, and `QT_SCALE_FACTOR=1.5` previews the Touch Display 2 layout on any machine.
 
+**Touch Display 2 orientation.** The Touch Display 2 is a portrait panel (720x1280). For landscape, set Orientation to Right (or Left, depending on which way the display is mounted) in the desktop's Screen Configuration tool, which keeps the setting for later logins. The Wayland compositor applies this rotation, so it is not in effect during boot: see the rotated splash note in section 7.
+
 **Dialogs.** Message boxes already set the main window as parent and use `WindowStaysOnTopHint`, so they stay in front under Wayland.
 
 ## 7. System settings (need sudo)
@@ -243,6 +245,15 @@ sudo reboot
 - **Shutdown:** the theme shows no image at shutdown, only black.
 - **Requires:** `quiet splash` in `cmdline.txt` (already there). The Pi 5 firmware screen before it is not affected.
 - **Undo:** `sudo plymouth-set-default-theme -R pix`
+
+**Touch Display 2: rotated splash.** The splash is drawn before Wayland starts, in the panel's native portrait orientation, so on a Touch Display 2 `MCU.png` appears on its side. Use a pre-rotated copy as `splash.png` instead. The repo has one for each orientation, both 480x800: `images/MCU_Rotated.png` is turned 90° clockwise, for Orientation **Right**; `images/MCU_Rotated_Left.png` is turned counter-clockwise, for **Left**. After the theme is installed as above:
+
+```sh
+sudo cp ~/PyMCU/images/MCU_Rotated.png /usr/share/plymouth/themes/flic/splash.png
+sudo plymouth-set-default-theme -R flic
+```
+
+If the logo then shows upside down, the desktop was rotated the other way: use the other file. The original 800x480 display is landscape by nature and keeps `MCU.png`.
 
 ## 8. Verify after reboot
 
