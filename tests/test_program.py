@@ -9,7 +9,7 @@ import COMM
 import DFMGroup
 import Enums
 import Program
-from test_dfm import MakeDFM
+from test_dfm import FakeMP, MakeDFM
 
 GENERAL = """[General]
 ExpDurationMin: 60
@@ -80,6 +80,19 @@ class Loading(unittest.TestCase):
         self.assertIn(expected, program.loadError)
         self.assertTrue(any(("Problem loading program: " + expected) in n.message for n in NOTICES))
 
+    def test_simple_program_starts_on_the_minute(self):
+        # The GUI asks for now + 1 minute, seconds and all; the program must not keep them.
+        program = Program.MCUProgram()
+        program.CreateSimpleProgram(datetime.datetime(2026, 10, 14, 23, 42, 18, 500), datetime.timedelta(minutes=180))
+        self.assertEqual(program.startTime, datetime.datetime(2026, 10, 14, 23, 42))
+        self.assertEqual(program.GetEndTime(), datetime.datetime(2026, 10, 15, 2, 42))
+
+    def test_next_minute_is_the_top_of_the_coming_minute(self):
+        before = datetime.datetime.today()
+        start = Program.NextMinute()
+        self.assertEqual((start.second, start.microsecond), (0, 0))
+        self.assertTrue(before < start <= before + datetime.timedelta(minutes=1))
+
     def test_refusals_name_the_line(self):
         self.Refusal(GENERAL + DFM2 + "Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,10,5\n",
                      "line 12: an Interval needs 14 or 19 numbers, not 15")
@@ -136,3 +149,38 @@ class Compatibility(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class StagedProgram(unittest.TestCase):
+    """A staged program reads only the DFM on screen and doesn't baseline until it starts."""
+    def Group(self):
+        group = object.__new__(DFMGroup.DFMGroup)
+        group.MP = FakeMP(b"2.0.1")
+        group.theDFMs = {2: MakeDFM(ID=2), 3: MakeDFM(ID=3)}
+        group.activeDFM = group.theDFMs[2]
+        group.isReadWorkerRunning = False
+        group.isStagedFocused = False
+        group.currentProgram = Program.MCUProgram()
+        group.currentProgram.CreateSimpleProgram(Program.NextMinute(), datetime.timedelta(minutes=10))
+        group.StopReadWorker = group.StartProgramWorker = lambda: None
+        return group
+
+    def Focus(self, group):
+        return [c[1] for c in group.MP.calls if c[0] == "SetFocusDFM"]
+
+    def test_staging_reads_the_dfm_on_screen_and_does_not_baseline(self):
+        group = self.Group()
+        group.StageCurrentProgram()
+        self.assertEqual(self.Focus(group), [2])
+        self.assertFalse(any(d.isCalculatingBaseline for d in group.theDFMs.values()))
+        group.SetActiveDFM(3)
+        self.assertEqual(self.Focus(group), [2, 3])
+
+    def test_instructions_wait_for_each_baseline(self):
+        group = self.Group()
+        group.currentProgram.startTime = datetime.datetime.today() - datetime.timedelta(minutes=1)
+        group.theDFMs[3].BaselineDFM()
+        group.UpdateDFMInstructions()
+        self.assertTrue(group.theDFMs[2].isInstructionUpdateNeeded)
+        self.assertFalse(group.theDFMs[3].isInstructionUpdateNeeded)

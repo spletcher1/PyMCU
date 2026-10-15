@@ -8,6 +8,14 @@ import array
 PROGRAM_TYPES = {"linear": Enums.INSTRUCTIONSETTYPE.LINEAR, "repeating": Enums.INSTRUCTIONSETTYPE.REPEATING,
                  "circadian": Enums.INSTRUCTIONSETTYPE.CIRCADIAN, "constant": Enums.INSTRUCTIONSETTYPE.CONSTANT}
 
+def WholeMinute(t):
+    """t with the seconds dropped, so a program starts at the top of a minute."""
+    return t.replace(second=0, microsecond=0)
+
+def NextMinute():
+    """The start of the next minute, the earliest a program can start."""
+    return WholeMinute(datetime.datetime.today() + datetime.timedelta(minutes=1))
+
 class MCUProgram():
     Program_message = Event.Event()
 
@@ -19,8 +27,7 @@ class MCUProgram():
         return self.GetProgramDescription()
 
     def ClearProgram(self):
-        ddt = datetime.datetime.today() + datetime.timedelta(minutes=1)
-        self.startTime = datetime.datetime(ddt.year, ddt.month, ddt.day, ddt.hour, ddt.minute, 0)
+        self.startTime = NextMinute()
         self.experimentDuration = datetime.timedelta(minutes=1)
         self.theInstructionSets.clear()
         self.optoFrequency = 40
@@ -124,7 +131,7 @@ class MCUProgram():
     def CreateSimpleProgram(self,starttime,dur):
         # This will create a "linear" experiment with the current begin time and duration.
         self.ClearProgram()
-        self.startTime=starttime
+        self.startTime=WholeMinute(starttime)
         self.experimentDuration=dur
         for i in range(0,99):
             self.AddSimpleProgram(i,dur)
