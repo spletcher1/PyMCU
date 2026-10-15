@@ -694,7 +694,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def LayOutErrorBoxes(self, boxes, display):
         # Fill the grid slots in order (down the first column, then the second) with the boxes
-        # in use, so a hidden one (e.g. bit 1 on firmware before 2.0.2) leaves no gap under
+        # in use, so a hidden one (e.g. bit 1 on firmware before 3.5.0) leaves no gap under
         # No Ack; any empty slot ends up last.
         if(getattr(self,"errorBoxDisplay",None) is display):
             return

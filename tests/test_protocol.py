@@ -8,6 +8,7 @@ import struct
 import unittest
 
 import COMM
+import DFMErrors
 import Enums
 import Instruction
 import StatusPacket
@@ -84,10 +85,21 @@ class Versions(unittest.TestCase):
     def test_what_each_firmware_takes(self):
         self.assertFalse(COMM.SupportsPartialAck(COMM.LEGACY_VERSION))
         self.assertFalse(COMM.SupportsPartialAck(b"2.0.1"))
+        self.assertFalse(COMM.SupportsPartialAck(b"2.0.2"))   # a 2.0.x hotfix would not have it
         self.assertTrue(COMM.SupportsPartialAck(b"3.5.0"))
+        self.assertTrue(COMM.SupportsPartialAck("4.0.0"))
         self.assertFalse(COMM.UsesParadigmFirmware(b"3.5.0"))
         self.assertTrue(COMM.UsesParadigmFirmware("4.0.0"))
         self.assertFalse(COMM.UsesParadigmFirmware(b""))
+
+    def test_error_labels_per_firmware(self):
+        before, after = DFMErrors.V3_ERROR_DISPLAY_BEFORE_3_5_0, DFMErrors.V3_ERROR_DISPLAY
+        for version in ("1.0.5", "2.0.0", "2.0.1", "2.0.2"):
+            self.assertIs(DFMErrors.V3ErrorDisplay(version), before, version)
+        for version in ("3.5.0", "4.0.0"):
+            self.assertIs(DFMErrors.V3ErrorDisplay(version), after, version)
+        self.assertEqual((before[0][0], before[0][2], before[1]), ("No Ack", (0, 1), None))
+        self.assertEqual((after[0][2], after[1][0], after[1][2]), ((0,), "Overflow", (1,)))
 
 
 class Records(unittest.TestCase):

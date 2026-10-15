@@ -18,6 +18,11 @@ def UsesV2Instructions(version):
     # Firmware 2.0.0 and later take 4-byte decay, delay and max time on.
     return COMM.FirmwareVersionTuple(version) >= (2, 0, 0)
 
+def WithoutTrainingFlag(value):
+    """A Well value without the +65536 'in training' flag that firmware 2.0.0 and later set on it.
+    The data file keeps the raw value (pyflic reads the flag); comparisons and the baseline don't."""
+    return value - 65536 if value > 40000 else value
+
 # Message and new status for each kind of failed read.
 READ_FAILURES = {
     Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR: ("Checksum mismatch", Enums.CURRENTSTATUS.ERROR),
@@ -33,8 +38,9 @@ class DFM:
         self.MP = mp
         self.ID=id
         self.DFMType = dfmType
-        ## Set this to 1.5 and only change if found to be needed.
-        self.DFMSubType = Enums.DFMSUBTYPE.V1_5
+        ## Firmware 1.0.5 until the version is read. Those boards don't answer the request, so
+        ## this is also what they end up with.
+        self.DFMSubType = Enums.DFMSUBTYPE.V1_0_5
         self.outputFile = "DFM" + str(self.ID) + "_0.csv"
         self.outputFileIncrementor=0
         self.status = Enums.CURRENTSTATUS.UNDEFINED
@@ -56,10 +62,12 @@ class DFM:
         self.isLinkageSetNeeded=False
         # False for firmware this PyMCU can't drive (4.0.0 and later), which is then left alone.
         self.isSupported = True
+        # True after a version request that a 1.0.5 board didn't answer (see UpdateReportedValues).
+        self.maskProbeError = False
         self.retryTime=0.0
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
             # Narrowed down once the firmware version is known.
-            self.currentDFMErrors = DFMErrors.DFMErrors(DFMErrors.V3_ERROR_DISPLAY_BEFORE_2_0_2)
+            self.currentDFMErrors = DFMErrors.DFMErrors(DFMErrors.V3_ERROR_DISPLAY_BEFORE_3_5_0)
         else:
             self.currentDFMErrors = DFMErrors.DFMErrors()
         self.reportedOptoFrequency=0
@@ -101,11 +109,7 @@ class DFM:
             return tmp.analogValues
         resultArray=array.array("i",(0 for i in range(0,12)))
         for i in range(0,12):
-            # Values over 40000 carry the firmware's +65536 'in training' flag.
-            value = tmp.analogValues[i]-self.signalBaselines[i]
-            if(tmp.analogValues[i]>40000):
-                value -= 65536
-            resultArray[i]=max(value,0)
+            resultArray[i]=max(WithoutTrainingFlag(tmp.analogValues[i])-self.signalBaselines[i],0)
         return resultArray
 
     def SetIdleStatus(self):
@@ -139,8 +143,9 @@ class DFM:
         if last is None:
             return
         for i in range(0,12):
+            # A Well in training while baselining runs must not push its baseline up by 65536.
             tmp = self.signalBaselines[i] * self.baselineSamples
-            self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
+            self.signalBaselines[i] = int((tmp + WithoutTrainingFlag(last[i]))/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
         if (self.baselineSamples>=10):
             self.isCalculatingBaseline=False
@@ -169,6 +174,11 @@ class DFM:
             if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
                 continue
             errorFlags = sp.errorFlags
+            if(self.maskProbeError and errorFlags & DFMErrors.P_TYPE_MASK):
+                # Firmware 1.0.5 flags the version request as an unknown command. That isn't the
+                # DFM's fault, so the one record that reports it is cleaned up and the box stays clear.
+                errorFlags &= ~DFMErrors.P_TYPE_MASK
+                self.maskProbeError = False
             if not isRecording:
                 # Packets aren't kept then, so an overflow loses nothing. It is also certain
                 # when the MCU asks for the latest packet only, as nothing drains the buffer.
@@ -292,6 +302,8 @@ class DFM:
         if(v is None):
             return False
         self.firmwareVersion = v.decode("utf-8", errors="replace")
+        # No answer means 1.0.5, and that board has just logged the request as an unknown command.
+        self.maskProbeError = (v == COMM.LEGACY_VERSION)
         if(COMM.UsesParadigmFirmware(self.firmwareVersion)):
             # Said once. The board stays on the DFM page with its firmware, and nothing is sent to it.
             if(self.isSupported):
@@ -302,7 +314,7 @@ class DFM:
         if(UsesV2Instructions(self.firmwareVersion)):
             self.DFMSubType = Enums.DFMSUBTYPE.V2
         else:
-            self.DFMSubType = Enums.DFMSUBTYPE.V1_5
+            self.DFMSubType = Enums.DFMSUBTYPE.V1_0_5
         # The meaning of the error bits also depends on the firmware.
         self.currentDFMErrors.display = DFMErrors.V3ErrorDisplay(self.firmwareVersion)
         self.isVersionGetNeeded = False
@@ -344,7 +356,7 @@ class DFM:
             elif(self.DFMSubType == Enums.DFMSUBTYPE.V2):
                 isSent = self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)
             else:
-                isSent = self.MP.SendInstructionDFMV1_5(self.ID, self.currentInstruction)
+                isSent = self.MP.SendInstructionDFMV1_0_5(self.ID, self.currentInstruction)
             if not isSent:
                 self.isInstructionUpdateNeeded=True
                 print("Instruction update NACKed")

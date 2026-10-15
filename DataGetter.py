@@ -106,8 +106,8 @@ class DataGetter:
         return self._Request(COMMANDTYPE.BUFFER_RESET,[ID],3) is True
     def SendInstructionDFMV2_0(self,ID,currentInstruction):
         return self._Request(COMMANDTYPE.INSTRUCTION_V2,[ID,currentInstruction],3) is True
-    def SendInstructionDFMV1_5(self,ID,currentInstruction):
-        return self._Request(COMMANDTYPE.INSTRUCTION_V1_5,[ID,currentInstruction],3) is True
+    def SendInstructionDFMV1_0_5(self,ID,currentInstruction):
+        return self._Request(COMMANDTYPE.INSTRUCTION_V1_0_5,[ID,currentInstruction],3) is True
     def SendLinkage(self,ID,currentLinkage):
         return self._Request(COMMANDTYPE.LINKAGE,[ID,currentLinkage],3) is True
     def GetVersion(self,ID):
@@ -243,8 +243,8 @@ class DataGetter:
             self._Answer(command, version)
         elif(commandType==COMMANDTYPE.LINKAGE):
             self._Answer(command, self.theCOMM.SendLinkage(args[0],args[1]))
-        elif(commandType==COMMANDTYPE.INSTRUCTION_V1_5):
-            self._Answer(command, self.theCOMM.SendInstructionDFMV1_5(args[0],args[1]))
+        elif(commandType==COMMANDTYPE.INSTRUCTION_V1_0_5):
+            self._Answer(command, self.theCOMM.SendInstructionDFMV1_0_5(args[0],args[1]))
         elif(commandType==COMMANDTYPE.INSTRUCTION_V2):
             self._Answer(command, self.theCOMM.SendInstructionDFMV2_0(args[0],args[1]))
         elif(commandType==COMMANDTYPE.SEND_DARK):

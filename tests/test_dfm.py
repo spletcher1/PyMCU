@@ -1,7 +1,8 @@
 """DFM bookkeeping per firmware generation: which instruction format goes out, which error labels
-show, and what happens with settings or firmware a board can't take."""
+show, what happens with settings or firmware a board can't take, and how records are read."""
 import support  # noqa: F401  (must come first)
 
+import datetime
 import unittest
 
 import COMM
@@ -9,7 +10,8 @@ import DFM
 import DFMErrors
 import Enums
 import Instruction
-from test_protocol import ClosedLoop
+import StatusPacket
+from test_protocol import ClosedLoop, Record
 
 MESSAGES = []
 DFM.DFM.DFM_message += MESSAGES.append
@@ -47,26 +49,33 @@ def MessagesAbout(dfmID, words):
     return [m for m in MESSAGES if m.DFMId == dfmID and words in m.message]
 
 
+def Packet(errorFlags=0, index=1, training=()):
+    sp = StatusPacket.StatusPacket(0, 5, Enums.DFMTYPE.PLETCHERV3)
+    sp.ProcessStatusPacket(Record(index=index, errorFlags=errorFlags, training=training), datetime.datetime(2026, 1, 1), 0)
+    return sp
+
+
 class Generations(unittest.TestCase):
     def test_1_0_5_board(self):
         d = MakeDFM(COMM.LEGACY_VERSION)
         self.assertEqual(d.firmwareVersion, "1.0.5")
-        self.assertEqual(d.DFMSubType, Enums.DFMSUBTYPE.V1_5)
-        self.assertIs(d.currentDFMErrors.display, DFMErrors.V3_ERROR_DISPLAY_BEFORE_2_0_2)
+        self.assertEqual(d.DFMSubType, Enums.DFMSUBTYPE.V1_0_5)
+        self.assertIs(d.currentDFMErrors.display, DFMErrors.V3_ERROR_DISPLAY_BEFORE_3_5_0)
         d.UpdateInstruction(ClosedLoop(), False)
         d.CheckStatusV3()
-        self.assertEqual([c[0] for c in Sent(d)], ["SendInstructionDFMV1_5"])
+        self.assertEqual([c[0] for c in Sent(d)], ["SendInstructionDFMV1_0_5"])
 
     def test_2_0_1_board(self):
         d = MakeDFM(b"2.0.1")
         self.assertEqual(d.DFMSubType, Enums.DFMSUBTYPE.V2)
-        self.assertIs(d.currentDFMErrors.display, DFMErrors.V3_ERROR_DISPLAY_BEFORE_2_0_2)
+        self.assertIs(d.currentDFMErrors.display, DFMErrors.V3_ERROR_DISPLAY_BEFORE_3_5_0)
         d.UpdateInstruction(ClosedLoop(), False)
         d.CheckStatusV3()
         self.assertEqual([c[0] for c in Sent(d)], ["SendInstructionDFMV2_0"])
 
     def test_3_5_0_board(self):
         d = MakeDFM(b"3.5.0")
+        self.assertEqual(d.DFMSubType, Enums.DFMSUBTYPE.V2)
         self.assertIs(d.currentDFMErrors.display, DFMErrors.V3_ERROR_DISPLAY)
         self.assertTrue(d.isSupported)
 
@@ -99,7 +108,30 @@ class Generations(unittest.TestCase):
         self.assertEqual(len(MessagesAbout(5, "can't run")), 1)
         d.UpdateInstruction(ClosedLoop(), False)
         d.CheckStatusV3()                     # a plain Interval still goes out
-        self.assertEqual([c[0] for c in Sent(d)], ["SendInstructionDFMV1_5"])
+        self.assertEqual([c[0] for c in Sent(d)], ["SendInstructionDFMV1_0_5"])
+
+
+class Records(unittest.TestCase):
+    def test_probe_error_masked_once_on_1_0_5(self):
+        d = MakeDFM(COMM.LEGACY_VERSION)
+        d.UpdateReportedValues([Packet(errorFlags=0x04, index=1)], False)
+        self.assertEqual(d.currentDFMErrors.GetStatus((2,)), Enums.REPORTEDERRORSTATUS.NEVER)
+        d.UpdateReportedValues([Packet(errorFlags=0x04, index=2)], False)   # a real one shows
+        self.assertEqual(d.currentDFMErrors.GetStatus((2,)), Enums.REPORTEDERRORSTATUS.CURRENT)
+        d.ReadFirmwareVersion()                                            # each probe sets it again
+        self.assertTrue(d.maskProbeError)
+        d = MakeDFM(b"2.0.1")                 # a board that answered wasn't asked anything it can't take
+        d.UpdateReportedValues([Packet(errorFlags=0x04)], False)
+        self.assertEqual(d.currentDFMErrors.GetStatus((2,)), Enums.REPORTEDERRORSTATUS.CURRENT)
+
+    def test_baseline_ignores_training_flag(self):
+        d = MakeDFM(b"2.0.1")
+        d.BaselineDFM()
+        for index in range(1, 4):
+            d.ProcessPackets([Packet(index=index, training=(0,))], False)
+        self.assertEqual(list(d.signalBaselines[:2]), [100, 101])
+        self.assertEqual(list(d.GetLastAnalogData(True)[:2]), [0, 0])
+        self.assertEqual(d.GetLastAnalogData(False)[0], 100 + 65536)   # the data file keeps the flag
 
 
 if __name__ == "__main__":
