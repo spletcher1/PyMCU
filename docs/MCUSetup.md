@@ -1,10 +1,12 @@
-# PyMCU Pi 5 Setup (Trixie / labwc)
+# PyMCU Setup on Raspberry Pi 4 and 5 (Trixie / labwc)
 
-Last updated: 2026-10-09
+Last updated: 2026-10-14
 
 ## Overview
 
-This guide (it replaces the old NotesForPI5) is for a Raspberry Pi 5 running Raspberry Pi OS Trixie, the `v3_Dev` branch and PyQt6. It covers install, start on boot, screen blanking, USB drives and a near-kiosk desktop.
+This guide (it replaces the old NotesForPI5 and the Pi 4 Notes.txt) is for a Raspberry Pi 4 or Pi 5 running Raspberry Pi OS Trixie (64-bit), the 3.x branch and PyQt6. It covers install, start on boot, screen blanking, USB drives and a near-kiosk desktop.
+
+One branch and one setup serve both models. The code tells them apart at run time (the About box shows P4 or P5 and which clock it found). What differs is a few lines in `config.txt` (section 1) and the real-time clock (section 7); everything else on this page applies to both.
 
 What changed from the Bookworm notes:
 
@@ -15,13 +17,29 @@ What changed from the Bookworm notes:
 
 ## 1. OS and hardware interfaces
 
-Flash Raspberry Pi OS (64-bit, desktop) with Raspberry Pi Imager, create the user, and enable desktop auto-login. Then in `sudo raspi-config`, Interface Options:
+Flash Raspberry Pi OS (64-bit, desktop) with Raspberry Pi Imager, create the user, and enable desktop auto-login. The 64-bit image is required on both models: PyQt6 has no 32-bit wheels. Then in `sudo raspi-config`, Interface Options:
 
 - **I2C:** on (DFMs and the environmental sensors on bus 1).
-- **Serial port:** hardware on, login shell off. The DFM link is `/dev/ttyAMA0` (UART0, GPIO 14/15), set in `COMM.py`. `/boot/firmware/config.txt` should contain `dtparam=uart0=on`.
+- **Serial port:** hardware on, login shell off. The DFM link is `/dev/ttyAMA0` (the PL011 UART on GPIO 14/15), set in `COMM.py`. The login shell must be off, or a console would share the DFM port.
 - **SPI and Remote GPIO:** not used by the app; leave off.
 
-On the Pi 5, `console=serial0` in `cmdline.txt` points at the separate debug UART (`ttyAMA10`), so it does not collide with the DFM port.
+### config.txt by model
+
+`/boot/firmware/config.txt` is the one place the two models differ. Put the lines for your model under `[all]`, then reboot. raspi-config writes `dtparam=i2c_arm=on` (I2C) and `enable_uart=1` (serial port) itself; add the rest by hand.
+
+| Purpose | Pi 5 | Pi 4 |
+| --- | --- | --- |
+| I2C bus for DFMs and sensors | `dtparam=i2c_arm=on` | `dtparam=i2c_arm=on` |
+| DFM link on `/dev/ttyAMA0` | `dtparam=uart0=on` | `enable_uart=1` and `dtoverlay=disable-bt` |
+| Real-time clock | built in; `dtparam=rtc_bbat_vchg=3000000` charges its battery (section 7) | `dtoverlay=i2c-rtc,ds3231` for the DS3231 module |
+
+Why the Pi 4 lines differ:
+
+- **UART.** On a Pi 4 the PL011 UART (`ttyAMA0`) is wired to the Bluetooth chip, and GPIO 14/15 get the mini UART (`ttyS0`), whose baud rate follows the core clock and is not reliable at the DFM link's 250000 baud. `dtoverlay=disable-bt` turns Bluetooth off and puts `ttyAMA0` back on GPIO 14/15. Also run `sudo systemctl disable hciuart`, so nothing tries to bring Bluetooth up on that port. (To keep Bluetooth, use `dtoverlay=miniuart-bt` with `core_freq=250` instead; the MCU has no use for it.) On the Pi 5 `ttyAMA0` is free, and `dtparam=uart0=on` enables it.
+- **Serial console.** With `disable-bt`, `serial0` is `ttyAMA0`, so `console=serial0,115200` in `cmdline.txt` would put a login console on the DFM port. "Login shell off" in raspi-config removes it; check that `/boot/firmware/cmdline.txt` has no `console=serial0`. On the Pi 5 `console=serial0` points at the separate debug UART (`ttyAMA10`) and does no harm.
+- **Clock.** The Pi 5 has a built-in RTC. The Pi 4 has none, so it keeps the DS3231 module (I2C address `0x68`) that the older MCUs were built with. `dtoverlay=i2c-rtc,ds3231` makes it `/dev/rtc0`; the kernel sets the system time from it when the driver loads at boot, and the app's Set Date and Time writes to it. The `hwclock-set` edit from the old Pi 4 notes should not be needed on Trixie: if the time is wrong after the power-off test in section 8, check `dmesg | grep rtc`.
+
+After the reboot, `ls -l /dev/ttyAMA0 /dev/rtc0` must list both. The About box shows which clock the app found: the battery reading on a Pi 5, "Clock: DS3231 module" on a Pi 4, or "Clock: no RTC found" when the overlay is missing.
 
 The user must be in the `gpio`, `i2c` and `dialout` groups (default for the first user). Check with `id`.
 
@@ -35,10 +53,10 @@ The app lives in `~/PyMCU` and runs from a uv environment defined by `pyproject.
 
 1. Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh` (installs to `~/.local/bin/uv`).
 2. Log in to GitHub (the repo is private): `sudo apt install gh`, then `gh auth login` (GitHub.com, HTTPS, log in with a web browser) and `gh auth setup-git`. This also lets `git pull` and `git push` work later.
-3. Clone the branch: `git clone -b v3_Dev https://github.com/spletcher1/PyMCU.git ~/PyMCU`
+3. Clone the 3.x branch: `git clone -b PI5Dev https://github.com/spletcher1/PyMCU.git ~/PyMCU` (the name is historical: it is the branch for Pi 4 and Pi 5 alike)
 4. Build the environment: `cd ~/PyMCU && uv sync`
 
-GPIO uses `adafruit-lgpio`, a prebuilt wheel of lgpio 0.2.2. The plain `lgpio` package compiles from source and would need `sudo apt install swig liblgpio-dev` first.
+GPIO uses `adafruit-lgpio`, a prebuilt wheel of lgpio 0.2.2, which gpiozero uses on both models. The plain `lgpio` package compiles from source and would need `sudo apt install swig liblgpio-dev` first.
 
 ## 3. Start on boot
 
@@ -178,9 +196,11 @@ sudo visudo -cf /etc/sudoers.d/pymcu   # must print "parsed OK"
 
 Replace `flic` with the actual user name. Check with `sudo -n /usr/sbin/hwclock -r`, which should print the RTC time without asking for a password.
 
-### Required: real-time clock battery
+### Required: real-time clock
 
-Version 3.5.0 uses only the Pi 5's built-in RTC (`/dev/rtc0`). Setting the time in the app runs `date` and then `hwclock -w`, which writes it to the RTC. The RTC keeps time through power loss only with a battery on the J5 (BAT) connector.
+Setting the time in the app runs `date` and then `hwclock -w`, which writes it to `/dev/rtc0`. Which clock that is depends on the model.
+
+**Pi 5: built-in RTC.** The RTC keeps time through power loss only with a battery on the J5 (BAT) connector.
 
 Use a rechargeable lithium-manganese cell, such as the official Raspberry Pi RTC battery (ML-2020). **Charging is off by default** (`/sys/class/rtc/rtc0/charging_voltage` reads `0`). Turn it on by adding this under `[all]` in `/boot/firmware/config.txt`, then reboot:
 
@@ -190,7 +210,9 @@ dtparam=rtc_bbat_vchg=3000000
 
 Check with `cat /sys/class/rtc/rtc0/charging_voltage` (should print `3000000`) and `cat /sys/class/rtc/rtc0/battery_voltage` (non-zero with the battery connected). The About box shows the same reading, for example "Clock battery: 2.95 V, OK" and "Battery charging: on": OK at 2.5 V and above, low below that, "none connected" under 0.5 V. A new ML-2020 usually arrives partly discharged and reads low until it has charged for a day or so with the Pi powered. Never enable charging with a CR2032 or other non-rechargeable coin cell: it can leak or swell.
 
-**DS3231 no longer used.** Older MCUs had a DS3231 module at I2C address `0x68`. Version 3.5.0 does not use it: leave `dtoverlay=i2c-rtc,ds3231` out of `config.txt`, so it can't compete with the built-in RTC for `/dev/rtc0`. The module can be removed.
+Leave `dtoverlay=i2c-rtc,ds3231` out of a Pi 5's `config.txt`, so a DS3231 module left over from an older MCU can't compete with the built-in RTC for `/dev/rtc0`. The module can be removed from Pi 5 units.
+
+**Pi 4: DS3231 module.** The Pi 4 has no built-in RTC, so it keeps the DS3231 module at I2C address `0x68`, enabled with `dtoverlay=i2c-rtc,ds3231` (section 1). The module runs on its own coin cell, which the kernel cannot read, so the About box shows "Clock: DS3231 module" and "Clock battery: not monitored". If the time is wrong after a power-off, replace the cell. Nothing else is needed: no `rtc_bbat_vchg`, and no charging settings.
 
 ### Optional
 
@@ -224,8 +246,10 @@ sudo reboot
 
 ## 8. Verify after reboot
 
-Confirmed on 9 Oct 2026: all Python imports load, and `RunMCU.sh` starts the app on the Wayland display with no errors. Check the rest after a reboot:
+Confirmed on 9 Oct 2026 on a Pi 5: all Python imports load, and `RunMCU.sh` starts the app on the Wayland display with no errors. The Pi 4 steps (section 1 overlays, DS3231) have not yet been run through on a Pi 4 with Trixie. Check the rest after a reboot:
 
+- [ ] `/dev/ttyAMA0` and `/dev/rtc0` both exist (Pi 4: needs the `disable-bt` and `i2c-rtc` overlays)
+- [ ] About box shows the right model (P4 or P5) and the clock, not "no RTC found"
 - [ ] App opens full screen at login, with no pointer
 - [ ] Screen blanks after 60 s idle and wakes on touch, with the app in front
 - [ ] A USB stick mounts under `/media/<user>/` with no pop-up
@@ -233,7 +257,7 @@ Confirmed on 9 Oct 2026: all Python imports load, and `RunMCU.sh` starts the app
 - [ ] Desktop behind the app is black with no icons; taskbar shows no ejecter, updater or notifications
 - [ ] With a USB keyboard, Ctrl+Alt+T, Super, Alt+F4 and Alt+Tab do nothing over the app
 - [ ] Power off from the app works (sudoers step done)
-- [ ] Set the time in the app, power off, unplug for a while: the time is still right (RTC battery charging)
+- [ ] Set the time in the app, power off, unplug for a while: the time is still right (Pi 5: RTC battery charging; Pi 4: DS3231 cell)
 - [ ] Unplugging a keyboard or mouse leaves the USB buttons unchanged
 - [ ] Boot shows the FLIC splash, if the custom splash was installed
 - [ ] A DFM on the serial port and the environmental sensors are detected

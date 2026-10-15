@@ -88,23 +88,44 @@ def FindUpdateFiles():
                 pass
     return sorted(found)
 
-def GetRTCBatteryText():
-    """Lines for the About box on the Pi 5 RTC battery (J5), e.g. "Clock battery: 2.95 V, OK"
-    and "Battery charging: on". Kept short so they never run past the dialog's edge.
-    Thresholds suit a rechargeable ML-2020 (3.0 V nominal, 2.0 V when exhausted); the voltage
-    doesn't fall evenly with charge, so no percentage is shown."""
-    def ReadMicrovolts(name):
-        with open("/sys/class/rtc/rtc0/"+name) as f:
-            return int(f.read().strip())
+def GetPiModel(modelFile="/proc/device-tree/model"):
+    """Which Pi this runs on, "P4" or "P5", from the device tree ("Raspberry Pi 4 Model B Rev
+    1.4"); "P?" when it can't be read, e.g. on a development machine. The same code runs on
+    both models; what differs is config.txt and the clock (docs/MCUSetup.md, sections 1 and 7)."""
     try:
-        volts = ReadMicrovolts("battery_voltage")/1e6
+        with open(modelFile, "rb") as f:
+            words = f.read().decode("ascii", "replace").strip("\0\n ").split()
+    except OSError:
+        return "P?"
+    if len(words)>=3 and words[0]=="Raspberry" and words[1]=="Pi" and words[2].isdigit():
+        return "P"+words[2]
+    return "P?"
+
+def GetRTCText(rtcDir="/sys/class/rtc/rtc0"):
+    """Lines for the About box on the real-time clock, kept short so they never run past the
+    dialog's edge. The Pi 5's built-in RTC reports its battery (J5), e.g. "Clock battery: 2.95 V,
+    OK" and "Battery charging: on"; thresholds suit a rechargeable ML-2020 (3.0 V nominal, 2.0 V
+    when exhausted), and the voltage doesn't fall evenly with charge, so no percentage is shown.
+    A Pi 4 has no built-in clock: its DS3231 module (dtoverlay=i2c-rtc,ds3231 in config.txt) has
+    a coin cell the kernel can't read, so the lines name the clock instead. With no clock at all
+    they say so, because Set Date and Time then can't keep the time through power-off."""
+    def Read(name):
+        with open(os.path.join(rtcDir, name)) as f:
+            return f.read().strip()
+    try:
+        driver = Read("name").split()[0]  # "rtc-ds1307" is the kernel driver for the DS3231
+    except (OSError, IndexError):
+        return "Clock: no RTC found\nTime is lost at power-off"
+    try:
+        volts = int(Read("battery_voltage"))/1e6
     except (OSError, ValueError):
-        return "Clock battery: unavailable"
+        clock = "DS3231 module" if ("ds1307" in driver or "ds3231" in driver) else driver
+        return "Clock: "+clock+"\nClock battery: not monitored"
     if(volts<0.5):
         return "Clock battery: none connected"
     state = "OK" if volts>=2.5 else "low"
     try:
-        charging = ReadMicrovolts("charging_voltage")>0
+        charging = int(Read("charging_voltage"))>0
     except (OSError, ValueError):
         charging = False
     return "Clock battery: {:.2f} V, {}\nBattery charging: {}".format(volts, state, "on" if charging else "off")
@@ -118,7 +139,7 @@ def ListProgramFiles(directory):
 
 def RunAsRoot(*command):
     """Runs a command with sudo, never prompting for a password (see the sudoers step in
-    docs/Pi5Setup.md). Returns an error message, or None on success."""
+    docs/MCUSetup.md). Returns an error message, or None on success."""
     try:
         result = subprocess.run(["sudo","-n",*command],capture_output=True,text=True,timeout=60)
     except (OSError,subprocess.TimeoutExpired) as e:
@@ -269,7 +290,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def _MessageBox(self,icon,title,text,informativeText=None,buttons=None):
         # On Wayland a dialog stays in front only with a parent and these window flags, and the
-        # flags must be set after the parent (see docs/Pi5Setup.md).
+        # flags must be set after the parent (see docs/MCUSetup.md).
         msg = QMessageBox()
         msg.setParent(self)
         msg.setIcon(icon)
@@ -446,8 +467,8 @@ class MyMainWindow(QtWidgets.QMainWindow):
         secs= DateDialog.getDateTime(self)
         if(secs==0):
             return
-        # Set the system clock, then write it to the Pi 5's built-in RTC (rtc0) so it survives
-        # power-off on the RTC battery.
+        # Set the system clock, then write it to the RTC (rtc0: the Pi 5's built-in clock, or the
+        # DS3231 module on a Pi 4) so it survives power-off on the clock's battery.
         newTime = datetime.datetime.fromtimestamp(secs).strftime("%Y-%m-%d %H:%M:%S")
         error = RunAsRoot("/usr/bin/date","-s","@"+str(secs))
         if(error is None):
@@ -471,13 +492,11 @@ class MyMainWindow(QtWidgets.QMainWindow):
             print("Normal except: No internet")
             hostip="unknown"
 
-        if(self.theBoard.IsDFMV2Board()):
-            stext = "Flidea Master Control Unit (V2; P5)"
-        else:
-            stext = "Flidea Master Control Unit (V3; P5)"
+        boardVersion = "V2" if self.theBoard.IsDFMV2Board() else "V3"
+        stext = "Flidea Master Control Unit ("+boardVersion+"; "+GetPiModel()+")"
         ss="Version: " + APP_VERSION + "\nIP: " + hostip
         ss=ss+"\nStorage: " + str(int(self.GetFreeMegaBytes())) +" MB"
-        ss=ss+"\n" + GetRTCBatteryText()
+        ss=ss+"\n" + GetRTCText()
         msg = self._MessageBox(QMessageBox.Icon.Information,"About MCU",stext,ss)
         # Leave room on the right so no line can touch the dialog's edge.
         msg.setStyleSheet("QLabel#qt_msgbox_label, QLabel#qt_msgbox_informativelabel { min-width: 260px; padding-right: 12px; }")

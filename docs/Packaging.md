@@ -94,9 +94,9 @@ The MCU installs an older version the same way as a newer one. The prompt shows 
 
 ## 6. Limits
 
-- **3.5.0 and later only.** Older MCUs (a pip virtual environment under `/home/pi`, update code without checks) must not get a 3.5 package. Their old updater unpacks it blindly, and the new `RunMCU.sh` then fails to start because uv isn't installed. Set those up fresh from [Pi5Setup.md](Pi5Setup.md).
+- **3.5.0 and later only.** Older MCUs (a pip virtual environment under `/home/pi`, update code without checks) must not get a 3.5 package. Their old updater unpacks it blindly, and the new `RunMCU.sh` then fails to start because uv isn't installed. Set those up fresh from [MCUSetup.md](MCUSetup.md).
 - **Removed files stay.** An update adds and replaces files but deletes none. A file removed from the repo stays on the MCU; make sure nothing still imports it.
-- **Changes outside the app folder** (`config.txt`, sudoers, labwc settings) can't be made by an update. Do them over SSH and note them in Pi5Setup.md.
+- **Changes outside the app folder** (`config.txt`, sudoers, labwc settings) can't be made by an update. Do them over SSH and note them in MCUSetup.md.
 - **Not signed.** Anyone who can build a package and get it onto a stick can install it. Physical access to the MCU is the control.
 - **The load check is basic.** It confirms the code imports, not that it works. That's what the bench test is for.
 
@@ -112,4 +112,4 @@ For reference when changing the updater (`MCUUpdate.py`, `RunUpdate` in `MainVie
 6. If `uv.lock` changed, run `uv sync --frozen`.
 7. Run `python -c "import MainViewModel"` in the app folder.
 8. On any failure: delete the files the package added, restore the backup, and re-sync packages if the lock had changed.
-9. On success: flush to disk and reboot with `sudo -n /usr/sbin/shutdown -r now`. This needs the sudoers entry from Pi5Setup.md section 7.
+9. On success: flush to disk and reboot with `sudo -n /usr/sbin/shutdown -r now`. This needs the sudoers entry from MCUSetup.md section 7.
