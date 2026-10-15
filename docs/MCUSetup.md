@@ -8,6 +8,16 @@ This guide (it replaces the old NotesForPI5 and the Pi 4 Notes.txt) is for a Ras
 
 One branch and one setup serve both models. The code tells them apart at run time (the About box shows P4 or P5 and which clock it found). What differs is a few lines in `config.txt` (section 1) and the real-time clock (section 7); everything else on this page applies to both.
 
+**Quick route.** Once the OS is flashed, the user created and the repo cloned (the start of sections 1 and 2), one script applies the rest of this guide:
+
+```sh
+sudo scripts/mcu-config.py PI5            # Pi 5, original 800x480 display
+sudo scripts/mcu-config.py PI5 Rotated    # Pi 5, Touch Display 2 (add --left if the display is turned the other way)
+sudo scripts/mcu-config.py PI4            # Pi 4, original display, DS3231 clock module
+```
+
+It checks every setting from `config.txt` to the boot splash, fixes what is wrong, adds what is missing, reports each item, and says whether a reboot is needed; `--check` only reports. It does not flash the OS, set auto-login, the timezone or the hostname, install uv or gh, or touch SSH and passwords: those steps stay by hand. The rest of this page explains what the script sets and is the reference for doing any of it by hand.
+
 What changed from the Bookworm notes:
 
 - **Desktop:** Trixie uses the labwc Wayland compositor, not Wayfire. `~/.config/wayfire.ini` is no longer read; autostart and idle settings live in `~/.config/labwc/autostart`.
@@ -259,6 +269,7 @@ If the logo then shows upside down, the desktop was rotated the other way: use t
 
 Confirmed on 9 Oct 2026 on a Pi 5: all Python imports load, and `RunMCU.sh` starts the app on the Wayland display with no errors. The Pi 4 steps (section 1 overlays, DS3231) have not yet been run through on a Pi 4 with Trixie. Check the rest after a reboot:
 
+- [ ] `sudo scripts/mcu-config.py <profile> --check` reports nothing to change
 - [ ] `/dev/ttyAMA0` and `/dev/rtc0` both exist (Pi 4: needs the `disable-bt` and `i2c-rtc` overlays)
 - [ ] About box shows the right model (P4 or P5) and the clock, not "no RTC found"
 - [ ] App opens full screen at login, with no pointer
