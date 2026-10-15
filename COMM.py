@@ -43,6 +43,9 @@ LINKAGE_REQUEST = 0xFB
 ACK = 0xFA
 PARTIAL_ACK = 0xF9
 PARTIAL_ACK_FIRMWARE = (2, 0, 2)
+# Firmware 4.0.0 and later NACK the 0xFD instruction and send 127-byte records: it takes PyMCU
+# 4.0.0 to drive such a board, so this PyMCU leaves it alone and says so.
+PARADIGM_FIRMWARE = (4, 0, 0)
 # Firmware MAXPACKETS. A reply this full means more packets are waiting on the DFM.
 MAX_STATUS_PACKETS = 60
 
@@ -77,12 +80,25 @@ def _Field(value, size):
     return (value & ((1 << (8 * size)) - 1)).to_bytes(size, "big")
 
 
-def SupportsPartialAck(version):
-    """True if DFM firmware with this version string (bytes, as GetVersion returns) takes partial ACKs."""
+def FirmwareVersionTuple(version):
+    """(major, minor, patch) from a version string or bytes such as GetVersion returns, or ()
+    if it isn't one, which compares below every real version."""
     try:
-        return tuple(int(p) for p in version.decode("ascii").split(".")) >= PARTIAL_ACK_FIRMWARE
-    except (UnicodeDecodeError, ValueError):
-        return False
+        if isinstance(version, bytes):
+            version = version.decode("ascii")
+        return tuple(int(p) for p in version.split("."))
+    except (UnicodeDecodeError, ValueError, AttributeError):
+        return ()
+
+
+def SupportsPartialAck(version):
+    """True if DFM firmware with this version takes partial ACKs."""
+    return FirmwareVersionTuple(version) >= PARTIAL_ACK_FIRMWARE
+
+
+def UsesParadigmFirmware(version):
+    """True if DFM firmware with this version needs PyMCU 4.0.0 or later."""
+    return FirmwareVersionTuple(version) >= PARADIGM_FIRMWARE
 
 
 def InstructionPayload(instruction, timingSize):

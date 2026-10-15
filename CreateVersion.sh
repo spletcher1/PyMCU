@@ -10,6 +10,6 @@ fi
 OUT="PyMCU_$VERSION.mcu"
 # Local data, user programs and the theme setting on each MCU are left alone.
 git archive --format=tar.gz --prefix=./ -o "$OUT" HEAD -- . \
-    ':(exclude)docs' ':(exclude)FLICPrograms' ':(exclude)theme.txt' ':(exclude).vscode' ':(exclude).gitignore'
+    ':(exclude)docs' ':(exclude)tests' ':(exclude)FLICPrograms' ':(exclude)theme.txt' ':(exclude).vscode' ':(exclude).gitignore'
 echo "Created $OUT (version $VERSION, commit $(git rev-parse --short HEAD))."
 echo "Send it to the user: they copy it onto a USB stick and press Update in the MCU settings."

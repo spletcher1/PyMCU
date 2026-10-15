@@ -1,6 +1,8 @@
 import array
+import datetime
 import time
 
+import COMM
 import DataBuffer
 import DFMErrors
 import Enums
@@ -13,11 +15,8 @@ import OptoLid
 COMMAND_RETRY_INTERVAL = 1.0
 
 def UsesV2Instructions(version):
-    # Firmware 2.0 and later (e.g. 2.0.0, 2.0.1) take 4-byte decay, delay and max time on.
-    try:
-        return int(version.split(".")[0]) >= 2
-    except ValueError:
-        return False
+    # Firmware 2.0.0 and later take 4-byte decay, delay and max time on.
+    return COMM.FirmwareVersionTuple(version) >= (2, 0, 0)
 
 # Message and new status for each kind of failed read.
 READ_FAILURES = {
@@ -55,6 +54,8 @@ class DFM:
         # This is true because we need to get this ASAP for each DFM upon connection.
         self.isVersionGetNeeded = True
         self.isLinkageSetNeeded=False
+        # False for firmware this PyMCU can't drive (4.0.0 and later), which is then left alone.
+        self.isSupported = True
         self.retryTime=0.0
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
             # Narrowed down once the firmware version is known.
@@ -291,6 +292,13 @@ class DFM:
         if(v is None):
             return False
         self.firmwareVersion = v.decode("utf-8", errors="replace")
+        if(COMM.UsesParadigmFirmware(self.firmwareVersion)):
+            # Said once. The board stays on the DFM page with its firmware, and nothing is sent to it.
+            if(self.isSupported):
+                self.isSupported = False
+                self.NewMessage(self.ID,datetime.datetime.today(),0,"DFM {} runs firmware {}, which needs PyMCU 4.0.0 or later".format(self.ID,self.firmwareVersion),Enums.MESSAGETYPE.ERROR)
+        else:
+            self.isSupported = True
         if(UsesV2Instructions(self.firmwareVersion)):
             self.DFMSubType = Enums.DFMSUBTYPE.V2
         else:
@@ -303,6 +311,9 @@ class DFM:
     def CheckStatusV3(self):
         # To avoid sending repeated instructions to missing DFM that are never acked and therefore continue to be queued and sent.
         if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.ERROR or self.status == Enums.CURRENTSTATUS.UNDEFINED:
+            return
+        # A board on firmware this PyMCU can't drive would NACK every instruction. It has been reported.
+        if not self.isSupported:
             return
         # Commands that were not acknowledged are retried, but not on every pass.
         if(time.monotonic() < self.retryTime):
@@ -323,7 +334,14 @@ class DFM:
                 isFailed = True
         if(self.isInstructionUpdateNeeded and not self.isVersionGetNeeded):
             self.isInstructionUpdateNeeded=False
-            if(self.DFMSubType == Enums.DFMSUBTYPE.V2):
+            # Firmware 1.0.5 misreads settings it doesn't know and runs a different rule. The Program
+            # check refuses those before a start; this catches a board swapped since then. Nothing is
+            # sent, so the DFM keeps its last instruction.
+            reason = None if self.DFMSubType == Enums.DFMSUBTYPE.V2 else self.currentInstruction.FirmwareNeeded()
+            if(reason is not None):
+                self.NewMessage(self.ID,datetime.datetime.today(),0,"DFM {} (firmware {}) can't run this Interval: {}".format(self.ID,self.firmwareVersion,reason),Enums.MESSAGETYPE.ERROR)
+                isSent = True   # nothing to retry
+            elif(self.DFMSubType == Enums.DFMSUBTYPE.V2):
                 isSent = self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)
             else:
                 isSent = self.MP.SendInstructionDFMV1_5(self.ID, self.currentInstruction)

@@ -49,6 +49,8 @@ class DFMGroup:
         self.currentDFMIndex=0
         self.currentDFMKeysList=[]
         self.programReadInterval=""
+        # Why the last Program file didn't load, naming the line; "" if it did.
+        self.programLoadError=""
 
     def NewMessageDirect(self,newMessage):
         if(self.theMessageList.AddMessage(newMessage)):
@@ -381,9 +383,12 @@ class DFMGroup:
 
     #region Program Methods
     def LoadTextProgram(self,programPath):
+        """Loads a Program file. On failure programLoadError says why, naming the line, and a
+        simple program takes the file's place."""
         with open(programPath,encoding="utf-8-sig") as f:
             lines = f.readlines()
         result=self.currentProgram.LoadProgram(lines,self.theDFMs)
+        self.programLoadError = "" if result else self.currentProgram.loadError
         if (result==False):
             self.LoadSimpleProgram(datetime.datetime.today() + datetime.timedelta(minutes=1),datetime.timedelta(minutes=180))
         return result
@@ -392,13 +397,24 @@ class DFMGroup:
         self.currentProgram.CreateSimpleProgram(startTime,duration)
 
     def CheckProgramCompatibility(self):
-        # V1.5 firmware takes only 2-byte decay, delay and max time on.
-        for d in self.theDFMs.values():
-            if(d.DFMType==Enums.DFMTYPE.PLETCHERV3 and d.DFMSubType == Enums.DFMSUBTYPE.V1_5):
-                tmp = self.currentProgram.theInstructionSets.get(d.ID)
-                if(tmp is not None and tmp.IsVersion1_5Compatible()==False):
-                    return False
-        return True
+        """Why the loaded program can't run on the connected DFMs: one line per DFM, or an empty
+        list. A firmware 1.0.5 board is listed with each setting it would misread (see
+        Instruction.FirmwareNeeded), and a 4.0.0 board because this PyMCU can't drive it. The
+        versions were read at connection, so the check works as soon as a program is loaded."""
+        problems = []
+        for ID, d in sorted(self.theDFMs.items()):
+            if(d.DFMType != Enums.DFMTYPE.PLETCHERV3):
+                continue
+            if not d.isSupported:
+                problems.append("DFM {} runs firmware {}, which needs PyMCU 4.0.0 or later".format(ID, d.firmwareVersion))
+                continue
+            if(d.DFMSubType == Enums.DFMSUBTYPE.V2):
+                continue
+            iset = self.currentProgram.theInstructionSets.get(ID)
+            reasons = iset.FirmwareNeeded() if iset is not None else []
+            if(reasons):
+                problems.append("DFM {} (firmware {}) can't run: {}".format(ID, d.firmwareVersion, "; ".join(reasons)))
+        return problems
 
     def StopCurrentProgram(self):
         if(len(self.theDFMs)==0):

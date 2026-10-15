@@ -304,6 +304,9 @@ class DataGetter:
         currentTime = datetime.datetime.today()
         lagging = []
         for info in infos:
+            # Firmware 4.0.0 and later sends records this PyMCU can't read; the DFM reports that instead.
+            if COMM.UsesParadigmFirmware(self.firmwareVersions.get(info.ID, b"")):
+                continue
             try:
                 result,payload=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)
                 packList=self.ProcessPacket(info,result,payload,currentTime)

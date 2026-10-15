@@ -385,6 +385,9 @@ class MyMainWindow(QtWidgets.QMainWindow):
             self.RunProgramButton.setEnabled(True)
             self.fastUpdateCheckBox.setChecked(False)
         else:
+            # Checked again here because a DFM may have been swapped since the program was loaded.
+            if(self.ShowCompatibilityProblems("Program not started")):
+                return
             self.RunProgramButton.setEnabled(False)
             self.DisableButtons()
             QApplication.processEvents()
@@ -765,17 +768,22 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 if(self.theDFMGroup.LoadTextProgram(fn)):
                     self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration)
                     self.GoToProgramPage()
-                    if(self.theDFMGroup.CheckProgramCompatibility()==False):
-                        self._MessageBox(QMessageBox.Icon.Information,"Compatibility Check","Warning: Check program compatibility!",
-                                         "Version 1.5 DFM are not compatible with decay, delay, or maxtime values > 65536!").exec()
+                    self.ShowCompatibilityProblems("Compatibility Check")
                 else:
-                    self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)
+                    self.StatusBar.showMessage("Problem loading program: "+self.theDFMGroup.programLoadError,self.statusmessageduration)
                 self.UpdateProgramGUI()
             except Exception:
                 print("Normal except: problem loading program")
                 self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)
         else:
             self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)
+
+    def ShowCompatibilityProblems(self,title):
+        """Shows why the loaded program can't run on every connected DFM. True if it can't."""
+        problems = self.theDFMGroup.CheckProgramCompatibility()
+        if(problems):
+            self._MessageBox(QMessageBox.Icon.Warning,title,"This program can't run on every connected DFM:","\n".join(problems)).exec()
+        return bool(problems)
 
     def DeleteProgramFile(self):
         if(self.currentChosenProgramFile!=""):
