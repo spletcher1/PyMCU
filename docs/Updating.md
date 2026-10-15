@@ -50,4 +50,5 @@ In every "Update failed" or "Update not started" case, nothing on the MCU change
 
 - **Your data and programs are safe.** Updates never change recorded data (`FLICData`), saved programs (`FLICPrograms`) or the light/dark theme setting.
 - **Going back** to an older version works the same way, with the older `.mcu` file.
+- **Which programs your DFMs can run** depends on their firmware. From 3.5.1 the MCU checks each program against the connected boards and names anything a board would misread; see [FirmwareCompatibility.md](FirmwareCompatibility.md).
 - **For support,** the MCU keeps a log of each update at `~/PyMCU/mcu.log`, which we can read remotely.

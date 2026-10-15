@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-09 (PyMCU 3.5.0)
 
-For the developer. An update is one file, `PyMCU_<version>.mcu`, built from a commit on `v3_Dev` and sent to users, who install it from a USB stick with **Update MCU**. The steps for the user are in [Updating.md](Updating.md); send that page, or its short version in section 4, with the file.
+For the developer. An update is one file, `PyMCU_<version>.mcu`, built from a commit on `PI5Dev` and sent to users, who install it from a USB stick with **Update MCU**. The steps for the user are in [Updating.md](Updating.md); send that page, or its short version in section 4, with the file.
 
 ## 1. Set the version
 
@@ -32,7 +32,7 @@ Send it to the user: they copy it onto a USB stick and press Update in the MCU s
 
 - **Built from the last commit**, with `git archive`. Uncommitted edits are left out, so every package matches a commit. The script warns if there are uncommitted changes; commit and rebuild.
 - **Contents:** the app's Python files, `Mainwindow.ui`, `images/`, `RunMCU.sh`, `CreateVersion.sh`, `MCUUpdate.py`, `pyproject.toml` and `uv.lock`.
-- **Left out on purpose:** `docs/`, `FLICPrograms/` (the user's programs), `theme.txt` (each MCU's light/dark setting), `.vscode/` and `.gitignore`. Untracked files (`FLICData`, `.venv`, `mcu.log`) are never in a git archive.
+- **Left out on purpose:** `docs/`, `tests/`, `FLICPrograms/` (the user's programs), `theme.txt` (each MCU's light/dark setting), `.vscode/` and `.gitignore`. Untracked files (`FLICData`, `.venv`, `mcu.log`) are never in a git archive.
 - **Format:** `.mcu` is a plain `.tar.gz` (`tar -tzf PyMCU_3.5.1.mcu` lists it). The extension stops browsers, notably Safari, from unpacking the download. The MCU also accepts `.tgz`.
 - **Git ignores** `PyMCU_*.mcu` files, so built packages are never committed.
 
@@ -40,7 +40,7 @@ Tag the release so the same package can be rebuilt later:
 
 ```sh
 git tag v3.5.1
-git push origin v3_Dev --tags
+git push origin PI5Dev --tags
 ```
 
 ## 3. Test on a bench MCU
@@ -87,7 +87,7 @@ Notes:
 There is no undo button. To go back, send the previous package:
 
 ```sh
-git checkout v3.5.0 && ./CreateVersion.sh && git checkout v3_Dev
+git checkout v3.5.0 && ./CreateVersion.sh && git checkout PI5Dev
 ```
 
 The MCU installs an older version the same way as a newer one. The prompt shows both numbers.
