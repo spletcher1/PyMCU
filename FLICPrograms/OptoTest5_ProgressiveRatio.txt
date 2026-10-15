@@ -1,0 +1,18 @@
+# Progressive ratio by contact time: OptoDelay and MaxTimeOn both above 0 select it.
+# Each activation needs more contact time than the last. Touch and hold a Well, repeat,
+# and the hold needed before the LED lights should grow.
+# Needs firmware 2.0.0 or later; PyMCU refuses it for a 1.0.5 board.
+[General]
+ExpDurationMin: 10
+OptoFrequency: 40
+OptoPW: 8
+OptoDecay: 0
+OptoDelay: 1000
+MaxTimeOn: 5000
+Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
+Baseline: Yes
+
+[DFM]
+ID: All
+ProgramType: Linear
+Interval: 0,50,50,50,50,50,50,50,50,50,50,50,50,10
