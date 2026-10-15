@@ -53,6 +53,8 @@ class DFMGroup:
         self.currentDFMIndex=0
         self.currentDFMKeysList=[]
         self.programReadInterval=""
+        # True while a staged program waits for its start time, reading only the DFM on screen.
+        self.isStagedFocused=False
 
     def NewMessageDirect(self,newMessage):
         if(self.theMessageList.AddMessage(newMessage)):
@@ -106,6 +108,9 @@ class DFMGroup:
         # This is here to ensure that the queues are cleared and ready for recording.
         self.MP.PauseReading()
         self.MP.ClearQueues()
+        # Every DFM is recorded, so every DFM is read again.
+        self.isStagedFocused=False
+        self.MP.SetFocusDFM(0)
         self.theMessageList.ClearMessages()
         for i in self.theDFMs.values():
             i.ResetOutputFileStuff()
@@ -114,6 +119,12 @@ class DFMGroup:
             i.isBufferResetNeeded=True
             i.SetLinkage(self.currentProgram.GetLinkage(i.ID))
             i.currentDFMErrors.ClearErrors()
+            # Baselines come from the first readings of the recording, taken after the buffer
+            # reset, never from before the start time.
+            if(self.currentProgram.autoBaseline):
+                i.BaselineDFM()
+            else:
+                i.ResetBaseline()
 
         self.MP.SetStartTime()
 
@@ -239,8 +250,9 @@ class DFMGroup:
 
     def SetActiveDFM(self,dfmNum):
         self.activeDFM = self.theDFMs[dfmNum]
-        # Only focus DFM is readworker is running (not programworker)
-        if self.isReadWorkerRunning:
+        # Only one DFM is read when no program is running and while a staged program waits;
+        # during recording all are.
+        if self.isReadWorkerRunning or self.isStagedFocused:
             self.MP.SetFocusDFM(self.activeDFM.ID)
 
     def StopReadWorker(self):
@@ -369,9 +381,7 @@ class DFMGroup:
     def UpdateProgramStatus(self):
         if(self.currentProgram.isActive):
             if(len(self.theDFMs)>0 and self.currentProgram.IsDuringExperiment() and (self.isWriting==False)):
-                # Wait for baselines to finish before recording.
-                if not any(d.isCalculatingBaseline for d in self.theDFMs.values()):
-                    self.StartRecording()
+                self.StartRecording()
             elif(self.currentProgram.IsAfterExperiment()):
                 self.StopCurrentProgram()
 
@@ -382,6 +392,9 @@ class DFMGroup:
 
     def UpdateDFMInstructions(self):
         for d in self.theDFMs.values():
+            # The thresholds sit above the baseline, so a DFM gets its instruction once that is done.
+            if(d.isCalculatingBaseline):
+                continue
             instruct, index, cycle = self.currentProgram.GetCurrentPosition(d.ID)
             d.UpdateInstruction(instruct,self.currentProgram.autoBaseline,index,cycle)
     #endregion
@@ -428,6 +441,7 @@ class DFMGroup:
         self.StopRecording()
         self.SetDFMIdleStatus()
         self.StopProgramWorker()
+        self.isStagedFocused=False
         self.currentProgram.isActive=False
         self.StartReadWorker()
         self.MP.SetFocusDFM(self.activeDFM.ID)
@@ -438,11 +452,13 @@ class DFMGroup:
             return
         self.StopReadWorker()
         self.currentProgram.isActive=True
+        # Baselining starts with the recording (see StartRecording).
         for d in self.theDFMs.values():
-            if(self.currentProgram.autoBaseline==True):
-                d.BaselineDFM()
-            else:
-                d.ResetBaseline()
+            d.ResetBaseline()
         self.SetFastProgramReadInterval()
         self.StartProgramWorker()
+        # Until the start time only the DFM on screen is read, as with no program running, so its
+        # live data stays current. StartRecording reads them all again.
+        self.isStagedFocused=True
+        self.MP.SetFocusDFM(self.activeDFM.ID)
     #endregion

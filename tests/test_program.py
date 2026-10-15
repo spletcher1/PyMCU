@@ -3,12 +3,15 @@ import support  # noqa: F401  (must come first)
 
 import datetime
 import os
+import types
 import unittest
 
+import DFMGroup
 import Enums
 import Instruction
 import Paradigm
 import Program
+from test_dfm import FakeMP, MakeDFM
 
 PROGRAMS = os.path.join(support.ROOT, "FLICPrograms")
 
@@ -94,8 +97,11 @@ Interval: A, Lit, {}, 10
 
 
 class OldFormat(unittest.TestCase):
-    def test_existing_programs_load(self):
-        for name in ("TestProgram1.txt", "TestProgram2.txt", "OptoLidOutputTest.txt"):
+    def test_shipped_programs_load(self):
+        names = sorted(n for n in os.listdir(PROGRAMS) if n.endswith(".txt"))
+        self.assertIn("OptoLidOutputTest.txt", names)
+        self.assertIn("OptoTest6_TrainingFirst.txt", names)
+        for name in names:
             program, ok = LoadFile(name)
             self.assertTrue(ok, "{}: {}".format(name, program.loadError))
 
@@ -171,6 +177,90 @@ class Timing(unittest.TestCase):
         self.assertEqual(program.FirmwareNeeded(1), [])
         self.assertEqual(program.FirmwareNeeded(1, (2, 0, 1)), [])
         self.assertEqual(program.FirmwareNeeded(1, (1, 0, 5)), ["the NonFeeding Paradigm type needs firmware 2.0.0"])
+
+
+class WholeMinutes(unittest.TestCase):
+    def test_simple_program_starts_on_the_minute(self):
+        # The GUI asks for now + 1 minute, seconds and all; the program must not keep them.
+        program = Program.MCUProgram()
+        program.CreateSimpleProgram(datetime.datetime(2026, 10, 14, 23, 42, 18, 500), datetime.timedelta(minutes=180))
+        self.assertEqual(program.startTime, datetime.datetime(2026, 10, 14, 23, 42))
+        self.assertEqual(program.GetEndTime(), datetime.datetime(2026, 10, 15, 2, 42))
+
+    def test_next_minute_is_the_top_of_the_coming_minute(self):
+        before = datetime.datetime.today()
+        start = Program.NextMinute()
+        self.assertEqual((start.second, start.microsecond), (0, 0))
+        self.assertTrue(before < start <= before + datetime.timedelta(minutes=1))
+
+
+class AllSection(unittest.TestCase):
+    """A [DFM] section with 'ID: All' covers the connected DFMs the file doesn't list."""
+    @staticmethod
+    def Devices(*ids):
+        return {i: types.SimpleNamespace(ID=i, DFMType=Enums.DFMTYPE.ENVMONV3 if i == 99 else Enums.DFMTYPE.PLETCHERV3)
+                for i in ids}
+
+    def test_id_all_covers_dfms_not_listed(self):
+        text = ("[Paradigm A]\nType: OpenLoop\n[DFM]\nID: All\nInterval: A, Lit, {w}, 10\n"
+                "[DFM]\nID: 2\nInterval: A, Dark, {w}, 10\n").format(w=WELLS)
+        program = Program.MCUProgram()
+        self.assertTrue(program.LoadProgram(text.splitlines(keepends=True), self.Devices(2, 3, 4, 99)), program.loadError)
+        sets = program.theInstructionSets
+        self.assertEqual(sorted(sets), [2, 3, 4, 99])
+        self.assertEqual(sets[2].instructions[0].theDarkState, Enums.DARKSTATE.ON)     # its own section wins
+        self.assertEqual(sets[3].instructions[0].theDarkState, Enums.DARKSTATE.OFF)
+        self.assertEqual(sets[3].instructions[0].optoValues[0], 20)
+        self.assertEqual(sets[99].instructions[0].optoValues[0], Instruction.OFF)      # not the monitor
+        # Each DFM's baseline goes into its own Intervals.
+        self.assertIsNot(sets[3].instructions[0], sets[4].instructions[0])
+        # Without a list of DFMs (the tests' usual call) the section is simply kept aside.
+        program, ok = Load(text)
+        self.assertTrue(ok, program.loadError)
+        self.assertEqual(sorted(program.theInstructionSets), [2])
+
+    def test_id_all_only_once(self):
+        program, ok = Load("[Paradigm A]\nType: OpenLoop\n[DFM]\nID: All\n[DFM]\nID: All")
+        self.assertFalse(ok)
+        self.assertIn("Line 6:", program.loadError)
+        self.assertIn("Only one [DFM] section can have ID: All", program.loadError)
+
+
+class StagedProgram(unittest.TestCase):
+    """A staged program reads only the DFM on screen and doesn't baseline until it starts."""
+    def Group(self):
+        group = object.__new__(DFMGroup.DFMGroup)
+        group.MP = FakeMP()
+        group.theDFMs = {2: MakeDFM(), 3: MakeDFM()}
+        group.theDFMs[2].ID = 2
+        group.theDFMs[3].ID = 3
+        group.activeDFM = group.theDFMs[2]
+        group.isReadWorkerRunning = False
+        group.isStagedFocused = False
+        group.programReadInterval = ""
+        group.currentProgram = Program.MCUProgram()
+        group.currentProgram.CreateSimpleProgram(Program.NextMinute(), datetime.timedelta(minutes=10))
+        group.StopReadWorker = group.StartProgramWorker = lambda: None
+        return group
+
+    def Focus(self, group):
+        return [c[1] for c in group.MP.calls if c[0] == "SetFocusDFM"]
+
+    def test_staging_reads_the_dfm_on_screen_and_does_not_baseline(self):
+        group = self.Group()
+        group.StageCurrentProgram()
+        self.assertEqual(self.Focus(group), [2])
+        self.assertFalse(any(d.isCalculatingBaseline for d in group.theDFMs.values()))
+        group.SetActiveDFM(3)
+        self.assertEqual(self.Focus(group), [2, 3])
+
+    def test_instructions_wait_for_each_baseline(self):
+        group = self.Group()
+        group.currentProgram.startTime = datetime.datetime.today() - datetime.timedelta(minutes=1)
+        group.theDFMs[3].BaselineDFM()
+        group.UpdateDFMInstructions()
+        self.assertTrue(group.theDFMs[2].isInstructionUpdateNeeded)
+        self.assertFalse(group.theDFMs[3].isInstructionUpdateNeeded)
 
 
 if __name__ == "__main__":

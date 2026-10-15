@@ -9,6 +9,7 @@ import getpass
 import time
 import platform
 import DFMGroup
+import Program
 import Enums
 import Board
 import DFMPlot
@@ -63,7 +64,7 @@ STATUS_LABELS = {
     Enums.CURRENTSTATUS.ERROR: "Error",
     Enums.CURRENTSTATUS.MISSING: "Miss",
     Enums.CURRENTSTATUS.READING: "Read",
-    Enums.CURRENTSTATUS.RECORDING: "Record",
+    Enums.CURRENTSTATUS.RECORDING: "Rec",
     Enums.CURRENTSTATUS.UNDEFINED: "None",
 }
 
@@ -214,7 +215,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.BuildParadigmDisplay()
 
         self.programDuration = datetime.timedelta(minutes=180)
-        self.SetProgramStartTime(datetime.datetime.today())
+        self.SetProgramStartTime(Program.NextMinute())
 
         self.plotUpdateRequested.connect(self.UpdateDFMPlot)
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.plotUpdateRequested.emit
@@ -356,17 +357,19 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.UpdateUSBButtons()
 
     def SetStartTimeNow(self):
-        self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))
+        self.SetProgramStartTime(Program.NextMinute())
 
     def SetStartTimeClicked(self):
-        initial = QtCore.QDateTime(self.programStartTime.replace(second=0,microsecond=0))
+        initial = QtCore.QDateTime(self.programStartTime)
         secs = DateDialog.getDateTime(self,title="Program start time",okText="Set Start",initial=initial)
         if(secs==0):
             return
         self.SetProgramStartTime(datetime.datetime.fromtimestamp(secs))
 
     def SetProgramStartTime(self,theTime):
-        self.programStartTime = theTime
+        # The label shows hours and minutes only, so seconds left here would start the program
+        # partway through the minute shown.
+        self.programStartTime = Program.WholeMinute(theTime)
         self.programEndTime = self.programStartTime + self.programDuration
         self.StartTimeLabel.setText(self.programStartTime.strftime(
             "<table><tr><td>Day:&nbsp;</td><td>%a %m/%d/%Y</td></tr><tr><td>Time:&nbsp;</td><td>%H:%M</td></tr></table>"))
@@ -419,7 +422,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
-        self.SetProgramStartTime(datetime.datetime.today() + datetime.timedelta(minutes=1))
+        self.SetProgramStartTime(Program.NextMinute())
         self.programEndTime = self.programStartTime + self.programDuration
         self.theDFMGroup.currentProgram.CreateSimpleProgram(self.programStartTime,self.programDuration)
         self.UpdateProgramGUI()
@@ -583,7 +586,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)
         for b in self.DFMButtons.values():
             b.clicked.connect(self.DFMButtonClicked)
-        self.programStartTime = datetime.datetime.today()
+        self.programStartTime = Program.NextMinute()
         self.programDuration = datetime.timedelta(minutes=180)
 
         tmp = list(self.theDFMGroup.theDFMs.keys())[0]

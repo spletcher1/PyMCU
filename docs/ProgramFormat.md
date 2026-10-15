@@ -322,10 +322,11 @@ Interval: Closed, Lit, Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off, 120
 ```
 
 - **`ID`** comes first: the number set on the DFM's dials, 1–98. Each DFM has one section. (99 is the Environmental Monitor.)
+- **`ID: All`** instead of a number makes the section apply to every connected DFM that has no section of its own, the Environmental Monitor excepted. At most one section can say this. The `OptoTest` programs in `FLICPrograms` use it, so they run on whatever DFMs are connected.
 - **`ProgramType`** and **`Linkage`** override the `[General]` values for this DFM.
 - **`Interval`** lines run in the order written.
 
-A DFM that is connected but has no section is given every Well `Off` for the whole experiment.
+A DFM that is connected but has no section, and no `ID: All` section to fall back on, is given every Well `Off` for the whole experiment.
 
 ### Interval lines
 

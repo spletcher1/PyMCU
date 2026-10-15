@@ -4,7 +4,7 @@ OptoFrequency: 40
 OptoPW: 8
 OptoDelay: 0
 OptoDecay: 0
-MaxTimeOn: -1
+MaxTimeOn: 0
 #StartTime: 1:00:13
 Baseline: Yes
 

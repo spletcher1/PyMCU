@@ -1,4 +1,5 @@
 import array
+import copy
 import datetime
 
 import Enums
@@ -53,6 +54,14 @@ def _ParseInt(text, name):
         raise ValueError("{} must be a whole number, not '{}'".format(name, text.strip())) from None
 
 
+def WholeMinute(t):
+    """t with the seconds dropped, so a program starts at the top of a minute."""
+    return t.replace(second=0, microsecond=0)
+
+def NextMinute():
+    """The start of the next minute, the earliest a program can start."""
+    return WholeMinute(datetime.datetime.today() + datetime.timedelta(minutes=1))
+
 class MCUProgram():
     Program_message = Event.Event()
 
@@ -64,11 +73,12 @@ class MCUProgram():
         return self.GetProgramDescription()
 
     def ClearProgram(self):
-        ddt = datetime.datetime.today() + datetime.timedelta(minutes=1)
-        self.startTime = datetime.datetime(ddt.year, ddt.month, ddt.day, ddt.hour, ddt.minute, 0)
+        self.startTime = NextMinute()
         self.experimentDuration = datetime.timedelta(minutes=1)
         self.theInstructionSets.clear()
         self.theParadigms = {}
+        # The [DFM] section with 'ID: All', for connected DFMs the file doesn't list by number.
+        self.allInstructionSet = None
         self.optoFrequency = 40
         self.optoPulseWidth= 8
         self.optoDecay= 0
@@ -131,7 +141,7 @@ class MCUProgram():
     def CreateSimpleProgram(self,starttime,dur):
         # This will create a "linear" experiment with the current begin time and duration.
         self.ClearProgram()
-        self.startTime=starttime
+        self.startTime=WholeMinute(starttime)
         self.experimentDuration=dur
         for i in range(0,99):
             self.AddSimpleProgram(i,dur)
@@ -205,12 +215,15 @@ class MCUProgram():
             if kind in ("dfm", "envmon"):
                 self._DeviceSection(kind, lineNumber, items)
 
+        allSets = list(self.theInstructionSets.items())
+        if self.allInstructionSet is not None:
+            allSets.append(("All", self.allInstructionSet))
         if(self.experimentDuration.total_seconds()==0):
-            for value in self.theInstructionSets.values():
+            for _, value in allSets:
                 if value.GetDuration() > self.experimentDuration:
                     self.experimentDuration = value.GetDuration()
 
-        for key, value in self.theInstructionSets.items():
+        for key, value in allSets:
             problem = value.Validate()
             if problem:
                 raise ProgramError("{}: {}".format("Env Mon" if key==ENVMON_ID else "DFM {}".format(key), problem))
@@ -221,6 +234,12 @@ class MCUProgram():
             self.theInstructionSets = {k: v for k, v in self.theInstructionSets.items() if k in present}
             for d in dfmList.values():
                 if d.ID not in self.theInstructionSets:
+                    # 'ID: All' covers the DFMs not listed, but not the Environmental Monitor, which
+                    # has its own [EnvMon] section. A copy each, as a DFM's baseline is stored in
+                    # its Intervals.
+                    if self.allInstructionSet is not None and d.DFMType != Enums.DFMTYPE.ENVMONV3:
+                        self.theInstructionSets[d.ID] = copy.deepcopy(self.allInstructionSet)
+                        continue
                     self.AddSimpleProgram(d.ID,self.experimentDuration)
                     ss="DFM " + str(d.ID) + " not listed in program file. Adding simple program"
                     self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)
@@ -275,6 +294,13 @@ class MCUProgram():
                         continue
                     if iset is not None:
                         raise ValueError("A [DFM] section has one ID; start a new [DFM] section for another DFM")
+                    if value.lower() == "all":
+                        # For every connected DFM the file doesn't list by number.
+                        if self.allInstructionSet is not None:
+                            raise ValueError("Only one [DFM] section can have ID: All")
+                        iset = self._NewSet()
+                        self.allInstructionSet = iset
+                        continue
                     dfmid = _ParseInt(value, "ID")
                     if not 1 <= dfmid <= 98:
                         raise ValueError("DFM IDs are 1 to 98")
