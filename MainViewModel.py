@@ -24,7 +24,7 @@ from TimeInputDialog import DateDialog
 
 APP_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 # Shown in the About box; keep in step with the version in pyproject.toml.
-APP_VERSION = "3.5.0"
+APP_VERSION = "3.5.1"
 
 # The window is laid out for the original 800x480 touch display and fixed at that size in
 # Mainwindow.ui. On the MCU, a bigger screen (the 1280x720 Touch Display 2, or a monitor) scales
