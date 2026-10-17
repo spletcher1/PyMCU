@@ -1,31 +1,43 @@
-# Walks the optolid: each Well's LED on alone for 1.2 s, in order, with the dark lights
-# toggling, then all off and all on. Every connected DFM runs it. Runs on every firmware.
+# Optolid output test: walks the 12 LEDs. Each Well's LED comes on alone for 1.2 s, in Well
+# order 1A, 1B, 2A, 2B ... 6A, 6B, while the DFM's own indicator LEDs toggle between Dark and
+# Lit. Then the whole lid is off for 1.2 s and on for 1.2 s, and the walk starts again
+# (ProgramType Repeating) until the 5 minutes are up.
+#
+# What to expect: one LED after another lights for about a second, then the lid blinks. A LED
+# that never lights, or that lights together with another, points to a lid or wiring fault.
+# Linkage is 1 to 12 here, so no Wells are linked and each LED answers for itself alone.
+#
+# How it is written: an OpenLoop Paradigm lights every Well whose threshold is On and leaves the
+# Off Wells dark whatever the signal, so a touch can't disturb the pattern. Each Interval lasts
+# 0.02 minutes, which is 1.2 s.
+#
+# Runs on every DFM firmware, 1.0.5 included. ID: All makes every connected DFM run it.
+
 [General]
-ExpDurationMin: 5 
-OptoFrequency: 40
-OptoPW: 8
-OptoDelay: 0
-OptoDecay: 0
-MaxTimeOn: 0
+ExpDurationMin: 5
 Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
-#StartTime: 1:00:13
 Baseline: Yes
+
+[Paradigm Open]
+Type: OpenLoop
+Frequency: 40
+PulseWidth: 8
 
 [DFM]
 ID: All
 ProgramType: Repeating
-Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0.02
-Interval: 1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0.02
-Interval: 0,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0.02
-Interval: 1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,0.02
-Interval: 0,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,0.02
-Interval: 1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,0.02
-Interval: 0,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,0.02
-Interval: 1,-1,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,0.02
-Interval: 0,-1,-1,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,0.02
-Interval: 1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,-1,-1,0.02
-Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,-1,0.02
-Interval: 1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,0.02
-Interval: 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0.02
-Interval: 1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0.02
-Interval: 1,0,0,0,0,0,0,0,0,0,0,0,0,0.02
+Interval: Open, Lit,  Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Dark, On,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Lit,  Off,On,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Dark, Off,Off,On,Off,Off,Off,Off,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Lit,  Off,Off,Off,On,Off,Off,Off,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Dark, Off,Off,Off,Off,On,Off,Off,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Lit,  Off,Off,Off,Off,Off,On,Off,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Dark, Off,Off,Off,Off,Off,Off,On,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Lit,  Off,Off,Off,Off,Off,Off,Off,On,Off,Off,Off,Off, 0.02
+Interval: Open, Dark, Off,Off,Off,Off,Off,Off,Off,Off,On,Off,Off,Off, 0.02
+Interval: Open, Lit,  Off,Off,Off,Off,Off,Off,Off,Off,Off,On,Off,Off, 0.02
+Interval: Open, Dark, Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,On,Off, 0.02
+Interval: Open, Lit,  Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,On, 0.02
+Interval: Open, Dark, Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off, 0.02
+Interval: Open, Dark, On,On,On,On,On,On,On,On,On,On,On,On, 0.02

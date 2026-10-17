@@ -1,17 +1,25 @@
-# Open loop: a Well's LED is on only while its signal is 50 above baseline.
-# Touch a Well: the LED lights while touched and goes off the moment you let go.
-# Runs on every firmware, 1.0.5 included.
+# OptoTest 1: Open loop. The LED is lit for the whole Interval, whatever the fly does.
+#
+# What to expect: a few seconds after the recording starts (the baseline is taken first), all
+# 12 LEDs come on and stay on for the 10 minutes. Touching a Well changes nothing.
+#
+# How it is written: an OpenLoop Paradigm has no settings beyond the light itself. Each Well
+# follows its threshold alone: On lights the LED for the Interval, Off keeps it dark, and a
+# number would be ignored by this type, so every Well is On here.
+#
+# Runs on every DFM firmware, 1.0.5 included. ID: All makes every connected DFM run it.
+
 [General]
 ExpDurationMin: 10
-OptoFrequency: 40
-OptoPW: 8
-OptoDecay: 0
-OptoDelay: 0
-MaxTimeOn: 0
 Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
 Baseline: Yes
+
+[Paradigm Open]
+Type: OpenLoop
+Frequency: 40
+PulseWidth: 8
 
 [DFM]
 ID: All
 ProgramType: Linear
-Interval: 0,50,50,50,50,50,50,50,50,50,50,50,50,10
+Interval: Open, Lit, On,On,On,On,On,On,On,On,On,On,On,On, 10

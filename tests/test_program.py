@@ -105,6 +105,31 @@ class OldFormat(unittest.TestCase):
             program, ok = LoadFile(name)
             self.assertTrue(ok, "{}: {}".format(name, program.loadError))
 
+    def test_opto_test_programs_cover_each_type(self):
+        """The OptoTest programs are the worked examples of the Paradigm format: one type each,
+        for every connected DFM (ID: All), with the comment at the top saying what to expect."""
+        expected = {
+            "OptoTest1_OpenLoop.txt": (Paradigm.ParadigmType.OPENLOOP, None, 1),
+            "OptoTest2_ClosedLoop.txt": (Paradigm.ParadigmType.CLOSEDLOOP, None, 1),
+            "OptoTest3_FixedInterval.txt": (Paradigm.ParadigmType.FIXEDINTERVAL, None, 1),
+            "OptoTest4_NonFeeding.txt": (Paradigm.ParadigmType.NONFEEDING, None, 1),
+            "OptoTest5_ProgressiveRatio.txt": (Paradigm.ParadigmType.PROGRESSIVERATIO, "the ProgressiveRatio Paradigm type needs firmware 4.0.0", 1),
+            "OptoTest6_TrainingFirst.txt": (Paradigm.ParadigmType.FIXEDRATIO, "the FixedRatio Paradigm type needs firmware 4.0.0", 1),
+            "OptoLidOutputTest.txt": (Paradigm.ParadigmType.OPENLOOP, None, 15),
+        }
+        for name, (paradigmType, needs, intervals) in expected.items():
+            program, ok = LoadFile(name)
+            self.assertTrue(ok, "{}: {}".format(name, program.loadError))
+            with open(os.path.join(PROGRAMS, name), encoding="utf-8-sig") as f:
+                self.assertGreaterEqual(sum(1 for line in f if line.startswith("#")), 8, name + " needs its comment")
+            allSet = program.allInstructionSet
+            self.assertIsNotNone(allSet, name + " should use ID: All")
+            self.assertEqual(len(allSet.instructions), intervals, name)
+            paradigm = allSet.instructions[0].paradigm
+            self.assertEqual(paradigm.type, paradigmType, name)
+            self.assertEqual(paradigm.FirmwareNeeded(), needs, name)
+            self.assertEqual(program.experimentDuration, datetime.timedelta(minutes=5 if "Lid" in name else 10), name)
+
     def Paradigm(self, general, interval="0,20,20,20,20,20,20,20,20,20,20,20,20,10"):
         program, ok = Load("[General]\n{}\n[DFM]\nID: 1\nInterval: {}".format(general, interval))
         self.assertTrue(ok, program.loadError)

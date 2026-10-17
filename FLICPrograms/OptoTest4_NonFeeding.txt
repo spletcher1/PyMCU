@@ -1,18 +1,30 @@
-# Non-feeding activation: the LED lights for 2 s (OptoDecay) after 10 s (OptoDelay) with
-# no contact. OptoPW 32776 is 32768 + an 8 ms pulse width.
-# Leave a Well alone: it flashes 2 s every so often. Keep touching it: it stays dark.
-# Needs firmware 2.0.0 or later; PyMCU refuses it for a 1.0.5 board.
+# OptoTest 4: Non-feeding activation, the reverse of closed loop. The LED is off during contact
+# and comes on OnDelayMs after contact ends, for at most MaxOnMs.
+#
+# What to expect: at the start of the Interval every LED comes on at once. Leave a Well alone
+# and its LED then cycles: 2 s on (MaxOnMs 2000), 10 s off (OnDelayMs 10000), and so on.
+# Touch a Well: its LED is off while you touch it and comes back on 10 s after you let go.
+#
+# Settings: OnDelayMs is the quiet time after contact before the light; 500 to 1000 stops it
+# flickering while a fly moves in and out of the food. MaxOnMs caps how long the light stays on
+# before the next contact; 0 would mean no cap, so the LED would stay on until the fly fed.
+#
+# Needs DFM firmware 2.0.0 or later. PyMCU refuses it for a 1.0.5 board, which would run fixed
+# interval instead without saying so. ID: All makes every connected DFM run it.
+
 [General]
 ExpDurationMin: 10
-OptoFrequency: 40
-OptoPW: 32776
-OptoDecay: 2000
-OptoDelay: 10000
-MaxTimeOn: 0
 Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
 Baseline: Yes
+
+[Paradigm NotFeeding]
+Type: NonFeeding
+Frequency: 40
+PulseWidth: 8
+OnDelayMs: 10000
+MaxOnMs: 2000
 
 [DFM]
 ID: All
 ProgramType: Linear
-Interval: 0,50,50,50,50,50,50,50,50,50,50,50,50,10
+Interval: NotFeeding, Lit, 50,50,50,50,50,50,50,50,50,50,50,50, 10

@@ -23,6 +23,22 @@ Firmware before 4.0.0 runs its own version of the rules it supports, from the ol
 - **Run Program.** The same check runs again, because a board may have been swapped, and the Program doesn't start while the list isn't empty.
 - **While a Program runs.** If a board's firmware turns out to be older only then, the Interval it can't run isn't sent: the board keeps its last instruction and an Error message says why.
 
+## Testing the opto rules
+
+Each `OptoTest` program in `FLICPrograms` runs one Paradigm type on every connected DFM for 10 minutes, with thresholds of 50 above baseline (`On` for open loop). They are written in the Paradigm format, and the comment at the top of each file explains the rule, its settings, what to do and what to see. Updates don't install `FLICPrograms`; copy the files to an MCU with **Move programs**. The baseline is the average of each Well's first 10 readings after the recording starts (about 2 s), and a DFM gets its instruction only once its baseline is done, so the LEDs stay off for the first few seconds of every run, open loop included.
+
+| Program | Paradigm | Touch one Well and expect | Firmware |
+| --- | --- | --- | --- |
+| `OptoTest1_OpenLoop` | OpenLoop, all Wells On | All LEDs on a few seconds after the start, and staying on whatever you do | Any |
+| `OptoTest2_ClosedLoop` | ClosedLoop, HoldMs 1000, MaxOnMs 5000 | On while touched and 1 s after; a hold goes off after 5 s | Any |
+| `OptoTest3_FixedInterval` | FixedInterval, ActivationMs 2000, LockoutMs 10000 | 2 s on at a touch, then no new Activation for 10 s from its start | Any |
+| `OptoTest4_NonFeeding` | NonFeeding, OnDelayMs 10000, MaxOnMs 2000 | Untouched Wells: 2 s on, 10 s off, repeating. A touched Well stays dark and lights 10 s after the touch ends | 2.0.0 or later |
+| `OptoTest5_ProgressiveRatio` | ProgressiveRatio, ActivationMs 1000, Step 2, Cap 20 | Separate bouts: 1 s of light after the 1st, then after 3 more, 5 more, 7 more... | 4.0.0 |
+| `OptoTest6_TrainingFirst` | FixedRatio 1 with Acclimation 3, ActivationMs 1000 | The first 3 bouts light while touched and 1 s after; from the 4th, 1 s per bout | 4.0.0 |
+| `OptoLidOutputTest` | OpenLoop, one Well On per Interval | Each LED alone for 1.2 s in Well order, then all off, then all on, repeating | Any |
+
+The 3.x versions of programs 1 to 4 were checked on the bench with DFM firmware 3.5.1 on 2026-10-16; these Paradigm-format versions, and 5 and 6 on a 4.0.0 board, have not yet been. The DFM's own record of its LEDs is in the data file's `OptoCol1` (Wells 1 to 12 as bits 0 to 11) and `OptoCol2`. Records are 200 ms snapshots, so an on-period shorter than that may not show.
+
 ## What the DFM page shows for each firmware
 
 - **Firmware.** `1.0.5` for a board that doesn't answer the version request (none of that generation do), otherwise what the board reports.

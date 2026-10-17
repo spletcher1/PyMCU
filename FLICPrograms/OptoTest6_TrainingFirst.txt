@@ -1,7 +1,21 @@
-# Acclimation first: each Well gets 3 Activations under simple closed-loop rules, then every
-# feeding bout lights the LED for 1 s (FixedRatio with Ratio 1). The data file's phase column
-# shows A for a Well still in acclimation and M once it is on the main rule.
-# Needs DFM firmware 4.0.0; PyMCU refuses it for older boards. Every connected DFM runs it.
+# OptoTest 6: Acclimation first. Each Well starts with 3 closed-loop Activations so the fly
+# learns the association, then switches to its main rule: FixedRatio with Ratio 1, so every
+# feeding bout lights the LED for ActivationMs.
+#
+# What to expect: the first 3 times you touch a Well, its LED lights during the touch and for
+# 1 s after you let go (Acclimation 3, ActivationMs 1000). From the 4th bout on, each bout lights
+# the LED for exactly 1 s, however long you hold. Acclimation is counted for each Well on its
+# own, so every Well gets exactly 3. The data file's phase column shows A while a Well is still
+# in Acclimation and M once it is on the main rule.
+#
+# Settings: Acclimation N gives N closed-loop Activations before the main rule. Ratio is the
+# Events per Activation; 5 would light every 5th bout. The same Acclimation setting works on
+# FixedInterval and ProgressiveRatio Paradigms. The old way of asking for training, a frequency
+# above 512, is refused when a program loads; write Acclimation instead.
+#
+# Needs DFM firmware 4.0.0 (Acclimation and the ratio rules). PyMCU refuses it for older
+# boards. ID: All makes every connected DFM run it.
+
 [General]
 ExpDurationMin: 10
 Linkage: 1,2,3,4,5,6,7,8,9,10,11,12

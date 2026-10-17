@@ -1,18 +1,29 @@
-# Closed loop with decay and a cap: the LED stays on 1 s (OptoDecay) after contact ends,
-# and no single on-period lasts more than 5 s (MaxTimeOn).
-# Touch briefly: the LED stays on about 1 s after you let go. Hold on: it goes off after 5 s.
-# Runs on every firmware, 1.0.5 included.
+# OptoTest 2: Closed loop. The LED is lit during contact and for HoldMs after it ends, and no
+# single Activation lasts longer than MaxOnMs.
+#
+# What to expect: touch a Well (its signal must rise 50 above the Well's baseline) and its LED
+# lights at once. Let go: it stays on 1 s more (HoldMs 1000), then goes off. Keep holding: it
+# goes off after 5 s (MaxOnMs 5000) and stays off until you let go and touch again.
+#
+# Settings: HoldMs is the hold after contact ends. MaxOnMs caps one Activation, measured from
+# when the LED came on; 0 would mean no cap. EventGapMs (left at its default of 100 ms) decides
+# when a cut-off bout has ended, so a brief dip out of the food does not restart the cap.
+#
+# Runs on every DFM firmware, 1.0.5 included. ID: All makes every connected DFM run it.
+
 [General]
 ExpDurationMin: 10
-OptoFrequency: 40
-OptoPW: 8
-OptoDecay: 1000
-OptoDelay: 0
-MaxTimeOn: 5000
 Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
 Baseline: Yes
+
+[Paradigm Closed]
+Type: ClosedLoop
+Frequency: 40
+PulseWidth: 8
+HoldMs: 1000
+MaxOnMs: 5000
 
 [DFM]
 ID: All
 ProgramType: Linear
-Interval: 0,50,50,50,50,50,50,50,50,50,50,50,50,10
+Interval: Closed, Lit, 50,50,50,50,50,50,50,50,50,50,50,50, 10

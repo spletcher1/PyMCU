@@ -1,8 +1,20 @@
-# Progressive ratio by feeding bouts: the first Activation comes after 1 Event, the next after
-# 2 more (Step 2), and so on up to 20. Each Activation lights the LED for 1 s (ActivationMs).
-# Touch a Well in separate bouts and count how many it takes before the LED lights; the count
-# should grow by two each time.
-# Needs DFM firmware 4.0.0; PyMCU refuses it for older boards. Every connected DFM runs it.
+# OptoTest 5: Progressive ratio. The fly earns each Activation with more and more separate
+# feeding bouts (Events). Once the Requirement is met, the LED lights for exactly ActivationMs.
+#
+# What to expect: touch and release a Well in separate bouts, pausing at least 0.1 s between
+# them (EventGapMs, default 100 ms, is what separates one bout from the next). The 1st bout
+# lights the LED for 1 s (FirstRequirement 1). The next Activation needs 3 bouts (Step 2 more),
+# the one after that 5, then 7, and so on up to 20 (Cap). Bouts made while the LED is on do
+# not count. The data file shows each Well's Requirement and Progress.
+#
+# Settings: ActivationMs is the light per Activation. Series Arithmetic grows the Requirement by
+# Step after each Activation: FirstRequirement + Step x (k - 1) for the k-th Activation. Series
+# Exponential (with Scale and Rate) is the Richardson and Roberts series instead. Acclimation
+# is 0 here, so there are no closed-loop Activations first; OptoTest 6 shows them.
+#
+# Needs DFM firmware 4.0.0, which runs the ratio rules itself. PyMCU refuses it for older
+# boards. ID: All makes every connected DFM run it.
+
 [General]
 ExpDurationMin: 10
 Linkage: 1,2,3,4,5,6,7,8,9,10,11,12

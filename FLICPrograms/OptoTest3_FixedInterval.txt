@@ -1,18 +1,30 @@
-# Fixed interval: the first contact lights the LED for 2 s (OptoDecay), then no new
-# activation for 10 s (OptoDelay) from when it started, however often the Well is touched.
-# Touch: 2 s of light. Touch again within 10 s: nothing. Wait 10 s and touch: light again.
-# Runs on every firmware, 1.0.5 included.
+# OptoTest 3: Fixed interval. Contact starts an Activation of exactly ActivationMs, and no new
+# Activation can start until LockoutMs after the previous one started.
+#
+# What to expect: touch a Well and its LED lights for 2 s (ActivationMs 2000), however long you
+# hold it. Touch again within 10 s of that light coming on: nothing. Touch 10 s or more after it
+# came on (LockoutMs 10000): 2 s of light again. If you are still holding the Well when the
+# lockout ends, the next Activation starts right then.
+#
+# Settings: ActivationMs is the light per Activation; LockoutMs is the shortest time from the
+# start of one Activation to the start of the next. Acclimation (not used here, see OptoTest 6)
+# would give each Well a set number of closed-loop Activations first.
+#
+# Runs on every DFM firmware, 1.0.5 included. ID: All makes every connected DFM run it.
+
 [General]
 ExpDurationMin: 10
-OptoFrequency: 40
-OptoPW: 8
-OptoDecay: 2000
-OptoDelay: 10000
-MaxTimeOn: 0
 Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
 Baseline: Yes
+
+[Paradigm Interval10s]
+Type: FixedInterval
+Frequency: 40
+PulseWidth: 8
+ActivationMs: 2000
+LockoutMs: 10000
 
 [DFM]
 ID: All
 ProgramType: Linear
-Interval: 0,50,50,50,50,50,50,50,50,50,50,50,50,10
+Interval: Interval10s, Lit, 50,50,50,50,50,50,50,50,50,50,50,50, 10
