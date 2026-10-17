@@ -84,7 +84,7 @@ The MCU also checks that every DFM it has found can run the Program. If one can'
 | `ExpDurationMin` | How long recording lasts, in minutes. Always set it. | 1 |
 | `ProgramType` | How each DFM steps through its Intervals: `Linear`, `Repeating`, `Circadian` or `Constant`. A `[DFM]` section can override it. See [Program types](#program-types). | `Linear` |
 | `Linkage` | 12 numbers, one per Well. Wells with the same number light together. A `[DFM]` section can override it. See [Linkage](#linkage). | `1,2,3,4,5,6,7,8,9,10,11,12` (no linkage) |
-| `Baseline` | `Yes` measures each Well's resting signal before recording starts, and thresholds are then measured from it. `No` uses the raw signal. | `Yes` |
+| `Baseline` | `Yes` measures each Well's resting signal over its first 10 readings after recording starts (a few seconds), and thresholds are then measured from it. A DFM starts its first Interval only once that is done, so its LEDs stay off for those seconds, even in an OpenLoop Interval. `No` uses the raw signal. | `Yes` |
 
 `[General]` also accepts the old `OptoFrequency`, `OptoPW`, `OptoDecay`, `OptoDelay` and `MaxTimeOn` settings, but only for old-style Interval lines. New Programs set these in Paradigms instead.
 
@@ -392,7 +392,7 @@ In this example, Relay 1 and Outputs 1 and 2 are on for the first 2 hours. Then 
 
 - When a Program is loaded, the MCU warns about any DFM that can't run it, naming the DFM and the feature. Run Program then refuses to start until the DFM is updated or the Program changed.
 - Firmware 1.0.5 (the DFMs from 2021, which show `1.0.5` on their page) also can't take a time above 65535 ms (about 65 seconds), and would run NonFeeding as fixed interval without any warning, so the MCU refuses both for such a DFM.
-- Older firmware runs its own version of the four rules it supports, so details can differ. It doesn't use `EventGapMs`, for example. Use firmware 4.0.0 for new experiments.
+- Older firmware runs its own version of the rules it supports, so details can differ. It doesn't use `EventGapMs`, for example. Use firmware 4.0.0 for new experiments.
 - The DFM's firmware version is on its page in the MCU (Firmware).
 
 ## What the data file records
