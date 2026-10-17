@@ -240,10 +240,10 @@ Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) w
 
 ## Not yet confirmed
 
-The firmware source isn't on the MCU, and these behaviours haven't been checked against a recording from a 4.0.0 board with a ratio Paradigm or Acclimation. Check them against real data before relying on them:
+The firmware source isn't on the MCU, and these behaviours haven't yet been seen in a recording from a 4.0.0 board. Check them against real data before relying on them:
 
 - Whether OpenLoop, and Wells set to `On`, count Activations (once per Interval, or never).
-- Whether `Requirement` is reported (and so not `NA`) during Acclimation and for `On`/`Off` Wells under a ratio Paradigm. PyMCU writes `NA` wherever the DFM reports 0.
+- Whether `Requirement` is reported (and so not `NA`) for `On`/`Off` Wells under a ratio Paradigm. PyMCU writes `NA` wherever the DFM reports 0. During Acclimation it is reported: the first Main-phase Requirement (seen with FixedRatio on 10/17/2026).
 - Whether `Progress` returns to 0 when an Activation starts, or when it ends.
 
 `FLICPrograms/OptoTest1_OpenLoop.txt`, `OptoTest5_ProgressiveRatio.txt` and `OptoTest6_TrainingFirst.txt` exercise all of these.

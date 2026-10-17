@@ -305,14 +305,18 @@ class Reader(unittest.TestCase):
         getter = MakeGetter({}, FakeCOMM(versions=[COMM.LEGACY_VERSION]))
         self.assertEqual(getter._ReadVersion(7), COMM.LEGACY_VERSION)
 
-    def test_partial_ack_names_the_last_packet_from_3_5_0(self):
+    def test_acks(self):
+        # Every packet good: a plain ACK, as firmware 3.5.0+ flags a partial ACK as No Ack even
+        # when it names every packet. Some bad: a partial ACK for the good ones.
         info = DataGetter.DFMInfo(5, Enums.DFMTYPE.PLETCHERV3)
-        for version, expected in ((b"4.0.0", [("SendPartialAck", 5, 2)]), (b"3.0.0", [("SendAck", 5)])):
-            getter = MakeGetter({5: version}, FakeCOMM())
-            size = StatusPacket.V4_PACKET_SIZE if version == b"4.0.0" else StatusPacket.V3_PACKET_SIZE
-            body = (Record(index=1) + Record(index=2)) if size == StatusPacket.V4_PACKET_SIZE else (Record56(index=1) + Record56(index=2))
-            getter._Acknowledge(info, getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, body, None))
-            self.assertEqual(getter.theCOMM.calls, expected)
+        getter = MakeGetter({5: b"4.0.0"}, FakeCOMM())
+        getter._Acknowledge(info, getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, Record(index=1) + Record(index=2), None))
+        self.assertEqual(getter.theCOMM.calls, [("SendAck", 5)])
+        bad = bytearray(Record(index=2))
+        bad[10] ^= 0xFF
+        getter = MakeGetter({5: b"4.0.0"}, FakeCOMM())
+        getter._Acknowledge(info, getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, Record(index=1) + bytes(bad), None))
+        self.assertEqual(getter.theCOMM.calls, [("SendPartialAck", 5, 1)])
         # A failed read isn't acknowledged at all.
         getter = MakeGetter({5: b"4.0.0"}, FakeCOMM())
         getter._Acknowledge(info, getter.ProcessPacket(info, Enums.COBSRESULT.NOANSWER, b"", None))
@@ -325,8 +329,8 @@ class Reader(unittest.TestCase):
         getter.command_q.put(DataGetter.MP_Command(Enums.COMMANDTYPE.LINKAGE, [6, list(range(12))], 1))
         getter.ReadValues([DataGetter.DFMInfo(5, Enums.DFMTYPE.PLETCHERV3), DataGetter.DFMInfo(6, Enums.DFMTYPE.PLETCHERV3)])
         self.assertEqual([c[:2] for c in comm.calls],
-                         [("GetStatusPacket", 5), ("SendPartialAck", 5), ("SendLinkage", 6),
-                          ("GetStatusPacket", 6), ("SendPartialAck", 6)])
+                         [("GetStatusPacket", 5), ("SendAck", 5), ("SendLinkage", 6),
+                          ("GetStatusPacket", 6), ("SendAck", 6)])
         self.assertEqual(comm.calls[0][2], StatusPacket.V4_PACKET_SIZE)
         first = getter.data_q.get_nowait()[0]
         self.assertFalse(first.isFullReply)

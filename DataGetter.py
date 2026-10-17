@@ -380,14 +380,14 @@ class DataGetter:
         """A V3 DFM drops the packets it sent once they are ACKed, so only packets that were read
         correctly are acknowledged. The read stops at the first bad packet."""
         numGood = sum(1 for _ in itertools.takewhile(lambda p: p.processResult == PROCESSEDPACKETRESULT.OKAY, packList))
-        if(numGood > 0 and info.DFMType == DFMTYPE.PLETCHERV3 and
-             COMM.SupportsPartialAck(self.firmwareVersions.get(info.ID, b""))):
-            # Naming the last packet received, even when all were, means the DFM drops only what
-            # arrived: a reply cut short at a packet boundary loses nothing. When some were bad,
-            # the good packets are kept and the DFM need only send the rest again.
-            self.theCOMM.SendPartialAck(info.ID, packList[numGood-1].recordIndex)
-        elif(numGood == len(packList)):
+        if(numGood == len(packList)):
+            # A plain ACK: the firmware counts any partial ACK, even one naming every packet, as
+            # a missed ACK and sets the No Ack error bit.
             self.theCOMM.SendAck(info.ID)
+        elif(numGood > 0 and info.DFMType == DFMTYPE.PLETCHERV3 and
+             COMM.SupportsPartialAck(self.firmwareVersions.get(info.ID, b""))):
+            # The good packets are kept, so the DFM need only send the rest again.
+            self.theCOMM.SendPartialAck(info.ID, packList[numGood-1].recordIndex)
 
     def _RecordSize(self,info):
         """Status record size: 127 bytes from DFM firmware 4.0.0, 56 before (and for the EnvMon)."""
