@@ -149,7 +149,7 @@ The running total of Activations at the Well since recording started. An Activat
 - It counts the Well's own Activations only. An LED lit by Linkage from another Well adds nothing to this Well's count. Use `OnMs` for light received.
 - It counts Acclimation Activations as well as Main ones.
 - It goes up in the record where the Activation's light starts (seen with ClosedLoop on 10/16/2026), so `diff()` > 0 marks Activation starts.
-- Whether OpenLoop and `On` Wells add Activations is not yet confirmed (see [Not yet confirmed](#not-yet-confirmed)).
+- OpenLoop and `On` Wells never add Activations: the firmware counts only on-periods that a Paradigm starts, and those Wells don't run one (DFM firmware `src/LEDControl.c`, 4.0.0).
 
 ### Requirement1–Requirement12
 
@@ -192,7 +192,7 @@ Every missing value is written as `NA`. Nothing is left empty.
 
 | Paradigm type | Phase | Activations | Requirement, Progress | OnMs | Notes |
 |---|---|---|---|---|---|
-| OpenLoop | always `M` | not confirmed (see below) | `NA` | yes: 200 for every `On` Well | Light doesn't depend on behaviour. |
+| OpenLoop | always `M` | never: stays at its last value | `NA` | yes: 200 for every `On` Well | Light doesn't depend on behaviour. |
 | ClosedLoop | always `M` | yes: one per contact plus its hold | `NA` | yes | Light follows feeding. An Activation is cut off after `MaxOnMs`, and the LED stays off until that Event ends. |
 | FixedInterval | `A`/`M` if `Acclimation` | yes: each is exactly `ActivationMs` in Main | `NA` | yes | A new Activation can't start until `LockoutMs` after the previous one started. |
 | NonFeeding | always `M` | yes: each period the LED is lit | `NA` | yes | The LED is lit when the fly is **not** feeding: on at the start, off during contact, on again `OnDelayMs` after contact ends. |
@@ -242,7 +242,6 @@ Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) w
 
 The firmware source isn't on the MCU, and these behaviours haven't yet been seen in a recording from a 4.0.0 board. Check them against real data before relying on them:
 
-- Whether OpenLoop, and Wells set to `On`, count Activations (once per Interval, or never).
 - Whether `Requirement` is reported (and so not `NA`) for `On`/`Off` Wells under a ratio Paradigm. PyMCU writes `NA` wherever the DFM reports 0. During Acclimation it is reported: the first Main-phase Requirement (seen with FixedRatio on 10/17/2026).
 - Whether `Progress` returns to 0 when an Activation starts, or when it ends.
 

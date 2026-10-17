@@ -113,13 +113,13 @@ LockoutMs: 60000
 These words have exact meanings in the rules below.
 
 - **Contact:** the Well's signal is above its threshold. The DFM checks every millisecond.
-- **Event:** one feeding bout. It starts when contact begins, and ends once the signal has stayed below the threshold for `EventGapMs` (default 100 ms), so a fly dipping in and out counts once. Contact that starts while the Well's own Activation is running doesn't start an Event. Light from a linked Well doesn't matter here.
+- **Event:** one feeding bout. It starts when contact begins, and ends once the signal has stayed below the threshold for `EventGapMs` (default 100 ms), so a fly dipping in and out counts once. Contact that starts while the Well's own Activation is running doesn't start an Event, and that bout still isn't one if it carries on after the Activation ends: the next Event is the first contact after the signal has then stayed below the threshold for `EventGapMs`. Light from a linked Well doesn't matter here.
 - **Activation:** one period during which the Paradigm lights the LED.
 - **Requirement and Progress** (ratio types only): the number of Events needed for the next Activation, and how many have happened so far.
 
 ### Acclimation
 
-`FixedInterval`, `ProgressiveRatio` and `FixedRatio` accept `Acclimation: N`. Each Well then starts with N closed-loop Activations: each of its first N Events lights the LED during contact and for `ActivationMs` after contact ends. The Well switches to the main rule when its Nth Activation ends.
+`FixedInterval`, `ProgressiveRatio` and `FixedRatio` accept `Acclimation: N`. Each Well then starts with N closed-loop Activations: contact lights the LED, and it stays lit for `ActivationMs` after contact ends. Each time the LED comes on is one Activation, so a fly that comes back after the light has gone off counts again, even within the same Event. The Well switches to the main rule when its Nth Activation ends.
 
 - This is counted for each Well separately, so every fly experiences exactly N Activations before the main rule starts.
 - The data file shows each Well's Phase: `A` during Acclimation, `M` (Main) after.

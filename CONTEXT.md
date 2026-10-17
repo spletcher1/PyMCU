@@ -56,7 +56,7 @@ The time a Well's signal spends above its Threshold, measured in milliseconds.
 _Avoid_: Licks (the DFM does not detect individual licks)
 
 **Event**:
-One feeding bout at a Well. It starts when the Well's signal rises above its Threshold, unless an Activation is in progress, and it ends once the signal has stayed below the Threshold for the Event gap. Progressive ratio, fixed ratio and Acclimation count Events.
+One feeding bout at a Well. It starts when the Well's signal rises above its Threshold, unless an Activation is in progress, and it ends once the signal has stayed below the Threshold for the Event gap. A bout that starts during an Activation is not an Event, even if it carries on after the Activation ends. Progressive ratio and fixed ratio count Events; Acclimation counts Activations.
 _Avoid_: Lick, interaction, signal
 
 **Event gap**:

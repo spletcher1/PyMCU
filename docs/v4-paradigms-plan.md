@@ -28,7 +28,7 @@ Today the DFM guesses the paradigm from which settings are zero, a pulse width a
 
 ### Paradigm types
 
-Every Paradigm has `Frequency` (1–500 Hz) and `PulseWidth` (1 ms up to, but not including, one full period). The ratio types (and FixedInterval for `Acclimation`) also accept `EventGapMs` (default 100) and `Acclimation` (default 0); the rule table under Settings checks this. All times are in milliseconds.
+Every Paradigm has `Frequency` (1–500 Hz) and `PulseWidth` (1 ms up to, but not including, one full period). ClosedLoop, FixedInterval and the ratio types also accept `EventGapMs` (default 100): ClosedLoop uses it to end a bout cut off by `MaxOnMs`, and FixedInterval only during Acclimation. FixedInterval and the ratio types also accept `Acclimation` (default 0). The rule table under Settings checks this. All times are in milliseconds.
 
 | Type | Settings | Rule |
 |---|---|---|
@@ -44,16 +44,16 @@ Every Paradigm has `Frequency` (1–500 Hz) and `PulseWidth` (1 ms up to, but no
 - **Events:**
   - An Event starts when a Well's signal rises above its Threshold, unless an Activation is in progress.
   - It ends once the signal has stayed below the Threshold for `EventGapMs`.
-  - Rises during an Activation don't count.
+  - Rises during an Activation don't count. A bout that starts during an Activation is not an Event even if it carries on after the Activation ends; the next Event is the first rise after that bout has ended.
 - **Requirement series:** k counts only Main-phase Activations since the Paradigm state began (see confirmation C4).
   - **Arithmetic:** Requirement_k = FirstRequirement + Step·(k−1), capped at `Cap`. FirstRequirement defaults to 1, so the first Event is rewarded.
   - **Exponential (Richardson–Roberts):** Requirement_k = round(Scale·e^(Rate·k) − Scale), capped at `Cap`. Scale defaults to 5 and Rate to 0.2, giving 1, 2, 4, 6, 9, 12, 15, 20, 25, 32, 40, 50, 62, 77, 95 …
   - `Cap` is at most 65,535.
 - **Acclimation:**
   - Allowed only for ProgressiveRatio, FixedRatio and FixedInterval.
-  - Acclimation N means each Well's first N Events each start a closed-loop Activation, using `ActivationMs` as the hold time.
+  - Acclimation N means each Well's first N Activations are closed-loop ones, using `ActivationMs` as the hold time. Each time the LED comes on is one Activation, so a fly that comes back after the hold has ended but within `EventGapMs` gets a new Activation, though not a new Event.
   - That Well moves to the Main Phase when its Nth Activation ends.
-  - N means N Activations the fly experiences; 2.0.x gave only N − 1.
+  - N means N Activations the fly experiences; 2.0.0 to 3.5.1 gave only N − 1.
   - Counted per Well.
 - **Per-Well On and Off:** a threshold entry of `On` or `Off` overrides the Paradigm for that Well during the Interval.
 - **Linkage:** unchanged. A Well's LED is lit whenever any Well in its group is lit. Each Well keeps its own Paradigm state.
@@ -153,9 +153,9 @@ PyMCU's `tests/test_protocol.py` and the firmware's `tests/test_ledcontrol.c` ch
 | 7 | Well signals: the average of the last 128 scans, which is what PyMCU records today | 12 × 2 |
 | 31 | VoltsIn, LED snapshot | 2 + 2 |
 | 35 | On-time in ms during the 200 ms, per Well | 12 × 1 |
-| 47 | Activations per Well since the last buffer reset (wraps at 65,536) | 12 × 2 |
-| 71 | Requirement per Well (ratio Types only, otherwise 0) | 12 × 2 |
-| 95 | Progress per Well (ratio Types only, otherwise 0) | 12 × 2 |
+| 47 | Activations per Well since the last buffer reset (wraps at 65,536). OpenLoop and Wells set to On or Off never add Activations. | 12 × 2 |
+| 71 | Requirement per Well (ratio Types only, otherwise 0; also 0 for Wells set to On or Off) | 12 × 2 |
+| 95 | Progress per Well (ratio Types only, otherwise 0; also 0 for Wells set to On or Off) | 12 × 2 |
 | 119 | Index, checksum | 4 + 4 |
 
 That's 127 bytes, against 56 today. The buffer holds 780 records, about 2.6 minutes of outage, and a reply carries at most 27 records. See confirmation C3.
