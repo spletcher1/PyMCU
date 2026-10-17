@@ -403,7 +403,7 @@ These columns follow them:
 
 | Column | Meaning |
 |---|---|
-| `Interval` | Which Interval was running, counting from 1 in the order of the `[DFM]` section |
+| `Interval` | Which Interval was running, counting from 1 in the order of the `[DFM]` section. 0 for the records before the first Interval, while the baseline is taken |
 | `Cycle` | Which Cycle (see [Program types](#program-types)) |
 | `Paradigm` | The Paradigm's name |
 | `Phase1`–`Phase12` | `A` for Acclimation or `M` for Main, per Well |
@@ -412,7 +412,9 @@ These columns follow them:
 | `Progress1`–`Progress12` | Ratio types only: Events counted towards it so far |
 | `OnMs1`–`OnMs12` | How many ms the Well's LED was active (pulsing) in that 200 ms record, whether its Paradigm, `On` or linkage lit it |
 
-Each row covers 200 ms. Requirement and Progress are empty for other types. With firmware older than 4.0.0, all these columns are empty.
+Each row covers 200 ms. A value that doesn't apply is written `NA`, which pandas and R read as missing: Requirement and Progress for other types, Cycle and Paradigm before the first Interval, Interval and Cycle for an instruction outside the Program (such as all LEDs off after it ends), and all these columns with firmware older than 4.0.0.
+
+For the full description of every column, for writing analysis software, see [DataFileColumns.md](DataFileColumns.md).
 
 On the MCU, the DFM page shows the Paradigm, its type and the Interval and Cycle. Tick "Well details" to see each Well's Phase, Activations, Requirement, Progress and on-time in place of the plot.
 

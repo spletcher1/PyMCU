@@ -66,6 +66,9 @@ class DFM:
         self.lastSentParadigmName = None
         # Activation totals carried past the DFM's 16-bit count.
         self.lastActivationsRaw = [0]*12
+        # Whether a record from a Program Interval has arrived since the last buffer reset; the
+        # records before it (the baseline) are written as Interval 0.
+        self.programRecordSeen = False
         self.activationTotals = [0]*12
         self.lastParadigmPacket = None
         self.isInstructionUpdateNeeded=False
@@ -216,6 +219,7 @@ class DFM:
             # A buffer reset also restarts the DFM's Activation counts.
             self.lastActivationsRaw = [0]*12
             self.activationTotals = [0]*12
+            self.programRecordSeen = False
         newPackets=[]
         for sp in currentStatusPackets:
             if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
@@ -255,6 +259,9 @@ class DFM:
             sp.optoFrequency = info.instruction.paradigm.frequency
             sp.optoPulseWidth = info.instruction.paradigm.pulseWidth
             sp.darkStatus = info.instruction.theDarkState.value
+        if info is not None and info.index is not None:
+            self.programRecordSeen = True
+        sp.isBeforeProgram = not self.programRecordSeen
         for w in range(0,12):
             self.activationTotals[w] += (sp.activationsRaw[w] - self.lastActivationsRaw[w]) & 0xFFFF
             self.lastActivationsRaw[w] = sp.activationsRaw[w]

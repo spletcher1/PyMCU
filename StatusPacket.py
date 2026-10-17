@@ -17,7 +17,9 @@ DATA_COLUMNS = ("Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Te
 # Added after DATA_COLUMNS in DFM data files. Phase is A (Acclimation) or M (Main).
 PARADIGM_COLUMNS = "Interval,Cycle,Paradigm," + ",".join(
     "{}{}".format(name, w) for name in ("Phase", "Activations", "Requirement", "Progress", "OnMs") for w in range(1, 13))
-_EMPTY_PARADIGM_COLUMNS = "," * PARADIGM_COLUMNS.count(",")
+# Written where a value doesn't apply; pandas and R read it as missing.
+MISSING = "NA"
+_MISSING_PARADIGM_COLUMNS = ",".join([MISSING] * len(PARADIGM_COLUMNS.split(",")))
 
 
 def Checksum32(data):
@@ -69,6 +71,8 @@ class StatusPacket:
         self.interval = None
         self.cycle = None
         self.paradigmName = ""
+        # True for a 4.0.0 record from before the first Program Interval of the recording.
+        self.isBeforeProgram = False
 
     def ProcessStatusPacket(self,bytesData,startTime,index=0,recordSize=V3_PACKET_SIZE):
         if(self.DFMType==DFMTYPE.SABLEV2):
@@ -230,15 +234,20 @@ class StatusPacket:
 
     def _ParadigmColumns(self):
         if not self.isV4:
-            return _EMPTY_PARADIGM_COLUMNS
+            return _MISSING_PARADIGM_COLUMNS
         isRatio = self.paradigmType in RATIO_TYPES
         def Count(values):
-            return ",".join(str(v) if isRatio and self.requirement[w] > 0 else "" for w, v in enumerate(values))
+            return ",".join(str(v) if isRatio and self.requirement[w] > 0 else MISSING for w, v in enumerate(values))
         totals = self.activationTotals if self.activationTotals is not None else self.activationsRaw
+        # Records from before the first Program Interval (while the baseline is taken) are Interval 0.
+        if self.isBeforeProgram:
+            interval = "0"
+        else:
+            interval = MISSING if self.interval is None else str(self.interval+1)
         return ",".join([
-            "" if self.interval is None else str(self.interval+1),
-            "" if self.cycle is None else str(self.cycle),
-            self.paradigmName,
+            interval,
+            MISSING if self.cycle is None else str(self.cycle),
+            self.paradigmName or MISSING,
             ",".join("A" if p else "M" for p in self.phases),
             ",".join(str(v) for v in totals),
             Count(self.requirement),

@@ -193,14 +193,16 @@ class Records(unittest.TestCase):
         self.assertEqual(tail[:4], ["1", "2", "PR10", "A"])
         self.assertEqual(tail[3 + 12 + 12], "10")
         old = StatusPacket.StatusPacket(1, 5, Enums.DFMTYPE.PLETCHERV3)
-        self.assertEqual(len(old.GetDataBufferPrintPacket().rstrip("\n").split(",")), columns)
+        oldLine = old.GetDataBufferPrintPacket().rstrip("\n").split(",")
+        self.assertEqual(len(oldLine), columns)
+        self.assertEqual(set(oldLine[len(StatusPacket.DATA_COLUMNS.split(",")):]), {"NA"})
         envmon = StatusPacket.StatusPacket(1, 99, Enums.DFMTYPE.ENVMONV3)
         self.assertEqual(len(envmon.GetDataBufferPrintPacket().split(",")), len(StatusPacket.DATA_COLUMNS.split(",")))
 
-    def test_requirement_blank_for_other_types(self):
+    def test_requirement_na_for_other_types(self):
         sp = self.Parse(Record(paradigmType=1))
         tail = sp.GetDataBufferPrintPacket().rstrip("\n").split(",")[len(StatusPacket.DATA_COLUMNS.split(",")):]
-        self.assertEqual(tail[3 + 24:3 + 48], [""] * 24)
+        self.assertEqual(tail[3 + 24:3 + 48], ["NA"] * 24)
 
     def test_reader_uses_the_firmware_record_size(self):
         getter = object.__new__(DataGetter.DataGetter)

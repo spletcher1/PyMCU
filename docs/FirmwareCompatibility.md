@@ -43,7 +43,7 @@ The 3.x versions of programs 1 to 4 were checked on the bench with DFM firmware 
 
 - **Firmware.** `1.0.5` for a board that doesn't answer the version request (none of that generation do), otherwise what the board reports.
 - **Error boxes.** Before firmware 3.5.0 a missed acknowledgement arrives on bit 1 (DFMV3 builds) or bit 0 (DFMV3_V2 builds), and the version string doesn't say which, so one box, No Ack, covers both. From 3.5.0, No Ack and Overflow are separate boxes. The other six boxes mean the same on every firmware. On a 1.0.5 board the version request itself raises P Type once; PyMCU clears that one report, so a ticked P Type box is a real unknown command.
-- **Data file.** The same columns for every firmware. The Paradigm columns (Interval, Cycle, Paradigm, phases, Activations, requirements) are filled only for records from 4.0.0 boards. Firmware 2.0.0 and later flag a Well in training inside its value; PyMCU 4.0.0 drops the flag when it reads the record.
+- **Data file.** The same columns for every firmware. The Paradigm columns (Interval, Cycle, Paradigm, phases, Activations, requirements) are filled only for records from 4.0.0 boards, and are `NA` for older ones. Firmware 2.0.0 and later flag a Well in training inside its value; PyMCU 4.0.0 drops the flag when it reads the record.
 
 ## Checking a build
 

@@ -198,6 +198,26 @@ class Records(unittest.TestCase):
         d.ProcessPackets(self.Packets(d, 1, [2] * 12, resetCount=1), True)
         self.assertEqual(d.theData.GetLastDataPoint().activationTotals[0], 2)
 
+    def Columns(self, d):
+        line = d.theData.GetLastDataPoint().GetDataBufferPrintPacket().rstrip("\n").split(",")
+        return line[len(StatusPacket.DATA_COLUMNS.split(",")):][:3]
+
+    def test_baseline_records_are_interval_0(self):
+        d = MakeDFM()
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.OFF), False)   # idle, outside the Program
+        d.ProcessPackets(self.Packets(d, 1, [0] * 12), True)
+        self.assertEqual(self.Columns(d), ["0", "NA", "Idle"])
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, PR10()), False, 0, 1)
+        d.ProcessPackets(self.Packets(d, 2, [0] * 12), True)
+        self.assertEqual(self.Columns(d), ["1", "1", "PR10"])
+        # Once the Program has run, an instruction outside it has no Interval.
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.OFF), False)
+        d.ProcessPackets(self.Packets(d, 3, [0] * 12), True)
+        self.assertEqual(self.Columns(d), ["NA", "NA", "Idle"])
+        # A buffer reset (the next recording) starts with a baseline again.
+        d.ProcessPackets(self.Packets(d, 1, [0] * 12, resetCount=1), True)
+        self.assertEqual(self.Columns(d), ["0", "NA", "Idle"])
+
 
 class Compatibility(unittest.TestCase):
     OLD_BOARD_PROGRAM = ("[Paradigm NF]\nType: NonFeeding\nOnDelayMs: 500\n"

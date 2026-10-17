@@ -180,7 +180,7 @@ The reliability protocol from 3.5.0 is unchanged: ACK, partial ACK, re-polling f
 - **Data file:**
   - Every existing column stays where it is. W1–W12 no longer carry the +65536 flag, and OptoFreq/OptoPW/Dark come from the instruction that was active.
   - Appended: `Interval`, `Cycle`, `Paradigm`, `Phase1–12`, `Activations1–12`, `Requirement1–12`, `Progress1–12`, `OnMs1–12`.
-  - Requirement and Progress are empty for Types other than the two ratio Types, and all new columns are empty for older firmware.
+  - A value that does not apply is written `NA`: Requirement and Progress for Types other than the two ratio Types, and all new columns for older firmware. Interval is 0 for the baseline records before the first Interval.
 - **GUI:**
   - The DFM page's Status panel shows the Paradigm name, its Type and the Interval with its Cycle, in place of the raw Hz, ms and Optostate. The value column is widened from 45 to 80 pixels for this.
   - A "Well details" checkbox swaps the plot for a 12-Well table of Phase, Activations, Requirement, Progress and On ms.
