@@ -158,7 +158,7 @@ PyMCU's `tests/test_protocol.py` and the firmware's `tests/test_ledcontrol.c` ch
 | 95 | Progress per Well (ratio Types only, otherwise 0) | 12 × 2 |
 | 119 | Index, checksum | 4 + 4 |
 
-That's 127 bytes, against 56 today. The buffer holds 780 records, about 2.6 minutes of outage, and a reply carries at most 28 records. See confirmation C3.
+That's 127 bytes, against 56 today. The buffer holds 780 records, about 2.6 minutes of outage, and a reply carries at most 27 records. See confirmation C3.
 
 The reliability protocol from 3.5.0 is unchanged: ACK, partial ACK, re-polling full replies, and overrun recovery.
 
@@ -235,5 +235,5 @@ These came up while writing the plan. Each was accepted as proposed and is imple
 
 - **C1 – ClosedLoop `MaxOnMs`:** the agreed wording, "the timer restarts whenever the LED goes off", would let a cut-off LED come straight back on. Rule: the timer starts with each Activation. After a cut-off, the LED stays off until the current Event ends, and the next Event starts a fresh timer. This matches the old document's "any interruption in feeding resets the timer".
 - **C2 – FixedInterval trigger:** the old document says the LED comes on when the Lockout ends "if the fly is still interacting". Rule: once the Lockout has passed, contact starts an Activation, including contact already in progress. A new Event is not required.
-- **C3 – Record size:** the earlier estimate was about 100 bytes and about 1,000 records (3.3 minutes). The record is 127 bytes, with 780 records (about 2.6 minutes) and at most 28 records per reply. Dropping Requirement, which PyMCU can work out from the Type settings, would have given about 103 bytes and about 950 records (about 3.2 minutes), but would have made Requirement depend on PyMCU's arithmetic. 127 bytes was accepted.
+- **C3 – Record size:** the earlier estimate was about 100 bytes and about 1,000 records (3.3 minutes). The record is 127 bytes, with 780 records (about 2.6 minutes) and at most 27 records per reply. 28 were planned, but a 28-record reply is about 3,560 bytes on the wire, which overruns the 3,482-byte receive buffer of every DFM before 4.0.0 on the same bus; 27 records (at most 3,444 bytes) fit. Dropping Requirement, which PyMCU can work out from the Type settings, would have given about 103 bytes and about 950 records (about 3.2 minutes), but would have made Requirement depend on PyMCU's arithmetic. 127 bytes was accepted.
 - **C4 – Progressive-ratio counting:** k counts Main-phase Activations only, so Acclimation Activations don't move the Requirement along.
