@@ -1102,6 +1102,9 @@ def RestartScaledToScreen(app):
 
 def main():
     sys.excepthook=LogException
+    # Nothing on the MCU's screen is edited by typing, and on Wayland Qt asks for the on-screen
+    # keyboard whenever a text box, even a read-only one, or a table gets the focus.
+    os.environ["QT_IM_MODULE"] = "none"
     app = QtWidgets.QApplication(sys.argv)
     if("MCU" in platform.node()):
         # A screen bigger than the 800x480 design (e.g. Touch Display 2): does not return, the
