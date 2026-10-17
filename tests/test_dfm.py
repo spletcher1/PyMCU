@@ -3,7 +3,9 @@ firmware generation is sent, and the checks before a Program starts."""
 import support  # noqa: F401  (must come first)
 
 import datetime
+import io
 import os
+import time
 import unittest
 
 import COMM
@@ -12,6 +14,7 @@ import DFMErrors
 import DFMGroup
 import Enums
 import Instruction
+import MessagesList
 import Paradigm
 import Program
 from test_protocol import PR10, Record, Record56, ClosedLoop
@@ -217,6 +220,127 @@ class Records(unittest.TestCase):
         # A buffer reset (the next recording) starts with a baseline again.
         d.ProcessPackets(self.Packets(d, 1, [0] * 12, resetCount=1), True)
         self.assertEqual(self.Columns(d), ["0", "NA", "Idle"])
+
+
+def V4Packets(d, indexes, full=False, since=None, activations=None, resetCount=0):
+    """One read's packets, as the reader hands them over."""
+    packets = []
+    for i in indexes:
+        sp = StatusPacket.StatusPacket(0, 5, Enums.DFMTYPE.PLETCHERV3)
+        sp.ProcessStatusPacket(Record(index=i, number=d.instructionNumber, activations=activations),
+                               datetime.datetime(2026, 1, 1), 0, StatusPacket.V4_PACKET_SIZE)
+        sp.bufferResetCount, sp.isFullReply, sp.secondsSinceReset = resetCount, full, since
+        packets.append(sp)
+    return packets
+
+
+def Stored(d):
+    """(Index, seconds into the recording) of each buffered data-file line."""
+    rows = [line.split(",") for line in d.theData.theData]
+    times = [datetime.datetime.strptime(r[0] + " " + r[1], "%m/%d/%Y %H:%M:%S") + datetime.timedelta(milliseconds=float(r[2]))
+             for r in rows]
+    return [(int(r[26]), round((t - datetime.datetime(2026, 1, 1)).total_seconds(), 1)) for r, t in zip(rows, times)]
+
+
+def Texts(dfmID=5):
+    return [m.message for m in MESSAGES if m.DFMId == dfmID]
+
+
+class Integrity(unittest.TestCase):
+    def setUp(self):
+        MESSAGES.clear()
+        self.d = MakeDFM()
+        self.d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, PR10()), False, 0, 1)
+        self.d.CheckStatusV3()
+
+    def test_restart_mid_recording(self):
+        d = self.d
+        d.ProcessPackets(V4Packets(d, range(1, 301), activations=[10] * 12), True)
+        self.assertEqual(Stored(d)[-1], (300, 60.0))
+        d.MP.calls.clear()
+        # Read 100 s into the recording: the DFM restarted and has records 1 to 5 since.
+        d.ProcessPackets(V4Packets(d, range(1, 6), since=100.0, activations=[2] * 12), True)
+        self.assertEqual(Stored(d)[-5:], [(496, 99.2), (497, 99.4), (498, 99.6), (499, 99.8), (500, 100.0)])
+        self.assertEqual(d.activationTotals[0], 12)          # carried on, no wrap-around jump
+        # Its Interval (with fresh Paradigm state) and linkage went out again at once.
+        self.assertEqual([(c[0], c[4]) for c in Sent(d)], [("SendParadigmInstruction", False)])
+        self.assertIn("SendLinkage", [c[0] for c in d.MP.calls])
+        texts = Texts()
+        self.assertTrue(any("restarted" in t and "from 300 to 1" in t for t in texts))
+        self.assertTrue(any("Index 301 to 495 are missing" in t for t in texts))
+        self.assertFalse(any("Repeated" in t for t in texts))
+        # Later records carry on with the offset.
+        d.ProcessPackets(V4Packets(d, [6], since=100.2, activations=[2] * 12), True)
+        self.assertEqual(Stored(d)[-1], (501, 100.2))
+
+    def test_restart_held_until_a_reply_that_isnt_full(self):
+        d = self.d
+        d.ProcessPackets(V4Packets(d, range(1, 301)), True)
+        d.ProcessPackets(V4Packets(d, range(1, 29), full=True, since=100.0), True)
+        self.assertEqual(len(Stored(d)), 300)                # held: more are waiting on the DFM
+        d.ProcessPackets(V4Packets(d, range(29, 41), since=100.1), True)
+        self.assertEqual(Stored(d)[300], (461, 92.2))
+        self.assertEqual(Stored(d)[-1], (500, 100.0))
+        # Held records go in when the recording ends, following straight on.
+        d = MakeDFM()
+        d.ProcessPackets(V4Packets(d, range(1, 301)), True)
+        d.ProcessPackets(V4Packets(d, range(1, 4), full=True, since=100.0), True)
+        d.FlushPendingRecords()
+        self.assertEqual([i for i, _ in Stored(d)[-3:]], [301, 302, 303])
+
+    def test_resend_is_not_a_restart(self):
+        d = self.d
+        d.ProcessPackets(V4Packets(d, range(1, 301)), True)
+        d.ProcessPackets(V4Packets(d, range(273, 306), since=61.0), True)  # ACK lost: 273-300 again
+        self.assertEqual([i for i, _ in Stored(d)[-6:]], [300, 301, 302, 303, 304, 305])
+        self.assertFalse(any("restarted" in t for t in Texts()))
+
+    def test_full_buffer_reported_once_with_what_was_lost(self):
+        d = self.d
+        d.theData.maxSize = 3
+        d.ProcessPackets(V4Packets(d, range(1, 7)), True)
+        self.assertEqual(len([t for t in Texts() if "data buffer is full" in t]), 1)
+        d.theData.RemoveRecords(3)                           # the file could be written again
+        d.ProcessPackets(V4Packets(d, [7]), True)
+        lost = [t for t in Texts() if "lost 3 records" in t]
+        self.assertEqual(len(lost), 1)
+        self.assertIn("Index 4 to 6", lost[0])
+        self.assertEqual([i for i, _ in Stored(d)], [7])
+
+    def test_one_bad_record_doesnt_lose_the_rest(self):
+        d = self.d
+        packets = V4Packets(d, range(1, 4))
+        packets[1].activationsRaw = None
+        d.ProcessPackets(packets, True)
+        self.assertEqual([i for i, _ in Stored(d)], [1, 3])
+        self.assertEqual(len([t for t in Texts() if "Record 2 couldn't be processed" in t]), 1)
+
+    def test_v4_records_from_a_board_read_as_older(self):
+        d = MakeProbedDFM(COMM.LEGACY_VERSION)
+        d.MP.version = b"4.0.0"                  # the reader has since read it again
+        d.ProcessPackets(V4Packets(d, [1]), True)
+        self.assertEqual(d.firmwareVersion, "4.0.0")
+        self.assertTrue(any("sent 4.0.0 records" in t for t in Texts()))
+
+
+class Writing(unittest.TestCase):
+    def test_records_written_every_10_s(self):
+        group = object.__new__(DFMGroup.DFMGroup)
+        d = MakeDFM()
+        d.ProcessPackets(V4Packets(d, range(1, 4)), True)
+        f = io.StringIO()
+        group.theDFMs, group.currentDFMKeysList, group.currentDFMIndex = {5: d}, [5], 0
+        group.theFiles, group.writeFailedIDs = {5: f}, set()
+        group.writeStartTimes = {5: datetime.datetime.today()}
+        group.nextWriteTimes = {5: time.monotonic() + 5}
+        group.theMessageList = MessagesList.MessageList()
+        group.messagesWrittenAt = group.theMessageList.changeCount   # nothing new to write
+        group.WriteStep()
+        self.assertEqual(f.getvalue(), "")
+        group.nextWriteTimes[5] = time.monotonic() - 1
+        group.WriteStep()
+        self.assertEqual(len(f.getvalue().splitlines()), 3)
+        self.assertGreater(group.nextWriteTimes[5], time.monotonic() + 9)
 
 
 class Compatibility(unittest.TestCase):

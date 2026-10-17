@@ -57,6 +57,10 @@ class StatusPacket:
         # How many times the reader had reset this DFM's buffer when the packet was read. Record
         # indexes start again at 1 after each reset.
         self.bufferResetCount=0
+        # Whether the read that brought this packet was a full reply (more were waiting on the
+        # DFM), and how long after the DFM's last buffer reset that read was made, in seconds.
+        self.isFullReply=False
+        self.secondsSinceReset=None
         # Paradigm state, from firmware 4.0.0 records. DFM.ProcessPackets fills in the Interval,
         # Cycle, Paradigm name and the Activation totals (carried past 65535).
         self.isV4 = False

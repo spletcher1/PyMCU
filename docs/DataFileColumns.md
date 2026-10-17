@@ -90,7 +90,7 @@ These 27 are unchanged in position and name from PyMCU 3.x. Each row is one Stat
 | `OptoCol1` | int | Bit mask of which OptoLid LEDs were active at the instant the record was taken: bit 0 is Well 1, bit 11 is Well 12. It is a snapshot: a shorter on-period between snapshots won't appear. Use `OnMs` for exposure. |
 | `OptoCol2` | int | Always 0 from firmware 4.0.0. |
 | `Error` | int | The DFM's error flags. 0 means none. Errors are also explained in `Messages.csv`. |
-| `Index` | int | The DFM's own record counter, from 1 at the start of recording. A gap means records were lost; they are never filled in or interpolated. |
+| `Index` | int | The DFM's own record counter, from 1 at the start of recording. A gap means records were lost; they are never filled in or interpolated. If a DFM restarts on its own (a power dip, say), its counter starts again at 1; PyMCU then adds an offset so `Index` and the times carry on, and the jump in `Index` covers the time the DFM was restarting. `Messages.csv` reports the restart and the missing range. |
 
 With firmware 4.0.0, `Dark`, `OptoFreq` and `OptoPW` are taken from the instruction the DFM reports it was running, not just from the Program's schedule. In baseline records from before any instruction, they are 0.
 
@@ -233,7 +233,7 @@ Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) w
 - `Index` rises by 1 each row; report any gaps, with their times and lengths.
 - `Error` is 0; otherwise report the records and check `Messages.csv`.
 - `Interval` starts at 0, then follows the Program's order. It never decreases within a Cycle, and `Cycle` never decreases.
-- `Activations` never decreases.
+- `Activations` never decreases, even across a DFM restart (the restart sets the Paradigm state back to its start, so `Phase` and `Requirement` can start again).
 - `OnMs` is between 0 and 200, is 200 for `On` Wells, and is 0 for `Off` Wells that aren't linked to another Well.
 - `Requirement` and `Progress` are non-`NA` only under ratio Paradigms, and `Progress` < `Requirement`.
 - `Phase` goes from `A` to `M` at most once per Well per Paradigm run, and never back.

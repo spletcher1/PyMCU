@@ -21,6 +21,9 @@ DATA_FILE_HEADER = StatusPacket.DATA_COLUMNS + "," + StatusPacket.PARADIGM_COLUM
 ENVMON_FILE_HEADER = StatusPacket.DATA_COLUMNS + "\n"
 # A new data file is started every 12 hours.
 DATA_FILE_SECONDS = 43200
+# Each DFM's records are written this often. The DFM drops records once they are acknowledged,
+# so a crash or power cut loses at most about this much.
+WRITE_SECONDS = 10
 
 class DFMGroup:
     DFMGroup_message = Event.Event()
@@ -48,6 +51,10 @@ class DFMGroup:
         ## New members added when the write worker was disbanded
         self.theFiles = {}
         self.writeStartTimes={}
+        # When each DFM's buffered records are next written (time.monotonic()).
+        self.nextWriteTimes={}
+        # The message list's change count when Messages.csv was last written.
+        self.messagesWrittenAt=None
         # DFMs whose last data file write failed, so the failure is reported only once.
         self.writeFailedIDs=set()
         self.currentDFMIndex=0
@@ -150,9 +157,14 @@ class DFMGroup:
         with open(self.currentOutputDirectory+"/Program.txt","w+") as f:
             f.write(str(self.currentProgram))
 
-    def WriteMessages(self):
+    def WriteMessages(self, force=False):
+        """Writes Messages.csv, unless no message has been added since the last time."""
+        changeCount = self.theMessageList.changeCount
+        if(not force and changeCount == self.messagesWrittenAt):
+            return
         with open(self.currentOutputDirectory+"/Messages.csv","w+") as f:
             f.write(self.theMessageList.GetMessageStringForFile())
+        self.messagesWrittenAt = changeCount
 
     def SetDFMIdleStatus(self):
         for d in self.theDFMs.values():
@@ -163,6 +175,7 @@ class DFMGroup:
         f.write(ENVMON_FILE_HEADER if theDFM.DFMType==Enums.DFMTYPE.ENVMONV3 else DATA_FILE_HEADER)
         self.theFiles[theDFM.ID]=f
         self.writeStartTimes[theDFM.ID]=datetime.datetime.today()
+        self.nextWriteTimes[theDFM.ID]=time.monotonic()+WRITE_SECONDS
 
     def WriteStarter(self):
         dt=datetime.datetime.today()
@@ -195,7 +208,9 @@ class DFMGroup:
             self.theFiles[currentDFM.ID].close()
             currentDFM.IncrementOutputFile()
             self._OpenDataFile(currentDFM)
-        elif(currentDFM.theData.ActualSize()>(1000 +(self.currentDFMIndex*10))):
+        elif(time.monotonic() >= self.nextWriteTimes[currentDFM.ID]):
+            # A failed write is also tried again only then, not on every pass.
+            self.nextWriteTimes[currentDFM.ID] = time.monotonic()+WRITE_SECONDS
             if(self._WriteBufferedData(currentDFM)):
                 self.WriteMessages()
 
@@ -229,6 +244,9 @@ class DFMGroup:
     def WriteEnder(self):
         try:
             for key, value in self.theDFMs.items():
+                # Records held after a DFM restarted go in before the file is closed.
+                if hasattr(value, "FlushPendingRecords"):
+                    value.FlushPendingRecords()
                 # Each file is written and closed on its own, so one that fails doesn't keep the
                 # others' data off the disk. Every file is closed, including ones with nothing left
                 # to write, so their buffered data is on disk before anyone copies it.
@@ -242,7 +260,7 @@ class DFMGroup:
                 except OSError as e:
                     self.NewMessage(key, datetime.datetime.today(), 0, "({:d}) Data file close failed: {}".format(key, e), Enums.MESSAGETYPE.ERROR)
             self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.ANNOTATION)
-            self.WriteMessages()
+            self.WriteMessages(force=True)
         finally:
             self.isWriting=False
             for d in self.theDFMs.values():

@@ -12,6 +12,7 @@ import Event
 import Instruction
 import Message
 import OptoLid
+import StatusPacket
 
 # Seconds to wait before retrying commands that a DFM did not acknowledge.
 COMMAND_RETRY_INTERVAL = 1.0
@@ -33,6 +34,15 @@ READ_FAILURES = {
 InstructionInfo = collections.namedtuple("InstructionInfo", "index cycle instruction")
 # Instruction numbers remembered, for records that arrive after later instructions were sent.
 INSTRUCTION_HISTORY = 256
+# Records held after a restart before they are stored anyway (a DFM holds 780).
+MAX_RESTART_PACKETS = 2000
+
+
+def ResendWindow(sp):
+    """A DFM sends again only the records of its last reply that weren't acknowledged, so a record
+    repeated from further back than this can't be a resend: the DFM restarted and its count began
+    again. Two replies' worth, to be safe."""
+    return 2*(COMM.MAX_STATUS_PACKETS_V4 if sp.isV4 else COMM.MAX_STATUS_PACKETS)
 
 class DFM:
     DFM_message = Event.Event()
@@ -70,6 +80,17 @@ class DFM:
         # records before it (the baseline) are written as Interval 0.
         self.programRecordSeen = False
         self.activationTotals = [0]*12
+        # Added to the DFM's record indexes after it restarted on its own, so Index and the record
+        # times carry on (see _FinishRestart); the records held until then, or None.
+        self.indexOffset = 0
+        self.restartPackets = None
+        self.restartLastIndex = 0
+        # The first and last records lost while the data buffer was full, and how many.
+        self.droppedFirst = None
+        self.droppedLast = None
+        self.droppedCount = 0
+        # Kinds of packet-processing error already reported, so a repeating fault reports once.
+        self.reportedPacketErrors = set()
         self.lastParadigmPacket = None
         self.isInstructionUpdateNeeded=False
         self.isBufferResetNeeded=False
@@ -220,24 +241,27 @@ class DFM:
             self.lastActivationsRaw = [0]*12
             self.activationTotals = [0]*12
             self.programRecordSeen = False
+            self.indexOffset = 0
+            self.restartPackets = None
         newPackets=[]
         for sp in currentStatusPackets:
-            if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
-                if(sp.processResult in READ_FAILURES):
-                    text, newStatus = READ_FAILURES[sp.processResult]
-                    self.SetStatus(newStatus)
-                    self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,"({:d}) ".format(self.ID)+text,theMessageType)
-            elif(sp.recordIndex<=0):
-                # It's okay now to receive these because of the fast buffer reset and call. I will not call this an error.
-                print("({:d}) Empty packet received".format(self.ID))
-            elif(sp.recordIndex<=self.lastDFMIndex):
-                ## If there are readings sent multiple times, don't add them to the data file, but let us know they occured.
-                s="({:d}) Repeated index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
-                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
-            else:
-                self._AddParadigmState(sp)
-                self._AddPacket(sp,saveDataToQueue)
-                newPackets.append(sp)
+            # Each packet on its own: the DFM has already dropped them, so one that can't be
+            # processed mustn't take the rest of the read with it.
+            try:
+                self._ProcessPacket(sp,saveDataToQueue,theMessageType,newPackets)
+            except Exception as e:
+                print(f"Packet processing exception ({self.ID}): {e!r}")
+                if(type(e).__name__ not in self.reportedPacketErrors):
+                    self.reportedPacketErrors.add(type(e).__name__)
+                    self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,"Record {} couldn't be processed and was lost: {!r}".format(sp.recordIndex,e),Enums.MESSAGETYPE.ERROR)
+        # After a restart the records wait until a reply that held everything the DFM had,
+        # whose newest record shows how far the DFM's count is behind.
+        if(self.restartPackets is not None):
+            last = currentStatusPackets[-1]
+            isComplete = all(p.processResult == Enums.PROCESSEDPACKETRESULT.OKAY for p in currentStatusPackets)
+            if((isComplete and not last.isFullReply and last.secondsSinceReset is not None)
+                    or len(self.restartPackets) > MAX_RESTART_PACKETS):
+                self._FinishRestart(last.secondsSinceReset)
 
         # Only packets seen for the first time are reported, so each packet's error flags count
         # once. Resent packets were counted when they first came, and with partial ACKs the good
@@ -245,6 +269,90 @@ class DFM:
         if(newPackets):
             self.UpdateReportedValues(newPackets,saveDataToQueue)
         self.CheckStatus()
+
+    def _ProcessPacket(self,sp,saveDataToQueue,theMessageType,newPackets):
+        if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
+            if(sp.processResult in READ_FAILURES):
+                text, newStatus = READ_FAILURES[sp.processResult]
+                self.SetStatus(newStatus)
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,"({:d}) ".format(self.ID)+text,theMessageType)
+        elif(sp.recordIndex<=0):
+            # It's okay now to receive these because of the fast buffer reset and call. I will not call this an error.
+            print("({:d}) Empty packet received".format(self.ID))
+        elif(saveDataToQueue and sp.recordIndex <= self.lastDFMIndex - ResendWindow(sp)):
+            self._StartRestart(sp)
+            self._AcceptPacket(sp,saveDataToQueue,newPackets)
+        elif(sp.recordIndex<=self.lastDFMIndex):
+            ## If there are readings sent multiple times, don't add them to the data file, but let us know they occured.
+            s="({:d}) Repeated index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
+            self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
+        else:
+            self._AcceptPacket(sp,saveDataToQueue,newPackets)
+
+    def _AcceptPacket(self,sp,saveDataToQueue,newPackets):
+        """A packet seen for the first time: checked against the last index, then stored, or held
+        while the DFM's count is worked out after a restart."""
+        if(self.DFMType==Enums.DFMTYPE.PLETCHERV3 and not self.isVersionGetNeeded
+                and sp.isV4 != COMM.UsesParadigmFirmware(self.firmwareVersion)):
+            # The reader read the version again when the record size gave it away; this DFM
+            # object still has the old one, which decides the instruction format.
+            self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,
+                            "DFM {} sent {} records, but its firmware was read as {}. Reading its version again.".format(
+                                self.ID,"4.0.0" if sp.isV4 else "pre-4.0.0",self.firmwareVersion),Enums.MESSAGETYPE.NOTICE)
+            self.isVersionGetNeeded = True
+        newPackets.append(sp)
+        if(saveDataToQueue and self.DFMType==Enums.DFMTYPE.PLETCHERV3):
+            if(sp.recordIndex != (self.lastDFMIndex+1)):
+                s="({:d}) Skipped index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
+                self.SetStatus(Enums.CURRENTSTATUS.ERROR)
+            self.lastDFMIndex = sp.recordIndex
+        if(self.restartPackets is not None):
+            self.restartPackets.append(sp)
+        else:
+            self._AddPacket(sp,saveDataToQueue)
+
+    def _StartRestart(self,sp):
+        """The DFM restarted (a brown-out or watchdog reset): its record count began again at 1
+        without a buffer reset from the MCU, and it lost its instruction, linkage and Paradigm
+        state. Its records are held until the count's new offset is known (_FinishRestart)."""
+        self.restartLastIndex = self.lastDFMIndex + self.indexOffset
+        self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,
+                        "DFM {} restarted: its record count went back from {} to {}. Its Paradigm state and Activation "
+                        "counts started again. Sending its Interval and linkage again.".format(self.ID,self.lastDFMIndex,sp.recordIndex),
+                        Enums.MESSAGETYPE.ERROR)
+        self.restartPackets = []
+        self.lastDFMIndex = 0
+        # The Activation totals carry on from where they were.
+        self.lastActivationsRaw = [0]*12
+        self.lastSentParadigmName = None
+        self.isInstructionUpdateNeeded = True
+        self.isLinkageSetNeeded = True
+
+    def _FinishRestart(self,secondsSinceReset):
+        """Stores the records held since a restart. Their Index and time continue from the
+        recording's: secondsSinceReset is when the read holding the newest of them was made,
+        counted from the buffer reset that started the recording, so it says what the index
+        would have been. Without it they follow straight on from the last record."""
+        firstIndex = self.restartPackets[0].recordIndex if self.restartPackets else 1
+        offset = self.restartLastIndex
+        if(secondsSinceReset is not None):
+            offset = max(offset, round(secondsSinceReset/StatusPacket.V3_PACKET_INTERVAL) - self.lastDFMIndex)
+        self.indexOffset = offset
+        lost = offset + firstIndex - self.restartLastIndex - 1
+        if(lost > 0):
+            self.NewMessage(self.ID,datetime.datetime.today(),self.restartLastIndex,
+                            "DFM {} recorded nothing for about {:.0f} s while it restarted: Index {} to {} are missing.".format(
+                                self.ID,lost*StatusPacket.V3_PACKET_INTERVAL,self.restartLastIndex+1,self.restartLastIndex+lost),
+                            Enums.MESSAGETYPE.ERROR)
+        packets, self.restartPackets = self.restartPackets, None
+        for sp in packets:
+            self._AddPacket(sp,True)
+
+    def FlushPendingRecords(self):
+        """Stores records still held after a restart, when the recording ends."""
+        if(self.restartPackets is not None):
+            self._FinishRestart(None)
 
     def _AddParadigmState(self,sp):
         """Adds what the record's instruction number stands for (Interval, Cycle, Paradigm, light
@@ -268,22 +376,37 @@ class DFM:
         sp.activationTotals = list(self.activationTotals)
 
     def _AddPacket(self,sp,saveDataToQueue):
+        # After a restart the DFM's count is behind the recording's (see _FinishRestart).
+        if(self.indexOffset):
+            sp.recordIndex += self.indexOffset
+            sp.packetTime += datetime.timedelta(seconds=self.indexOffset*StatusPacket.V3_PACKET_INTERVAL)
+        self._AddParadigmState(sp)
         sp.sample = self.sampleIndex
         if(self.theData.NewData(sp,saveDataToQueue)==False):
-            s="({:d}) Data queue full".format(self.ID)
-            self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
+            # The data file can't be written and the buffer is full. One message when it starts
+            # and one with what was lost when it ends, rather than one per record.
+            if(self.droppedFirst is None):
+                self.droppedFirst, self.droppedCount = sp, 0
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,
+                                "DFM {}'s data buffer is full because its data file can't be written: its records are being lost.".format(self.ID),
+                                Enums.MESSAGETYPE.ERROR)
+            self.droppedLast = sp
+            self.droppedCount += 1
             self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-        elif(saveDataToQueue):
-            if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
-                if(sp.recordIndex != (self.lastDFMIndex+1)):
-                    s="({:d}) Skipped index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
-                    self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
-                    self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                self.lastDFMIndex = sp.recordIndex
-            self.sampleIndex+=1
-            self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
         else:
-            self.SetStatus(Enums.CURRENTSTATUS.READING)
+            if(self.droppedFirst is not None):
+                first, last = self.droppedFirst, self.droppedLast
+                self.NewMessage(self.ID,last.packetTime,last.recordIndex,
+                                "DFM {} lost {} records while its data buffer was full: Index {} to {}, {} to {}.".format(
+                                    self.ID,self.droppedCount,first.recordIndex,last.recordIndex,
+                                    first.packetTime.strftime("%H:%M:%S"),last.packetTime.strftime("%H:%M:%S")),
+                                Enums.MESSAGETYPE.ERROR)
+                self.droppedFirst = None
+            if(saveDataToQueue):
+                self.sampleIndex+=1
+                self.SetStatus(Enums.CURRENTSTATUS.RECORDING)
+            else:
+                self.SetStatus(Enums.CURRENTSTATUS.READING)
         if(self.isCalculatingBaseline):
             self.UpdateBaseline()
 

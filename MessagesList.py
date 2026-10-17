@@ -6,6 +6,8 @@ class MessageList():
         self.theMessages = []
         self.maxMessages=500
         self.maxMessagesForScreen=100
+        # Goes up with every change, so the file is rewritten only when there is something new.
+        self.changeCount=0
     def __len__(self):
         return len(self.theMessages)
     def __str__(self):
@@ -43,7 +45,9 @@ class MessageList():
             newmessage.messageType=Enums.MESSAGETYPE.NOTICE
             newmessage.message = "Reached max messages"
         self.theMessages.append(newmessage)
+        self.changeCount+=1
         return True
 
     def ClearMessages(self):
         self.theMessages.clear()
+        self.changeCount+=1

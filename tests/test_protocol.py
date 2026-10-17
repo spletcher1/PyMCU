@@ -4,7 +4,9 @@ both sides must agree on these bytes."""
 import support  # noqa: F401  (must come first)
 
 import datetime
+import queue
 import struct
+import time
 import unittest
 
 import COMM
@@ -215,11 +217,121 @@ class Records(unittest.TestCase):
         self.assertEqual([(p.isV4, p.recordIndex, p.processResult) for p in packets],
                          [(True, 1, Enums.PROCESSEDPACKETRESULT.OKAY), (True, 2, Enums.PROCESSEDPACKETRESULT.OKAY)])
         getter.firmwareVersions = {5: b"3.5.0"}
-        packets = getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, Record(index=1), None)
-        self.assertEqual(packets[0].processResult, Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES)
         packets = getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, Record56(index=1) + Record56(index=2), None)
         self.assertEqual([(p.isV4, p.recordIndex, p.processResult) for p in packets],
                          [(False, 1, Enums.PROCESSEDPACKETRESULT.OKAY), (False, 2, Enums.PROCESSEDPACKETRESULT.OKAY)])
+
+    def test_record_size_gives_away_a_misread_version(self):
+        # A 4.0.0 board whose version reply was lost is taken for 1.0.5. Its 127-byte records
+        # make the reader ask again, and the read that showed it isn't lost.
+        getter = MakeGetter({5: COMM.LEGACY_VERSION}, FakeCOMM(versions=[b"4.0.0"]))
+        info = DataGetter.DFMInfo(5, Enums.DFMTYPE.PLETCHERV3)
+        packets = getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, Record(index=1) + Record(index=2), None)
+        self.assertEqual([(p.isV4, p.processResult) for p in packets], [(True, Enums.PROCESSEDPACKETRESULT.OKAY)] * 2)
+        self.assertEqual(getter.firmwareVersions[5], b"4.0.0")
+        # If it still doesn't answer, the read fails and the next one tries again.
+        getter = MakeGetter({5: COMM.LEGACY_VERSION}, FakeCOMM(versions=[COMM.LEGACY_VERSION]))
+        packets = getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, Record(index=1), None)
+        self.assertEqual(packets[0].processResult, Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES)
+        # 56-byte records from a board known as 4.0.0 (swapped since) are believed over the old
+        # version, even when the new board doesn't answer.
+        getter = MakeGetter({5: b"4.0.0"}, FakeCOMM(versions=[COMM.LEGACY_VERSION]))
+        packets = getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, Record56(index=1), None)
+        self.assertEqual(packets[0].processResult, Enums.PROCESSEDPACKETRESULT.OKAY)
+        self.assertEqual(getter.firmwareVersions[5], COMM.LEGACY_VERSION)
+
+
+class FakeCOMM:
+    """Records what the reader sends. Version requests are answered from a list."""
+    def __init__(self, versions=(), statusReplies=()):
+        self.calls = []
+        self.versions = list(versions)
+        self.statusReplies = list(statusReplies)
+
+    def GetVersion(self, ID):
+        self.calls.append(("GetVersion", ID))
+        return self.versions.pop(0)
+
+    def GetStatusPacket(self, ID, DFMType, latestOnly, recordSize):
+        self.calls.append(("GetStatusPacket", ID, recordSize))
+        return Enums.COBSRESULT.OKAY, self.statusReplies.pop(0)
+
+    def __getattr__(self, name):
+        def Call(*args):
+            self.calls.append((name,) + args)
+            return True
+        return Call
+
+
+def MakeGetter(versions, comm):
+    getter = object.__new__(DataGetter.DataGetter)
+    getter.firmwareVersions = dict(versions)
+    getter.theCOMM = comm
+    getter.startTime = datetime.datetime(2026, 1, 1)
+    getter.currentReadIndex = 1
+    getter.EnvMonV3_Temperature = getter.EnvMonV3_Humidity = getter.EnvMonV3_LUX = 0.0
+    getter.bufferResetCounts, getter.bufferResetTimes = {}, {}
+    getter.busGeneration, getter.isPaused, getter.getLatestStatusOnly = 0, False, False
+    getter.command_q, getter.answer_q, getter.data_q = queue.Queue(), queue.Queue(), queue.Queue()
+    return getter
+
+
+class Reader(unittest.TestCase):
+    def test_version_request_asked_again_only_when_garbled(self):
+        comm = object.__new__(COMM.UARTCOMM)
+        replies = []
+        comm._ReadFrame = lambda maxBytes, timeout: replies.pop(0)
+        sent = []
+        comm._SendRequest = lambda ID, command: sent.append(command)
+        garbled = (Enums.COBSRESULT.INCOMPLETEPACKET, b"")
+        replies[:] = [garbled, (Enums.COBSRESULT.OKAY, b"4\x00.0"), (Enums.COBSRESULT.OKAY, b"4.0.0")]
+        self.assertEqual(comm.GetVersion(5), b"4.0.0")
+        self.assertEqual(len(sent), 3)
+        # A 1.0.5 board never answers: asked once, as each request is an error on that board.
+        sent.clear()
+        replies[:] = [(Enums.COBSRESULT.NOANSWER, b"")]
+        self.assertEqual(comm.GetVersion(5), COMM.LEGACY_VERSION)
+        self.assertEqual(len(sent), 1)
+        replies[:] = [garbled] * COMM.VERSION_ATTEMPTS
+        self.assertIsNone(comm.GetVersion(5))
+
+    def test_known_version_kept_when_unanswered(self):
+        getter = MakeGetter({5: b"4.0.0"}, FakeCOMM(versions=[COMM.LEGACY_VERSION, None, b"4.0.1"]))
+        self.assertEqual(getter._ReadVersion(5), b"4.0.0")
+        self.assertIsNone(getter._ReadVersion(5))
+        self.assertEqual(getter.firmwareVersions[5], b"4.0.0")
+        self.assertEqual(getter._ReadVersion(5), b"4.0.1")
+        # Not known yet: no answer means 1.0.5.
+        getter = MakeGetter({}, FakeCOMM(versions=[COMM.LEGACY_VERSION]))
+        self.assertEqual(getter._ReadVersion(7), COMM.LEGACY_VERSION)
+
+    def test_partial_ack_names_the_last_packet_from_3_5_0(self):
+        info = DataGetter.DFMInfo(5, Enums.DFMTYPE.PLETCHERV3)
+        for version, expected in ((b"4.0.0", [("SendPartialAck", 5, 2)]), (b"3.0.0", [("SendAck", 5)])):
+            getter = MakeGetter({5: version}, FakeCOMM())
+            size = StatusPacket.V4_PACKET_SIZE if version == b"4.0.0" else StatusPacket.V3_PACKET_SIZE
+            body = (Record(index=1) + Record(index=2)) if size == StatusPacket.V4_PACKET_SIZE else (Record56(index=1) + Record56(index=2))
+            getter._Acknowledge(info, getter.ProcessPacket(info, Enums.COBSRESULT.OKAY, body, None))
+            self.assertEqual(getter.theCOMM.calls, expected)
+        # A failed read isn't acknowledged at all.
+        getter = MakeGetter({5: b"4.0.0"}, FakeCOMM())
+        getter._Acknowledge(info, getter.ProcessPacket(info, Enums.COBSRESULT.NOANSWER, b"", None))
+        self.assertEqual(getter.theCOMM.calls, [])
+
+    def test_commands_go_out_between_reads(self):
+        comm = FakeCOMM(statusReplies=[Record(dfmID=5, index=1), Record(dfmID=6, index=1)])
+        getter = MakeGetter({5: b"4.0.0", 6: b"4.0.0"}, comm)
+        getter.bufferResetTimes = {5: time.monotonic() - 10}
+        getter.command_q.put(DataGetter.MP_Command(Enums.COMMANDTYPE.LINKAGE, [6, list(range(12))], 1))
+        getter.ReadValues([DataGetter.DFMInfo(5, Enums.DFMTYPE.PLETCHERV3), DataGetter.DFMInfo(6, Enums.DFMTYPE.PLETCHERV3)])
+        self.assertEqual([c[:2] for c in comm.calls],
+                         [("GetStatusPacket", 5), ("SendPartialAck", 5), ("SendLinkage", 6),
+                          ("GetStatusPacket", 6), ("SendPartialAck", 6)])
+        self.assertEqual(comm.calls[0][2], StatusPacket.V4_PACKET_SIZE)
+        first = getter.data_q.get_nowait()[0]
+        self.assertFalse(first.isFullReply)
+        self.assertAlmostEqual(first.secondsSinceReset, 10, delta=1)
+        self.assertIsNone(getter.data_q.get_nowait()[0].secondsSinceReset)
 
 
 if __name__ == "__main__":

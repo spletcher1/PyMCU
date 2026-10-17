@@ -50,7 +50,12 @@ class DataGetter:
         self.focalDFMs = []
         # Reader-process state, by DFM ID.
         self.bufferResetCounts = {}
+        # When each DFM last acknowledged a buffer reset (time.monotonic()), which is when its
+        # record 1 started.
+        self.bufferResetTimes = {}
         self.firmwareVersions = {}
+        # Counts the times the bus was closed, so a read round stops if that happens during it.
+        self.busGeneration = 0
         # DFMs whose last status reply was full, so more packets are waiting on them.
         self.laggingDFMs = []
         self.refreshRate=0.25
@@ -114,7 +119,8 @@ class DataGetter:
     def SendLinkage(self,ID,currentLinkage):
         return self._Request(COMMANDTYPE.LINKAGE,[ID,currentLinkage],3) is True
     def GetVersion(self,ID):
-        ## Returns the version as bytes (b'1.0.5' if the DFM doesn't answer), or None on timeout.
+        ## Returns the version as bytes (b'1.0.5' if the DFM doesn't answer), or None if the
+        ## replies were garbled or the request timed out.
         return self._Request(COMMANDTYPE.GET_VERSION,[ID],3)
     def SendFrequency(self,ID,frequency):
         self._Command(COMMANDTYPE.SEND_FREQ,[ID,frequency])
@@ -147,6 +153,7 @@ class DataGetter:
             except Exception as e:
                 print(f"Close COMM: {e!r}")
         self.theCOMM = None
+        self.busGeneration += 1
 
     def FindDFMInternal(self,COMMType):
         self._CloseCOMM()
@@ -163,6 +170,7 @@ class DataGetter:
         self.COMMType = COMMType
         # The main process makes new DFM objects for what is found, so this starts over too.
         self.bufferResetCounts = {}
+        self.bufferResetTimes = {}
         self.firmwareVersions = {}
         self.laggingDFMs = []
         found=[]
@@ -241,9 +249,7 @@ class DataGetter:
         elif(commandType==COMMANDTYPE.BUFFER_RESET):
             self._Answer(command, self.BufferResetInternal(args[0]))
         elif(commandType==COMMANDTYPE.GET_VERSION):
-            version = self.theCOMM.GetVersion(args[0])
-            self.firmwareVersions[args[0]] = version
-            self._Answer(command, version)
+            self._Answer(command, self._ReadVersion(args[0]))
         elif(commandType==COMMANDTYPE.LINKAGE):
             self._Answer(command, self.theCOMM.SendLinkage(args[0],args[1]))
         elif(commandType==COMMANDTYPE.INSTRUCTION_V1_0_5):
@@ -273,7 +279,36 @@ class DataGetter:
             # Reads are tagged with this count, so the main process can tell reads of the old
             # buffer that are still queued from reads of the new one.
             self.bufferResetCounts[ID] = self.bufferResetCounts.get(ID,0)+1
+            self.bufferResetTimes[ID] = time.monotonic()
         return isReset
+
+    def _ReadVersion(self,ID):
+        """Asks a DFM for its firmware version and keeps it, as it decides the record size. Only
+        firmware 1.0.5, which has no version request, is expected not to answer, so a board
+        already known to run a later version keeps it when a request goes unanswered. Returns the
+        version, or None if every reply was garbled."""
+        version = self.theCOMM.GetVersion(ID)
+        known = self.firmwareVersions.get(ID)
+        if(version == COMM.LEGACY_VERSION and known not in (None, COMM.LEGACY_VERSION)):
+            print(f"No answer to the version request ({ID}); keeping {known!r}")
+            return known
+        if(version is not None):
+            self.firmwareVersions[ID] = version
+        return version
+
+    def _RecheckRecordSize(self,info,size):
+        """Called when a reply isn't a whole number of the records expected. If it is a whole
+        number of the other size, the firmware version was misread (for example a 4.0.0 board
+        whose version reply was lost, taken for 1.0.5), so it is read again. Returns True if the
+        record size changed."""
+        other = StatusPacket.V3_PACKET_SIZE if self._RecordSize(info) == StatusPacket.V4_PACKET_SIZE else StatusPacket.V4_PACKET_SIZE
+        if(info.DFMType != DFMTYPE.PLETCHERV3 or size == 0 or size % other != 0):
+            return False
+        print(f"Records from {info.ID} are {other} bytes; reading its firmware version again")
+        # The record size shows the known version is wrong, so an unanswered request counts.
+        self.firmwareVersions.pop(info.ID, None)
+        self._ReadVersion(info.ID)
+        return self._RecordSize(info) == other
 
     def ReadWorker(self):
         commandsInARow=0
@@ -307,36 +342,51 @@ class DataGetter:
 
     def ReadValues(self,infos):
         currentTime = datetime.datetime.today()
+        generation = self.busGeneration
         lagging = []
         for info in infos:
             try:
-                result,payload=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)
+                result,payload=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly,self._RecordSize(info))
+                readTime = time.monotonic()
                 packList=self.ProcessPacket(info,result,payload,currentTime)
+                recordSize = self._RecordSize(info)
+                maxRecords = COMM.MAX_STATUS_PACKETS_V4 if recordSize == StatusPacket.V4_PACKET_SIZE else COMM.MAX_STATUS_PACKETS
+                isFull = len(payload) >= maxRecords*recordSize
                 resetCount = self.bufferResetCounts.get(info.ID,0)
+                resetTime = self.bufferResetTimes.get(info.ID)
                 for p in packList:
                     p.bufferResetCount = resetCount
+                    p.isFullReply = isFull
+                    p.secondsSinceReset = None if resetTime is None else readTime - resetTime
                 # Queued before the ACK: if the ACK fails the DFM just sends the packets again.
                 self.data_q.put(packList)
                 self._Acknowledge(info,packList)
-                recordSize = self._RecordSize(info)
-                maxRecords = COMM.MAX_STATUS_PACKETS_V4 if recordSize == StatusPacket.V4_PACKET_SIZE else COMM.MAX_STATUS_PACKETS
-                if(len(payload) >= maxRecords*recordSize):
+                if(isFull):
                     lagging.append(info)
             except Exception as e:
                 print(f"Get status exception ({info.ID}): {e!r}")
             time.sleep(0.002)
+            # Commands go out between reads, so an instruction waits for one DFM's read, not for
+            # the whole round (which grows with every DFM, and by 2 s for each that doesn't answer).
+            for _ in range(13):
+                if not self.ProcessCommand():
+                    break
+            if(self.isPaused or self.busGeneration != generation):
+                break
         self.laggingDFMs = lagging
 
     def _Acknowledge(self,info,packList):
         """A V3 DFM drops the packets it sent once they are ACKed, so only packets that were read
         correctly are acknowledged. The read stops at the first bad packet."""
         numGood = sum(1 for _ in itertools.takewhile(lambda p: p.processResult == PROCESSEDPACKETRESULT.OKAY, packList))
-        if(numGood == len(packList)):
-            self.theCOMM.SendAck(info.ID)
-        elif(numGood > 0 and info.DFMType == DFMTYPE.PLETCHERV3 and
+        if(numGood > 0 and info.DFMType == DFMTYPE.PLETCHERV3 and
              COMM.SupportsPartialAck(self.firmwareVersions.get(info.ID, b""))):
-            # The good packets are kept, so the DFM need only send the rest again.
+            # Naming the last packet received, even when all were, means the DFM drops only what
+            # arrived: a reply cut short at a packet boundary loses nothing. When some were bad,
+            # the good packets are kept and the DFM need only send the rest again.
             self.theCOMM.SendPartialAck(info.ID, packList[numGood-1].recordIndex)
+        elif(numGood == len(packList)):
+            self.theCOMM.SendAck(info.ID)
 
     def _RecordSize(self,info):
         """Status record size: 127 bytes from DFM firmware 4.0.0, 56 before (and for the EnvMon)."""
@@ -367,6 +417,9 @@ class DataGetter:
 
         recordSize = self._RecordSize(info)
         numPacketsReceived, extraBytes = divmod(len(bytesData),recordSize)
+        if((numPacketsReceived==0 or extraBytes!=0) and self._RecheckRecordSize(info,len(bytesData))):
+            recordSize = self._RecordSize(info)
+            numPacketsReceived, extraBytes = divmod(len(bytesData),recordSize)
         if(numPacketsReceived==0 or extraBytes!=0):
             print("Wrong num bytes: " + str(len(bytesData)/recordSize))
             return self._FailedPacket(info,PROCESSEDPACKETRESULT.WRONGNUMBYTES)

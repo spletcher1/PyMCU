@@ -83,6 +83,8 @@ STATUS_FRAME_SIZE = 5000
 
 # Reported for firmware older than 2.0.0, which doesn't answer version requests.
 LEGACY_VERSION = b"1.0.5"
+# Version requests made when the replies come back garbled.
+VERSION_ATTEMPTS = 3
 
 
 def _Field(value, size):
@@ -225,11 +227,12 @@ class UARTCOMM:
             return None
         return Enums.DFMTYPE.ENVMONV3 if ID == ENVMON_ID else Enums.DFMTYPE.PLETCHERV3
 
-    def GetStatusPacket(self, ID, DFMType, latestOnly):
-        """Returns (COBSRESULT, payload); the payload holds whole 56-byte status packets."""
+    def GetStatusPacket(self, ID, DFMType, latestOnly, recordSize=V3_PACKET_SIZE):
+        """Returns (COBSRESULT, payload); the payload holds whole status records of recordSize
+        bytes (56, or 127 from firmware 4.0.0)."""
         self._SendRequest(ID, LATEST_STATUS_REQUEST if latestOnly else STATUS_REQUEST)
         result, payload = self._ReadFrame(STATUS_FRAME_SIZE, STATUS_TIMEOUT)
-        if result == Enums.COBSRESULT.OKAY and len(payload) % V3_PACKET_SIZE != 0:
+        if result == Enums.COBSRESULT.OKAY and len(payload) % recordSize != 0:
             # Not whole packets, so a corrupt byte ended the frame early and the rest of the
             # reply may still be arriving.
             self._WaitForQuietBus()
@@ -244,9 +247,18 @@ class UARTCOMM:
         self._SendChecksummedRequest(ID, PARTIAL_ACK, lastIndex.to_bytes(4, "big"))
 
     def GetVersion(self, ID):
-        self._SendRequest(ID, VERSION_REQUEST)
-        result, reply = self._ReadFrame(VERSION_FRAME_SIZE, REPLY_TIMEOUT)
-        return reply if result == Enums.COBSRESULT.OKAY else LEGACY_VERSION
+        """The DFM's firmware version as bytes, LEGACY_VERSION if nothing answers (firmware 1.0.5
+        has no version request), or None if every reply was garbled. Only a garbled reply is asked
+        again: something answered, so the board isn't 1.0.5, which would log each request as an
+        unknown command."""
+        for _ in range(VERSION_ATTEMPTS):
+            self._SendRequest(ID, VERSION_REQUEST)
+            result, reply = self._ReadFrame(VERSION_FRAME_SIZE, REPLY_TIMEOUT)
+            if result == Enums.COBSRESULT.NOANSWER:
+                return LEGACY_VERSION
+            if result == Enums.COBSRESULT.OKAY and FirmwareVersionTuple(reply):
+                return reply
+        return None
 
     def RequestBufferReset(self, ID):
         self._SendRequest(ID, BUFFER_RESET_REQUEST)
@@ -303,7 +315,7 @@ class I2CCOMM:
         # Sable boards send 52 bytes, so the end of a 64-byte read is empty.
         return Enums.DFMTYPE.SABLEV2 if sum(data[60:64]) == 0 else Enums.DFMTYPE.PLETCHERV2
 
-    def GetStatusPacket(self, ID, DFMType, latestOnly):
+    def GetStatusPacket(self, ID, DFMType, latestOnly, recordSize=None):
         try:
             return Enums.COBSRESULT.OKAY, self._Read(ID, 52 if DFMType == Enums.DFMTYPE.SABLEV2 else 64)
         except Exception:
