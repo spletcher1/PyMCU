@@ -53,8 +53,10 @@ def CheckedPulseWidth(text, lineNumber):
     return value
 
 
-def CheckOptoSettings(frequency, pulseWidth, decay, lineNumber):
-    """The pulse must fit inside one period, and non-feeding activation needs an on time."""
+def CheckOptoSettings(frequency, pulseWidth, decay, delay, maxTimeOn, lineNumber):
+    """The pulse must fit inside one period; non-feeding activation and progressive ratio need an
+    on time (with OptoDecay 0 the firmware lights each activation for 1 ms); and a training count
+    needs progressive ratio, the only rule the firmware runs it before."""
     hertz = frequency % TRAINING_COUNT_UNIT if frequency > Instruction.MAX_FREQUENCY_HZ else frequency
     width = pulseWidth - NON_FEEDING_FLAG if pulseWidth >= NON_FEEDING_FLAG else pulseWidth
     if width * hertz >= 1000:
@@ -63,6 +65,17 @@ def CheckOptoSettings(frequency, pulseWidth, decay, lineNumber):
     if pulseWidth >= NON_FEEDING_FLAG and decay <= 0:
         raise ProgramError(_Where(lineNumber) + "OptoPW {} is non-feeding activation, which needs OptoDecay above 0 "
                            "for the light's on time".format(pulseWidth))
+    # Non-feeding activation takes precedence in the firmware, so this is progressive ratio only without it.
+    isNonFeeding = pulseWidth >= NON_FEEDING_FLAG
+    isProgressiveRatio = not isNonFeeding and delay > 0 and maxTimeOn > 0
+    if isProgressiveRatio and decay <= 0:
+        raise ProgramError(_Where(lineNumber) + "OptoDelay and MaxTimeOn both above 0 is progressive ratio, which needs "
+                           "OptoDecay above 0 for the light's on time")
+    # The firmware runs a training count only before progressive ratio and ignores it otherwise.
+    if frequency > Instruction.MAX_FREQUENCY_HZ and not isProgressiveRatio:
+        raise ProgramError(_Where(lineNumber) + "OptoFrequency {} asks for {} training Activations, which only run with "
+                           "progressive ratio (OptoDelay and MaxTimeOn both above 0, OptoPW below 32768)".format(
+                               frequency, frequency // TRAINING_COUNT_UNIT))
 
 
 class InstructionSet:
@@ -188,7 +201,7 @@ class InstructionSet:
             minutes = float(ss[-1])
         except ValueError:
             raise ProgramError(_Where(lineNumber) + "the duration (the last number) must be in minutes, not '{}'".format(ss[-1]))
-        CheckOptoSettings(freq, pw, decay, lineNumber)
+        CheckOptoSettings(freq, pw, decay, delay, maxTime, lineNumber)
         tmp = Instruction.DFMInstruction(ds,freq,pw,decay,delay,maxTime,datetime.timedelta(seconds=minutes*60),0)
         tmp.SetOptoValues(ov)
         self.AddInstruction(tmp)

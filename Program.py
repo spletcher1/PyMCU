@@ -285,7 +285,7 @@ class MCUProgram():
                 # A copy each, as a DFM's baseline is stored in its Intervals.
                 self.theInstructionSets[ID] = copy.deepcopy(self.allInstructionSet)
                 continue
-            InstructionSet.CheckOptoSettings(self.optoFrequency,self.optoPulseWidth,self.optoDecay,0)
+            InstructionSet.CheckOptoSettings(self.optoFrequency,self.optoPulseWidth,self.optoDecay,self.optoDelay,self.maxTimeOn,0)
             self.AddSimpleProgram(ID,self.experimentDuration)
             ss="DFM " + str(ID) + " not listed in program file. Adding simple program"
             self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)

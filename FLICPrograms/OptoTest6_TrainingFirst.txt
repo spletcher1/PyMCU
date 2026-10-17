@@ -1,14 +1,22 @@
-# Training count first: OptoFrequency 1576 is 3 x 512 + 40 Hz, so each Well gets 3
-# training activations before the open loop rule starts. Well values in the data file are
-# 65536 higher while a Well is in training.
-# Needs firmware 2.0.0 or later; PyMCU refuses it for a 1.0.5 board.
+# Training count first: OptoFrequency 1576 is 3 x 512 + 40 Hz, so each Well gets 3 training
+# Activations before progressive ratio starts. Training only runs before progressive ratio
+# (OptoDelay and MaxTimeOn both above 0); PyMCU refuses a training count with any other rule.
+# In training, any contact lights the LED, holding keeps it on, and it stays on 2 s (OptoDecay)
+# after release. Training ends when the 3rd Activation's 2 s runs out. Then progressive ratio,
+# with no free first Activation: 1, 2, 3, 4, 5, 5... s of contact (OptoDelay steps, MaxTimeOn
+# cap) for each 2 s Activation. Contact adds up across touches.
+# Touch and release one Well 3 times: the LED stays on while held and 2 s after. Then hold it:
+# the LED comes on after 1 s, then after gaps of 2, 3, 4, 5, 5 s, 2 s each time. Well values in
+# the data file are 65536 higher while a Well is in training. Edges are about 0.2 s late.
+# Needs the DFM firmware build with the training-count fix; 3.5.1 gives one training Activation
+# fewer. Needs firmware 2.0.0 or later; PyMCU refuses it for a 1.0.5 board.
 [General]
 ExpDurationMin: 10
 OptoFrequency: 1576
 OptoPW: 8
-OptoDecay: 0
-OptoDelay: 0
-MaxTimeOn: 0
+OptoDecay: 2000
+OptoDelay: 1000
+MaxTimeOn: 5000
 Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
 Baseline: Yes
 

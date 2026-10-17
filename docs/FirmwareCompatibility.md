@@ -10,11 +10,11 @@ A Program file sets these in `[General]`, per DFM in a `[DFM]` section, or per I
 
 | Setting | What it is | Accepted values |
 | --- | --- | --- |
-| OptoFrequency | LED pulse rate in Hz | 1 to 500. Firmware 2.0.0 and later also take `count × 512 + hertz`, which asks for `count` training Activations before the rule starts: 1576 is three at 40 Hz |
+| OptoFrequency | LED pulse rate in Hz | 1 to 500. Firmware 2.0.0 and later also take `count × 512 + hertz` (count up to 127), which asks for `count` training Activations before progressive ratio starts: 1576 is three at 40 Hz. Only progressive ratio runs training, so PyMCU refuses a count with any other rule. Firmware 3.5.1 gives one Activation fewer than the count; the fixed build gives the count |
 | OptoPW | Pulse width in ms | 1 to 1000, and shorter than one period (1000 / hertz). Firmware 2.0.0 and later also take `32768 + width` for non-feeding activation, which needs OptoDecay above 0 |
-| OptoDecay | How long the LED stays on after contact ends. For fixed interval and non-feeding activation, the on time | 0 to 4,294,967,295 ms (1.0.5 boards: up to 65,535) |
-| OptoDelay | Fixed interval: the lockout after an Activation starts. With MaxTimeOn also above 0 on firmware 2.0.0 and later: progressive ratio by contact time | Same |
-| MaxTimeOn | Cap on one on-period | Same |
+| OptoDecay | How long the LED stays on after contact ends. For fixed interval, non-feeding activation and progressive ratio, the on time (must be above 0 for the last two) | 0 to 4,294,967,295 ms (1.0.5 boards: up to 65,535) |
+| OptoDelay | Fixed interval: the lockout after an Activation starts. With MaxTimeOn also above 0 on firmware 2.0.0 and later: progressive ratio, where it is the step in required contact (after the nth Activation, the next needs n × OptoDelay ms) | Same |
+| MaxTimeOn | Cap on one on-period. In progressive ratio, the cap on the required contact instead | Same |
 
 Thresholds: 0 is always on, anything above 1023 is off, otherwise the signal level (plus the baseline when Baseline is Yes) above which the Well counts as in contact.
 
@@ -22,12 +22,12 @@ Thresholds: 0 is always on, anything above 1023 is off, otherwise the signal lev
 
 | Rule | How it is asked for | 1.0.5 | 2.0.0, 2.0.1 | 3.5.0 | 4.0.0 |
 | --- | --- | --- | --- | --- | --- |
-| Open loop: on while above threshold | thresholds, no times | Runs | Runs | Runs | Needs PyMCU 4.0.0 |
-| Closed loop: on while above threshold, then OptoDecay ms more, capped by MaxTimeOn | OptoDecay, MaxTimeOn | Runs | Runs | Runs | Needs PyMCU 4.0.0 |
+| Open loop: always on, whatever the contact | thresholds 0 | Runs | Runs | Runs | Needs PyMCU 4.0.0 |
+| Closed loop: on while above threshold, then OptoDecay ms more (0 = off at once), capped by MaxTimeOn (0 = no cap) | thresholds, OptoDecay, MaxTimeOn | Runs | Runs | Runs | Needs PyMCU 4.0.0 |
 | Fixed interval: first contact lights for OptoDecay ms, then nothing new for OptoDelay ms | OptoDelay, MaxTimeOn 0 | Runs | Runs | Runs | Needs PyMCU 4.0.0 |
 | Non-feeding activation: light after OptoDelay ms without contact, for OptoDecay ms | OptoPW 32768 + width | **Refused** | Runs | Runs | Needs PyMCU 4.0.0 |
-| Progressive ratio by contact time | OptoDelay and MaxTimeOn both above 0 | **Refused** | Runs | Runs | Needs PyMCU 4.0.0 |
-| Training count first | OptoFrequency count × 512 + hertz | **Refused** | Runs | Runs | Needs PyMCU 4.0.0 |
+| Progressive ratio by contact time: the first contact lights for OptoDecay ms; each later Activation needs OptoDelay ms more accumulated contact than the last, up to MaxTimeOn. Contact adds up across touches; only a new instruction restarts it | OptoDelay and MaxTimeOn both above 0, OptoDecay above 0 | **Refused** | Runs | Runs | Needs PyMCU 4.0.0 |
+| Training count first, then progressive ratio: in training any contact lights the LED, holding keeps it on, and it stays on OptoDecay ms after release; training ends per Well when the last training Activation's OptoDecay runs out, then progressive ratio starts with no free Activation (the first needs OptoDelay ms of contact); a new instruction restarts training | OptoFrequency count × 512 + hertz, with progressive ratio | **Refused** | Runs | Runs | Needs PyMCU 4.0.0 |
 | Times above 65,535 ms | any time setting | **Refused** | Runs | Runs | Needs PyMCU 4.0.0 |
 
 A 1.0.5 board doesn't understand the three 2.0.0 encodings or the longer times. It would clamp or misread them and run a different rule with no warning, which is why PyMCU refuses them for that board rather than sending them.

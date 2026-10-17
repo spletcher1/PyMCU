@@ -1,5 +1,5 @@
-# Open loop: a Well's LED is on only while its signal is 50 above baseline.
-# Touch a Well: the LED lights while touched and goes off the moment you let go.
+# Open loop: every Well's LED is on for the whole Interval, whatever the fly does (threshold 0).
+# All 12 LEDs should light when the program starts and stay on; touching a Well changes nothing.
 # Runs on every firmware, 1.0.5 included.
 [General]
 ExpDurationMin: 10
@@ -14,4 +14,4 @@ Baseline: Yes
 [DFM]
 ID: All
 ProgramType: Linear
-Interval: 0,50,50,50,50,50,50,50,50,50,50,50,50,10
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,10

@@ -127,6 +127,10 @@ class Loading(unittest.TestCase):
         self.Refusal(GENERAL + DFM2 + "Interval: 2,0,0,0,0,0,0,0,0,0,0,0,0,10\n", "line 12: dark (the first number) must be 0 to 1")
         self.Refusal(GENERAL + DFM2 + "Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,40,32776,0,500,0,30\n",
                      "line 12: OptoPW 32776 is non-feeding activation, which needs OptoDecay above 0")
+        self.Refusal(GENERAL + DFM2 + "Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,40,8,0,1000,5000,30\n",
+                     "line 12: OptoDelay and MaxTimeOn both above 0 is progressive ratio, which needs OptoDecay above 0")
+        self.Refusal(GENERAL + DFM2 + "Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,1576,8,1000,0,0,30\n",
+                     "line 12: OptoFrequency 1576 asks for 3 training Activations, which only run with progressive ratio")
         self.Refusal(GENERAL + DFM2 + "Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,40,30,0,0,0,30\n",
                      "line 12: OptoPW 30 ms is not shorter than one period at 40 Hz (25.0 ms)")
         self.Refusal(GENERAL.replace("OptoPW: 8", "OptoPW: 30"), "General settings: OptoPW 30 ms is not shorter than one period")
@@ -138,7 +142,7 @@ class Loading(unittest.TestCase):
 class Compatibility(unittest.TestCase):
     NON_FEEDING = (GENERAL.replace("OptoPW: 8", "OptoPW: 32776").replace("OptoDecay: 0", "OptoDecay: 1000")
                    .replace("OptoDelay: 0", "OptoDelay: 500"))
-    EACH_SETTING = GENERAL + DFM2 + ("Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,1576,8,1000,0,0,30\n"
+    EACH_SETTING = GENERAL + DFM2 + ("Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,1576,8,1000,1000,5000,30\n"
                                      "Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,40,8,1000,5000,20000,30\n"
                                      "Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,40,8,70000,0,0,30\n")
 
