@@ -1,6 +1,6 @@
 # Packaging and distributing an MCU update
 
-Last updated: 2026-10-09 (PyMCU 3.5.0)
+Last updated: 2026-10-16 (PyMCU 3.5.2)
 
 For the developer. An update is one file, `PyMCU_<version>.mcu`, built from a commit on `PI5Dev` and sent to users, who install it from a USB stick with **Update MCU**. The steps for the user are in [Updating.md](Updating.md); send that page, or its short version in section 4, with the file.
 
@@ -10,36 +10,36 @@ Use one number in **both** places:
 
 | File | Line | Used for |
 | --- | --- | --- |
-| `MainViewModel.py` | `APP_VERSION = "3.5.1"` | About box, update prompt, package name, `mcu.log` |
-| `pyproject.toml` | `version = "3.5.1"` | uv project metadata |
+| `MainViewModel.py` | `APP_VERSION = "3.5.2"` | About box, update prompt, package name, `mcu.log` |
+| `pyproject.toml` | `version = "3.5.2"` | uv project metadata |
 
-Bump the last number for fixes (3.5.0 → 3.5.1) and the middle one for new features (3.5 → 3.6). After editing `pyproject.toml`, run `uv lock` so `uv.lock` records the new version.
+Bump the last number for fixes (3.5.1 → 3.5.2) and the middle one for new features (3.5 → 3.6). After editing `pyproject.toml`, run `uv lock` so `uv.lock` records the new version.
 
 ## 2. Commit and build
 
 ```sh
 cd ~/PyMCU
-git add -A && git commit -m "Version 3.5.1: <what changed>"
+git add -A && git commit -m "Version 3.5.2: <what changed>"
 ./CreateVersion.sh
 ```
 
 Output:
 
 ```
-Created PyMCU_3.5.1.mcu (version 3.5.1, commit 1a2b3c4).
+Created PyMCU_3.5.2.mcu (version 3.5.2, commit 1a2b3c4).
 Send it to the user: they copy it onto a USB stick and press Update in the MCU settings.
 ```
 
 - **Built from the last commit**, with `git archive`. Uncommitted edits are left out, so every package matches a commit. The script warns if there are uncommitted changes; commit and rebuild.
 - **Contents:** the app's Python files, `Mainwindow.ui`, `images/`, `RunMCU.sh`, `CreateVersion.sh`, `MCUUpdate.py`, `pyproject.toml` and `uv.lock`.
 - **Left out on purpose:** `docs/`, `tests/`, `FLICPrograms/` (the user's programs), `theme.txt` (each MCU's light/dark setting), `.vscode/` and `.gitignore`. Untracked files (`FLICData`, `.venv`, `mcu.log`) are never in a git archive.
-- **Format:** `.mcu` is a plain `.tar.gz` (`tar -tzf PyMCU_3.5.1.mcu` lists it). The extension stops browsers, notably Safari, from unpacking the download. The MCU also accepts `.tgz`.
+- **Format:** `.mcu` is a plain `.tar.gz` (`tar -tzf PyMCU_3.5.2.mcu` lists it). The extension stops browsers, notably Safari, from unpacking the download. The MCU also accepts `.tgz`.
 - **Git ignores** `PyMCU_*.mcu` files, so built packages are never committed.
 
 Tag the release so the same package can be rebuilt later:
 
 ```sh
-git tag v3.5.1
+git tag v3.5.2
 git push origin PI5Dev --tags
 ```
 
@@ -49,7 +49,7 @@ Install the package exactly as a user would: copy it to a stick, then About → 
 
 - [ ] The prompt shows the new version and the installed one
 - [ ] The MCU restarts by itself, and About shows the new version
-- [ ] `~/PyMCU/mcu.log` has `Update: Update installed.` and a `PyMCU 3.5.1 starting` line
+- [ ] `~/PyMCU/mcu.log` has `Update: Update installed.` and a `PyMCU 3.5.2 starting` line
 - [ ] The changes work: DFMs detected, a short program runs, data saves to USB
 - [ ] Recorded data, programs and the theme are unchanged
 
@@ -66,19 +66,19 @@ Test this case on a bench MCU both online and offline (offline should report "is
 
 Send the `.mcu` file (email, shared drive or download link) with these instructions:
 
-> 1. Copy the attached file `PyMCU_3.5.1.mcu` onto a USB stick. Don't open, unzip or rename it. Put only this one update file on the stick.
+> 1. Copy the attached file `PyMCU_3.5.2.mcu` onto a USB stick. Don't open, unzip or rename it. Put only this one update file on the stick.
 > 2. Make sure no experiment is running on the MCU.
 > 3. Plug the stick into the MCU.
 > 4. Tap **About** on the toolbar, then **Settings**, then **Update MCU**.
 > 5. Check the version in the prompt and tap **Yes**. Leave the stick in and the power on until the MCU restarts (about a minute).
-> 6. After the restart, remove the stick. **About** should show 3.5.1.
+> 6. After the restart, remove the stick. **About** should show 3.5.2.
 >
 > If the MCU shows "Update failed", nothing was changed. Send us the message it shows.
 
 Notes:
 
 - **Email:** a few MB, so it attaches normally. If a mail filter strips it, use a shared link.
-- **Renaming is fine** as long as it still ends in `.mcu`. A download that comes back as `PyMCU_3.5.1 (1).mcu` also works.
+- **Renaming is fine** as long as it still ends in `.mcu`. A download that comes back as `PyMCU_3.5.2 (1).mcu` also works.
 - **Which MCUs:** only units already on 3.5.0 or later (see Limits).
 - **Record** which units got which version. About shows each unit's version.
 
