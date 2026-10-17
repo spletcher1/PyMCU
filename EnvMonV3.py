@@ -88,7 +88,7 @@ class EnvironmentalMonitorV3:
         for sp in currentStatusPackets:
             self.currentDFMErrors.UpdateErrors(sp.errorFlags)             
             if(sp.errorFlags!=0):
-                s="({:d}) Non-zero EnvMon code: {:02X}".format(self.ID,sp.errorFlags)                
+                s="Environmental Monitor error code: {:02X}".format(sp.errorFlags)                
                 self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.WARNING)     
 
     def ProcessPackets(self,currentStatusPackets,saveDataToQueue):                                  
@@ -96,19 +96,19 @@ class EnvironmentalMonitorV3:
             isSuccess=False       
             if(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.CHECKSUMERROR):            
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Checksum mismatch".format(self.ID)
+                s="Checksum mismatch"
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.NOANSWER):
                 self.SetStatus(Enums.CURRENTSTATUS.MISSING)
-                s="({:d}) No answer".format(self.ID)
+                s="No answer"
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.WRONGNUMBYTES):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Wrong number of bytes:".format(self.ID)
+                s="Packet size mismatch"
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.INCOMPLETEPACKET):
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
-                s="({:d}) Incomplete packet received:".format(self.ID)
+                s="Incomplete packet received"
                 self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.NOTICE)                       
             elif(currentStatusPackets[j].processResult == Enums.PROCESSEDPACKETRESULT.OKAY):              
                 isSuccess=True
@@ -116,7 +116,7 @@ class EnvironmentalMonitorV3:
                 if (currentStatusPackets[j].recordIndex>0):                                                   
                     currentStatusPackets[j].sample = self.sampleIndex
                     if(self.theData.NewData(currentStatusPackets[j],saveDataToQueue)==False):     
-                        s="({:d}) Data queue full".format(self.ID)
+                        s="Data buffer full: record lost"
                         self.NewMessage(self.ID,currentStatusPackets[j].packetTime,currentStatusPackets[j].recordIndex,s,Enums.MESSAGETYPE.ERROR)
                         self.SetStatus(Enums.CURRENTSTATUS.ERROR)                       
                     else:                                  

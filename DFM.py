@@ -116,6 +116,8 @@ class DFM:
         self.isLinkageSetNeeded=False
         # True after a version request that a 1.0.5 board didn't answer (see UpdateReportedValues).
         self.maskProbeError = False
+        # The error byte of the last record, so each error is reported when it appears.
+        self.lastErrorFlags = 0
         self.retryTime=0.0
         if(self.DFMType==Enums.DFMTYPE.PLETCHERV3):
             # Narrowed down once the firmware version is known.
@@ -237,9 +239,23 @@ class DFM:
                 # when the MCU asks for the latest packet only, as nothing drains the buffer.
                 errorFlags &= ~DFMErrors.OVERFLOW_MASK
             self.currentDFMErrors.UpdateErrors(errorFlags)
-            if(errorFlags!=0):
-                s="DFM code: {:02X}".format(errorFlags)
-                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.NOTICE)
+            # Each error is reported when it appears, not again for every record that still has it.
+            for bit in range(0,8):
+                if(errorFlags & ~self.lastErrorFlags & (1<<bit)):
+                    self._ReportErrorBit(sp,bit)
+            self.lastErrorFlags = errorFlags
+
+    def _ReportErrorBit(self,sp,bit):
+        if(bit == 1 and self.currentDFMErrors.display is DFMErrors.V3_ERROR_DISPLAY):
+            # Firmware 3.5.0 and later: records were overwritten on the DFM, so they are gone.
+            self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,
+                            "DFM {}'s record buffer overflowed: records were overwritten before they could be read, so data was lost.".format(self.ID),
+                            Enums.MESSAGETYPE.ERROR)
+            return
+        label = DFMErrors.BitLabel(self.currentDFMErrors.display,bit)
+        text = "DFM {} error: {}".format(self.ID,"bit {}".format(bit) if label is None else
+                                          (label[0] if not label[1] else "{} ({})".format(label[0],label[1].rstrip("."))))
+        self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,text,Enums.MESSAGETYPE.NOTICE)
 
     def ProcessPackets(self,currentStatusPackets,saveDataToQueue):
         # V3 DFMs resend packets that were not ACKed, so a failed read is only a notice for them.
@@ -262,16 +278,24 @@ class DFM:
             self.indexOffset = 0
             self.restartPackets = None
         newPackets=[]
+        repeated=[]
         for sp in currentStatusPackets:
             # Each packet on its own: the DFM has already dropped them, so one that can't be
             # processed mustn't take the rest of the read with it.
             try:
-                self._ProcessPacket(sp,saveDataToQueue,theMessageType,newPackets)
+                self._ProcessPacket(sp,saveDataToQueue,theMessageType,newPackets,repeated)
             except Exception as e:
                 print(f"Packet processing exception ({self.ID}): {e!r}")
                 if(type(e).__name__ not in self.reportedPacketErrors):
                     self.reportedPacketErrors.add(type(e).__name__)
                     self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,"Record {} couldn't be processed and was lost: {!r}".format(sp.recordIndex,e),Enums.MESSAGETYPE.ERROR)
+        if(repeated):
+            # The DFM didn't get the last ACK and sent those records again. They were saved the
+            # first time, so nothing is lost: one notice per read.
+            self.NewMessage(self.ID,repeated[0].packetTime,repeated[0].recordIndex,
+                            "Records {} were sent again after a missed ACK; they were already saved.".format(
+                                self._RecordRange(repeated[0].recordIndex,repeated[-1].recordIndex)),
+                            Enums.MESSAGETYPE.NOTICE)
         self._CheckRunningInstruction(currentStatusPackets)
         # After a restart the records wait until a reply that held everything the DFM had,
         # whose newest record shows how far the DFM's count is behind.
@@ -289,12 +313,12 @@ class DFM:
             self.UpdateReportedValues(newPackets,saveDataToQueue)
         self.CheckStatus()
 
-    def _ProcessPacket(self,sp,saveDataToQueue,theMessageType,newPackets):
+    def _ProcessPacket(self,sp,saveDataToQueue,theMessageType,newPackets,repeated):
         if(sp.processResult != Enums.PROCESSEDPACKETRESULT.OKAY):
             if(sp.processResult in READ_FAILURES):
                 text, newStatus = READ_FAILURES[sp.processResult]
                 self.SetStatus(newStatus)
-                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,"({:d}) ".format(self.ID)+text,theMessageType)
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,text,theMessageType)
         elif(sp.recordIndex<=0):
             # It's okay now to receive these because of the fast buffer reset and call. I will not call this an error.
             print("({:d}) Empty packet received".format(self.ID))
@@ -302,9 +326,8 @@ class DFM:
             self._StartRestart(sp)
             self._AcceptPacket(sp,saveDataToQueue,newPackets)
         elif(sp.recordIndex<=self.lastDFMIndex):
-            ## If there are readings sent multiple times, don't add them to the data file, but let us know they occured.
-            s="({:d}) Repeated index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
-            self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
+            # Sent again; not added to the data file twice.
+            repeated.append(sp)
         else:
             self._AcceptPacket(sp,saveDataToQueue,newPackets)
 
@@ -322,14 +345,37 @@ class DFM:
         newPackets.append(sp)
         if(saveDataToQueue and self.DFMType==Enums.DFMTYPE.PLETCHERV3):
             if(sp.recordIndex != (self.lastDFMIndex+1)):
-                s="({:d}) Skipped index: ({:d}) ".format(sp.recordIndex,self.lastDFMIndex)
-                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,s,Enums.MESSAGETYPE.ERROR)
+                self._ReportLostRecords(sp)
                 self.SetStatus(Enums.CURRENTSTATUS.ERROR)
             self.lastDFMIndex = sp.recordIndex
         if(self.restartPackets is not None):
             self.restartPackets.append(sp)
         else:
             self._AddPacket(sp,saveDataToQueue)
+
+    def _RecordRange(self,first,last):
+        """'Index a to b' as the data file numbers the DFM's records a to b. While a restart's
+        offset isn't known yet, the DFM's own count is given."""
+        if(self.restartPackets is not None):
+            return "{} to {} (counted from the DFM's restart)".format(first,last)
+        first, last = first+self.indexOffset, last+self.indexOffset
+        return "Index {}".format(first) if first==last else "Index {} to {}".format(first,last)
+
+    def _ReportLostRecords(self,sp):
+        """The DFM's records jumped from lastDFMIndex to sp.recordIndex: the ones between never
+        arrived, typically overwritten on the DFM while reads fell behind."""
+        count = sp.recordIndex-self.lastDFMIndex-1
+        if(count <= 0):
+            return
+        seconds = count*StatusPacket.V3_PACKET_INTERVAL
+        start = sp.packetTime-datetime.timedelta(seconds=seconds)
+        if(self.indexOffset and self.restartPackets is None):
+            start += datetime.timedelta(seconds=self.indexOffset*StatusPacket.V3_PACKET_INTERVAL)
+        self.NewMessage(self.ID,start,sp.recordIndex,
+                        "Lost {} record{} ({:.1f} s): {}, from {}.".format(
+                            count,"" if count==1 else "s",seconds,
+                            self._RecordRange(self.lastDFMIndex+1,sp.recordIndex-1),start.strftime("%H:%M:%S")),
+                        Enums.MESSAGETYPE.ERROR)
 
     def _StartRestart(self,sp):
         """The DFM restarted (a brown-out or watchdog reset): its record count began again at 1

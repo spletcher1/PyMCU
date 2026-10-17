@@ -345,7 +345,7 @@ Add `tests/test_fine_to_csv.py`: the golden block, written as a one-block file, 
 
 On one bus: one fine DFM and five others, a test signal on at least two Wells of the fine DFM, a Program with `FineData: Yes` on the fine DFM, 30 minutes.
 
-1. The five normal DFMs log no "Skipped index" messages.
+1. The five normal DFMs log no "Lost … records" messages.
 2. The fine file converts with zero CRC failures and zero index gaps; its `_scans.csv` has about 94 rows per record index.
 3. For a Well with the test signal, the changes table shows contact rising and falling at the Ticks where the scans cross the Threshold, and the data file's `OnMs` for that record equals the lit time the changes imply.
 4. Disconnect the bus for 5 s: the fine DFM's next blocks arrive with no gap. Disconnect for 15 s: a gap is reported, error 0x02 appears once in the data file, and the first block after the gap has the overflow accounted for in its index.

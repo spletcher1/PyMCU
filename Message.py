@@ -15,17 +15,27 @@ class Message():
         self.message=mess
         self.messageType = mt
         self.messageNumber=number
+        # Further times the same message came soon after (see MessagesList), and the last of them.
+        self.repeatCount=0
+        self.lastTime=None
 
     def _TypeLabel(self):
         return TYPE_LABELS.get(self.messageType,"Unknown")
 
+    def Text(self):
+        """The message, with how often it repeated."""
+        if(self.repeatCount==0):
+            return self.message
+        return "{} (repeated {} more time{}, the last at {})".format(
+            self.message,self.repeatCount,"" if self.repeatCount==1 else "s",self.lastTime.strftime("%H:%M:%S"))
+
     def __str__(self):
         ss="(" + str(self.messageNumber)+")  "+self.timeOfError.strftime("%m/%d/%Y %H:%M:%S ")
-        ss+="-> "+str(self.DFMId)+" <- "+self.message
+        ss+="-> "+str(self.DFMId)+" <- "+self.Text()
         return ss+" ("+self._TypeLabel()+")"
 
-    def GetMessageStringForFile(self):
-        ms=str(self.DFMId)+"," +self.timeOfError.strftime("%m/%d/%Y,%H:%M:%S")+","
+    def FileRow(self):
+        """The fields of this message's row in Messages.csv."""
         millisec = self.timeOfError.microsecond /1000
-        ms+=str(millisec)+","+str(self.sample)+","+self.message+","
-        return ms+self._TypeLabel()+"\n"
+        return [self.DFMId,self.timeOfError.strftime("%m/%d/%Y"),self.timeOfError.strftime("%H:%M:%S"),
+                millisec,self.sample,self.Text(),self._TypeLabel()]

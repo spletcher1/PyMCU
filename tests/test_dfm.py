@@ -2,6 +2,7 @@
 firmware generation is sent, and the checks before a Program starts."""
 import support  # noqa: F401  (must come first)
 
+import csv
 import datetime
 import io
 import os
@@ -14,6 +15,7 @@ import DFMErrors
 import DFMGroup
 import Enums
 import Instruction
+import Message
 import MessagesList
 import Paradigm
 import Program
@@ -446,6 +448,71 @@ class Commands(unittest.TestCase):
             d.ProcessPackets(Running(d, 7), True)
         self.assertEqual(len(Sent(d)), 1 + DFM.MAX_INSTRUCTION_RESENDS)
         self.assertEqual(len([t for t in Texts() if "Not sending it again" in t]), 1)
+
+
+def Note(text, seconds=0, kind=Enums.MESSAGETYPE.NOTICE, dfmID=5):
+    return Message.Message(dfmID, datetime.datetime(2026, 1, 1) + datetime.timedelta(seconds=seconds), 0, text, kind, -99)
+
+
+class Messages(unittest.TestCase):
+    def setUp(self):
+        MESSAGES.clear()
+
+    def test_repeats_counted_on_one_line_per_10_minutes(self):
+        messages = MessagesList.MessageList()
+        for t in range(0, 900, 4):                    # a DFM not answering, every read
+            messages.AddMessage(Note("No answer", t))
+        messages.AddMessage(Note("No answer", 8, dfmID=6))
+        self.assertEqual([(m.DFMId, m.repeatCount) for m in messages.theMessages], [(5, 149), (5, 74), (6, 0)])
+        self.assertEqual(messages.theMessages[0].Text(), "No answer (repeated 149 more times, the last at 00:09:56)")
+
+    def test_errors_kept_notices_capped(self):
+        messages = MessagesList.MessageList()
+        messages.maxNotices = 3
+        for i in range(5):
+            messages.AddMessage(Note("Notice {}".format(i)))
+            messages.AddMessage(Note("Error {}".format(i), kind=Enums.MESSAGETYPE.ERROR))
+        self.assertEqual(len([m for m in messages.theMessages if m.messageType == Enums.MESSAGETYPE.ERROR]), 5)
+        self.assertEqual(len(messages), 8)
+        self.assertIn("2 more notices were not kept, after the first 3", messages.GetMessageStringForFile())
+
+    def test_screen_shows_the_most_recent_errors(self):
+        messages = MessagesList.MessageList()
+        for i in range(150):
+            messages.AddMessage(Note("Error {}".format(i), i, Enums.MESSAGETYPE.ERROR))
+        shown = str(messages).splitlines()
+        self.assertEqual(shown[0], "The 100 most recent of 150 messages. All are in Messages.csv.")
+        self.assertIn("Error 50 ", shown[1])
+        self.assertIn("Error 149 ", shown[-1])
+
+    def test_file_quotes_commas(self):
+        messages = MessagesList.MessageList()
+        messages.AddMessage(Note("Data file write failed: disk full, read-only", kind=Enums.MESSAGETYPE.ERROR))
+        rows = list(csv.reader(io.StringIO(messages.GetMessageStringForFile())))
+        self.assertEqual(rows[0], MessagesList.FILE_HEADER)
+        self.assertEqual(rows[1][5:], ["Data file write failed: disk full, read-only", "Error"])
+
+    def test_repeated_and_lost_records(self):
+        d = MakeDFM()
+        d.ProcessPackets(V4Packets(d, range(1, 11)), True)
+        d.ProcessPackets(V4Packets(d, range(5, 13)), True)     # ACK missed: 5-10 again
+        d.ProcessPackets(V4Packets(d, range(16, 18)), True)    # 13-15 never came
+        self.assertEqual(Texts(), ["Records Index 5 to 10 were sent again after a missed ACK; they were already saved.",
+                                   "Lost 3 records (0.6 s): Index 13 to 15, from 00:00:02."])
+        self.assertEqual([m.messageType for m in MESSAGES], [Enums.MESSAGETYPE.NOTICE, Enums.MESSAGETYPE.ERROR])
+
+    def test_error_bits_named_once_each_time_they_appear(self):
+        d = MakeProbedDFM(b"3.5.0")
+        MESSAGES.clear()
+        for index, flags in enumerate([0, 0x02, 0x02, 0x42, 0x00, 0x40], start=1):
+            d.UpdateReportedValues([Packet56(errorFlags=flags, index=index)], True)
+        texts = Texts()
+        self.assertEqual(len(texts), 3)
+        self.assertIn("record buffer overflowed", texts[0])
+        self.assertEqual(MESSAGES[0].messageType, Enums.MESSAGETYPE.ERROR)
+        self.assertEqual(texts[1], "DFM 5 error: AI Int (New ADC readings arrived before the last ones were used)")
+        self.assertEqual(texts[2], texts[1])
+        self.assertEqual(MESSAGES[1].messageType, Enums.MESSAGETYPE.NOTICE)
 
 
 class Writing(unittest.TestCase):

@@ -237,7 +237,7 @@ class DFMGroup:
             # Writes are retried on every pass, so this is reported once until one succeeds.
             if(theDFM.ID not in self.writeFailedIDs):
                 self.writeFailedIDs.add(theDFM.ID)
-                self.NewMessage(theDFM.ID, datetime.datetime.today(), 0, "({:d}) Data file write failed: {}".format(theDFM.ID, e), Enums.MESSAGETYPE.ERROR)
+                self.NewMessage(theDFM.ID, datetime.datetime.today(), 0, "Data file write failed: {}".format(e), Enums.MESSAGETYPE.ERROR)
             return False
         theDFM.theData.RemoveRecords(count)
         self.writeFailedIDs.discard(theDFM.ID)
@@ -255,12 +255,12 @@ class DFMGroup:
                 if not self._WriteBufferedData(value):
                     # The recording is over, so these would otherwise end up in the next one's file.
                     count = value.theData.ActualSize()
-                    self.NewMessage(key, datetime.datetime.today(), 0, "({:d}) {:d} records could not be written".format(key, count), Enums.MESSAGETYPE.ERROR)
+                    self.NewMessage(key, datetime.datetime.today(), 0, "{:d} records could not be written".format(count), Enums.MESSAGETYPE.ERROR)
                     value.theData.RemoveRecords(count)
                 try:
                     self.theFiles[key].close()
                 except OSError as e:
-                    self.NewMessage(key, datetime.datetime.today(), 0, "({:d}) Data file close failed: {}".format(key, e), Enums.MESSAGETYPE.ERROR)
+                    self.NewMessage(key, datetime.datetime.today(), 0, "Data file close failed: {}".format(e), Enums.MESSAGETYPE.ERROR)
             self.NewMessage(0, datetime.datetime.today(), 0, "Recording ended", Enums.MESSAGETYPE.ANNOTATION)
             self.WriteMessages(force=True)
         finally:

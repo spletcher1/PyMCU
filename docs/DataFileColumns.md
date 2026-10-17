@@ -23,7 +23,7 @@ Each recording is one folder, `FLICData/<MCU name>_<MM_DD_YYYY_HH_MM>/`, contain
 |---|---|
 | `DFM<ID>_<n>.csv` | One per DFM. A new file (`_1`, `_2` …) is started every 12 hours of recording; concatenate them in order of `n`. Each file has its own header row. |
 | `EnvMon_<n>.csv` | The Environmental Monitor (ID 99), if present. It keeps the old 27 columns and none of the new ones. |
-| `Messages.csv` | Notices, warnings and errors during the recording: `DFM,Date,Time,Millisecond,Sample,Message,MsgType`. DFM 0 means the MCU itself. Annotations such as "Recording started" have `MsgType` `Unknown`. |
+| `Messages.csv` | Notices, warnings and errors during the recording: `DFM,Date,Time,Millisecond,Sample,Message,MsgType`. DFM 0 means the MCU itself. Annotations such as "Recording started" have `MsgType` `Unknown`. A message containing a comma is quoted. A message that repeats within 10 minutes is written once, ending "(repeated N more times, the last at HH:MM:SS)". Lost records are reported as "Lost N records (S s): Index A to B, from HH:MM:SS." |
 | `Program.txt` | The Program that ran, as PyMCU understood it after loading. See below. |
 
 ### Program.txt

@@ -39,6 +39,14 @@ V3_ERROR_DISPLAY = [
 ] + _V3_COMMON
 
 
+def BitLabel(display, bit):
+    """(label, description) of what an error bit means in this display, or None."""
+    for entry in display:
+        if entry is not None and bit in entry[2]:
+            return entry[0], entry[1]
+    return None
+
+
 def V3ErrorDisplay(version):
     """Error checkboxes for a V3 DFM running this firmware version."""
     return V3_ERROR_DISPLAY if COMM.FirmwareVersionTuple(version) >= OVERFLOW_BIT_FIRMWARE else V3_ERROR_DISPLAY_BEFORE_3_5_0
