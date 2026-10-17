@@ -54,7 +54,7 @@ PARTIAL_ACK_FIRMWARE = (3, 5, 0)
 PARADIGM_FIRMWARE = (4, 0, 0)
 # Firmware MAXPACKETS. A reply this full means more packets are waiting on the DFM.
 MAX_STATUS_PACKETS = 60
-MAX_STATUS_PACKETS_V4 = 28
+MAX_STATUS_PACKETS_V4 = 27
 # Paradigm instruction thresholds that set a Well On or Off.
 THRESHOLD_ON = 0xFFFE
 THRESHOLD_OFF = 0xFFFF
