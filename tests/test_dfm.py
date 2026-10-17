@@ -323,6 +323,131 @@ class Integrity(unittest.TestCase):
         self.assertTrue(any("sent 4.0.0 records" in t for t in Texts()))
 
 
+class FailingMP(FakeMP):
+    """Like FakeMP, but the named commands aren't acknowledged."""
+    def __init__(self, failing=()):
+        super().__init__()
+        self.failing = set(failing)
+
+    def GetVersion(self, ID):
+        self.calls.append(("GetVersion", ID))
+        return b"4.0.0"
+
+    def __getattr__(self, name):
+        def Call(*args):
+            self.calls.append((name,) + args)
+            return name not in self.failing
+        return Call
+
+
+def Running(d, number, readAfterAck=1.0, full=False):
+    """One read whose newest record says the DFM runs instruction number."""
+    sp = StatusPacket.StatusPacket(0, 5, Enums.DFMTYPE.PLETCHERV3)
+    sp.ProcessStatusPacket(Record(index=d.lastDFMIndex + 1, number=number), datetime.datetime(2026, 1, 1), 0,
+                           StatusPacket.V4_PACKET_SIZE)
+    sp.isFullReply, sp.readTime, sp.secondsSinceReset = full, d.ackedInstructionTime + readAfterAck, 1.0
+    return [sp]
+
+
+class Commands(unittest.TestCase):
+    def setUp(self):
+        MESSAGES.clear()
+
+    def Group(self, failingIDs=()):
+        group = object.__new__(DFMGroup.DFMGroup)
+        group.theDFMs = {}
+        for ID in (1, 2, 3, 4):
+            d = MakeDFM()
+            d.ID = ID
+            d.MP = FailingMP(["SendParadigmInstruction"] if ID in failingIDs else [])
+            d.status = Enums.CURRENTSTATUS.UNDEFINED      # as the Program worker leaves them
+            group.theDFMs[ID] = d
+        group.activeDFM = group.theDFMs[1]
+        return group
+
+    def test_program_end_reaches_every_dfm(self):
+        group = self.Group(failingIDs=[3])
+        for d in group.theDFMs.values():
+            d.SetIdleStatus()
+        waiting = group.SendPendingCommands(0.2)
+        self.assertEqual([d.ID for d in waiting], [3])
+        self.assertEqual([len(Sent(d)) for d in group.theDFMs.values()], [1, 1, 1, 1])
+        # The read worker keeps trying the one that didn't take it, but not on every pass.
+        group.theDFMs[3].MP.failing.clear()
+        group._SendWaitingCommands()
+        self.assertEqual(len(Sent(group.theDFMs[3])), 1)
+        group.theDFMs[3].retryTime = 0
+        group._SendWaitingCommands()
+        self.assertEqual(len(Sent(group.theDFMs[3])), 2)
+        self.assertFalse(group.theDFMs[3].HasPendingCommands())
+
+    def test_toggle_outputs_only_flags_the_dfm_on_screen(self):
+        group = self.Group()
+        group.activeDFM.SetOutputsOn()
+        self.assertTrue(group.activeDFM.isOutputsOn)
+        self.assertEqual([d.HasPendingCommands() for d in group.theDFMs.values()], [True, False, False, False])
+        # The read worker sends the others nothing: they have nothing waiting.
+        group._SendWaitingCommands()
+        self.assertEqual([len(Sent(d)) for d in group.theDFMs.values()], [0, 0, 0, 0])
+        group.activeDFM.SetOutputsOff()
+        self.assertFalse(group.activeDFM.isOutputsOn)
+
+    def test_errors_dont_hold_back_instructions(self):
+        d = MakeDFM()
+        d.status = Enums.CURRENTSTATUS.ERROR
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, PR10()), False, 0, 1)
+        d.CheckStatus()
+        self.assertEqual(len(Sent(d)), 1)
+        # A DFM that isn't answering isn't sent anything, and after 10 s that is an error.
+        d.status = Enums.CURRENTSTATUS.MISSING
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, PR10()), False, 1, 1)
+        d.CheckStatus()
+        self.assertEqual(len(Sent(d)), 1)
+        self.assertEqual(Texts(), [])
+        d.commandTrouble["instruction"][0] -= 11
+        d.CheckStatus()
+        d.CheckStatus()
+        self.assertEqual(Texts(), ["DFM 5 isn't answering, so its instruction for Interval 2, Cycle 1 hasn't been sent for 11 s. Still trying."])
+        d.status = Enums.CURRENTSTATUS.RECORDING
+        d.CheckStatus()
+        self.assertEqual(len(Sent(d)), 2)
+        self.assertIn("acknowledged its instruction for Interval 2, Cycle 1 after 11 s", Texts()[-1])
+
+    def test_repeated_failures_reported_once(self):
+        d = MakeDFM()
+        d.MP = FailingMP(["SendLinkage"])
+        d.isLinkageSetNeeded = True
+        for _ in range(5):
+            d.retryTime = 0
+            d.CheckStatus()
+        self.assertEqual(Texts(), ["DFM 5 hasn't acknowledged its linkage (3 tries over 0 s). Still trying."])
+        d.MP.failing.clear()
+        d.retryTime = 0
+        d.CheckStatus()
+        self.assertEqual(len(Texts()), 2)
+        self.assertIn("acknowledged its linkage", Texts()[-1])
+
+    def test_instruction_sent_again_when_records_show_another(self):
+        d = MakeDFM()
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, PR10()), False, 2, 1)
+        d.CheckStatus()
+        acked = d.ackedInstructionNumber
+        self.assertEqual(acked, d.instructionNumber)
+        # Too soon after the ACK, or a full reply (older records): no conclusion.
+        d.ProcessPackets(Running(d, 7, readAfterAck=0.1), True)
+        d.ProcessPackets(Running(d, 7, full=True), True)
+        self.assertEqual(len(Sent(d)), 1)
+        d.ProcessPackets(Running(d, acked), True)
+        self.assertEqual(len(Sent(d)), 1)
+        d.ProcessPackets(Running(d, 7), True)
+        self.assertEqual(len(Sent(d)), 2)
+        self.assertEqual(Texts()[-1], "DFM 5 is running instruction 7, not {} (Interval 3, Cycle 1). Sending it again.".format(acked))
+        for _ in range(5):
+            d.ProcessPackets(Running(d, 7), True)
+        self.assertEqual(len(Sent(d)), 1 + DFM.MAX_INSTRUCTION_RESENDS)
+        self.assertEqual(len([t for t in Texts() if "Not sending it again" in t]), 1)
+
+
 class Writing(unittest.TestCase):
     def test_records_written_every_10_s(self):
         group = object.__new__(DFMGroup.DFMGroup)

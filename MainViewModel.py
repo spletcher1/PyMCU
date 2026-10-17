@@ -221,7 +221,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
         DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.plotUpdateRequested.emit
         DFMGroup.DFMGroup.DFMGroup_programEnded+=self.ProgramEnded
         DFMGroup.DFMGroup.DFMGroup_message+=self.NewDFMMessage
-        self.toggleOutputsState=False
 
         self.FilesListWidget.currentItemChanged.connect(self.ProgramFileChoiceChanged)
         self.currentChosenProgramFile=""
@@ -397,7 +396,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
             QApplication.processEvents()
             self.theDFMGroup.StopCurrentProgram()
             self.RunProgramButton.setText("Run Program")
-            self.toggleOutputsState=False
             self.RunProgramButton.setEnabled(True)
             self.fastUpdateCheckBox.setChecked(False)
         else:
@@ -412,7 +410,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
             QApplication.processEvents()
             self.theDFMGroup.StageCurrentProgram()
             self.StatusBar.showMessage("Staging program.",self.statusmessageduration)
-            self.toggleOutputsState=False
             self.RunProgramButton.setText("Stop Program")
             self.RunProgramButton.setEnabled(True)
             self.fastUpdateCheckBox.setChecked(False)
@@ -474,16 +471,18 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.darkThemeCheckBox.stateChanged.connect(self.ThemeChanged)
 
     def ToggleOutputs(self):
-        if(self.toggleOutputsState):
-            for d in self.theDFMGroup.theDFMs.values():
-                d.SetOutputsOff()
-            self.toggleOutputsState = False
-            self.StatusBar.showMessage("Outputs toggled off.",self.statusmessageduration)
+        # Only the DFM on screen: this tests one board's LEDs and leaves the others alone.
+        d = self.theDFMGroup.activeDFM
+        if(d is None):
+            return
+        if(not hasattr(d, "isOutputsOn")):
+            self.StatusBar.showMessage("The Environmental Monitor has no LED outputs.",self.statusmessageduration)
+        elif(d.isOutputsOn):
+            d.SetOutputsOff()
+            self.StatusBar.showMessage("DFM {} outputs toggled off.".format(d.ID),self.statusmessageduration)
         else:
-            for d in self.theDFMGroup.theDFMs.values():
-                d.SetOutputsOn()
-            self.toggleOutputsState = True
-            self.StatusBar.showMessage("Outputs toggled on.",self.statusmessageduration)
+            d.SetOutputsOn()
+            self.StatusBar.showMessage("DFM {} outputs toggled on.".format(d.ID),self.statusmessageduration)
 
     def SetTimeDialog(self):
         secs= DateDialog.getDateTime(self)
@@ -723,7 +722,6 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
     def ProgramEnded(self):
         self.RunProgramButton.setText("Run Program")
-        self.toggleOutputsState=False
         self.RunProgramButton.setEnabled(True)
         self.fastUpdateCheckBox.setChecked(False)
 

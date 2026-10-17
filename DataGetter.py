@@ -358,6 +358,7 @@ class DataGetter:
                     p.bufferResetCount = resetCount
                     p.isFullReply = isFull
                     p.secondsSinceReset = None if resetTime is None else readTime - resetTime
+                    p.readTime = readTime
                 # Queued before the ACK: if the ACK fails the DFM just sends the packets again.
                 self.data_q.put(packList)
                 self._Acknowledge(info,packList)

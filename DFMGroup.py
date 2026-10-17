@@ -24,6 +24,8 @@ DATA_FILE_SECONDS = 43200
 # Each DFM's records are written this often. The DFM drops records once they are acknowledged,
 # so a crash or power cut loses at most about this much.
 WRITE_SECONDS = 10
+# How long the end of a Program waits for every DFM to acknowledge its all-off instruction.
+PROGRAM_END_SECONDS = 3
 
 class DFMGroup:
     DFMGroup_message = Event.Event()
@@ -298,6 +300,26 @@ class DFMGroup:
         self.stopProgramWorkerSignal=False
         threading.Thread(target=self.ProgramWorker).start()
 
+    def SendPendingCommands(self, seconds):
+        """Sends each DFM what it is waiting for, retrying for up to this many seconds, while no
+        worker is running. Returns the DFMs still waiting."""
+        deadline = time.monotonic() + seconds
+        while True:
+            waiting = [d for d in self.theDFMs.values() if d.DFMType==Enums.DFMTYPE.PLETCHERV3 and d.HasPendingCommands()]
+            if not waiting or time.monotonic() >= deadline:
+                return waiting
+            for d in waiting:
+                d.SendCommands()
+            time.sleep(0.05)
+
+    def _SendWaitingCommands(self):
+        """Without a Program only the DFM on screen is read, so the others are sent what they are
+        still waiting for here: the all-off instruction from the end of a Program, if they didn't
+        take it then."""
+        for d in list(self.theDFMs.values()):
+            if(d is not self.activeDFM and d.DFMType==Enums.DFMTYPE.PLETCHERV3 and d.HasPendingCommands()):
+                d.SendCommands()
+
     def StopProgramWorker(self):
         if len(self.theDFMs)==0:
             return
@@ -380,11 +402,12 @@ class DFMGroup:
             try:
                 tmp = self.MP.data_q.get(timeout=0.5)
             except queue.Empty:
-                continue
+                tmp = None
             try:
-                if(tmp[-1].DFMID == self.activeDFM.ID):
+                if(tmp is not None and tmp[-1].DFMID == self.activeDFM.ID):
                     self.theDFMs[tmp[-1].DFMID].ProcessPackets(tmp,False)
                     DFMGroup.DFMGroup_updatecomplete.notify()
+                self._SendWaitingCommands()
             except Exception as e:
                 print(f"Read worker exception: {e!r}")
             time.sleep( 0.001 ) # Yeild to other threads for a bit
@@ -459,6 +482,12 @@ class DFMGroup:
         self.StopRecording()
         self.SetDFMIdleStatus()
         self.StopProgramWorker()
+        # The read worker that follows serves the DFM on screen, so every DFM is sent its
+        # all-off instruction now. One that doesn't take it is tried again from the read worker.
+        for d in self.SendPendingCommands(PROGRAM_END_SECONDS):
+            self.NewMessage(d.ID, datetime.datetime.today(), 0,
+                            "DFM {} didn't acknowledge the all-off instruction at the end of the Program, so its LEDs "
+                            "may still be running the last Interval. Still trying.".format(d.ID), Enums.MESSAGETYPE.ERROR)
         self.isStagedFocused=False
         self.currentProgram.isActive=False
         self.StartReadWorker()

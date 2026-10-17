@@ -61,6 +61,8 @@ class StatusPacket:
         # DFM), and how long after the DFM's last buffer reset that read was made, in seconds.
         self.isFullReply=False
         self.secondsSinceReset=None
+        # When that read was made (time.monotonic(), the same clock in every process).
+        self.readTime=None
         # Paradigm state, from firmware 4.0.0 records. DFM.ProcessPackets fills in the Interval,
         # Cycle, Paradigm name and the Activation totals (carried past 65535).
         self.isV4 = False

@@ -16,6 +16,14 @@ import StatusPacket
 
 # Seconds to wait before retrying commands that a DFM did not acknowledge.
 COMMAND_RETRY_INTERVAL = 1.0
+# A command that fails this many times in a row, or is still waiting after this many seconds,
+# is reported as an error.
+COMMAND_FAILURES_REPORTED = 3
+COMMAND_WAIT_REPORTED = 10.0
+# A DFM applies an instruction when it arrives, so a record read this long after the ACK shows it.
+INSTRUCTION_APPLY_SECONDS = 0.5
+# Times an instruction is sent again because the DFM's records showed another one.
+MAX_INSTRUCTION_RESENDS = 3
 
 def UsesV2Instructions(version):
     # Firmware 2.0.0 and later take 4-byte decay, delay and max time on.
@@ -93,6 +101,15 @@ class DFM:
         self.reportedPacketErrors = set()
         self.lastParadigmPacket = None
         self.isInstructionUpdateNeeded=False
+        # Set by SetOutputsOn (Toggle Outputs), cleared by any other instruction.
+        self.isOutputsOn=False
+        # The number of the last instruction the DFM acknowledged and when (time.monotonic()), and
+        # how often it was sent again because the DFM's records showed another one.
+        self.ackedInstructionNumber=None
+        self.ackedInstructionTime=0.0
+        self.instructionResends=0
+        # Commands that keep failing: name -> [since (time.monotonic()), failures, reported].
+        self.commandTrouble={}
         self.isBufferResetNeeded=False
         # This is true because we need to get this ASAP for each DFM upon connection.
         self.isVersionGetNeeded = True
@@ -155,6 +172,7 @@ class DFM:
         instruct = Instruction.DFMInstruction()
         instruct.SetOptoValues([Instruction.ON]*12)
         self._SetInstruction(instruct)
+        self.isOutputsOn = True
 
     def SetOutputsOff(self):
         self.SetIdleStatus()
@@ -254,6 +272,7 @@ class DFM:
                 if(type(e).__name__ not in self.reportedPacketErrors):
                     self.reportedPacketErrors.add(type(e).__name__)
                     self.NewMessage(self.ID,datetime.datetime.today(),sp.recordIndex,"Record {} couldn't be processed and was lost: {!r}".format(sp.recordIndex,e),Enums.MESSAGETYPE.ERROR)
+        self._CheckRunningInstruction(currentStatusPackets)
         # After a restart the records wait until a reply that held everything the DFM had,
         # whose newest record shows how far the DFM's count is behind.
         if(self.restartPackets is not None):
@@ -431,6 +450,7 @@ class DFM:
         self._SetInstruction(instruct,index,cycle)
 
     def _SetInstruction(self,instruct,index=None,cycle=None):
+        self.isOutputsOn = False
         self.currentInstruction = instruct
         self.currentPosition = (index,cycle)
         self.instructionNumber = self.instructionNumber % 0xFFFF + 1
@@ -494,34 +514,61 @@ class DFM:
         self.isVersionGetNeeded = False
         return True
 
+    def HasPendingCommands(self):
+        """True while the DFM has a buffer reset, instruction or linkage waiting to be sent."""
+        return self.isBufferResetNeeded or self.isInstructionUpdateNeeded or self.isLinkageSetNeeded
+
     def CheckStatusV3(self):
-        # To avoid sending repeated instructions to missing DFM that are never acked and therefore continue to be queued and sent.
-        if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.ERROR or self.status == Enums.CURRENTSTATUS.UNDEFINED:
+        # A DFM that isn't answering, or isn't being read, isn't sent anything: the commands would
+        # only time out. Any other status, errors included, still gets its commands, so a bad read
+        # doesn't hold back a new Interval.
+        if self.status == Enums.CURRENTSTATUS.MISSING or self.status == Enums.CURRENTSTATUS.UNDEFINED:
+            if(self.status == Enums.CURRENTSTATUS.MISSING):
+                for name in self._PendingCommandNames():
+                    self._CommandWaiting(name)
             return
-        # Commands that were not acknowledged are retried, but not on every pass.
+        self.SendCommands()
+
+    def SendCommands(self):
+        """Sends whatever the DFM is waiting for: its version first, then a buffer reset, its
+        instruction and its linkage. Commands that aren't acknowledged are retried, but not on
+        every pass."""
         if(time.monotonic() < self.retryTime):
             return
         isFailed = False
         # Get the version first so the first instruction is sent in the right format.
         if(self.isVersionGetNeeded):
-            if not self.ReadFirmwareVersion():
+            if self.ReadFirmwareVersion():
+                self._CommandSucceeded("version request")
+            else:
+                self._CommandFailed("version request")
                 isFailed = True
         # Each flag is cleared before sending so that a new request made while the command is
         # in flight (e.g. an instruction change from the GUI thread) is not lost.
         if(self.isBufferResetNeeded):
             self.isBufferResetNeeded=False
             # The indexes start again when the first read after the reset arrives (ProcessPackets).
-            if not self.MP.SendBufferReset(self.ID):
+            if self.MP.SendBufferReset(self.ID):
+                self._CommandSucceeded("buffer reset")
+            else:
                 self.isBufferResetNeeded=True
                 print("Buffer reset NACKed")
+                self._CommandFailed("buffer reset")
                 isFailed = True
         if(self.isInstructionUpdateNeeded and not self.isVersionGetNeeded):
             self.isInstructionUpdateNeeded=False
             paradigm = self.currentInstruction.paradigm
+            number = self.instructionNumber
             if(COMM.UsesParadigmFirmware(self.firmwareVersion)):
                 # The Wells keep their Paradigm state while the Paradigm stays the same.
                 keepState = paradigm.name == self.lastSentParadigmName
-                isSent = self.MP.SendParadigmInstruction(self.ID, self.currentInstruction, self.instructionNumber, keepState)
+                isSent = self.MP.SendParadigmInstruction(self.ID, self.currentInstruction, number, keepState)
+                if isSent:
+                    # Records show the number of the instruction the DFM runs (_CheckRunningInstruction).
+                    if(number != self.ackedInstructionNumber):
+                        self.instructionResends = 0
+                    self.ackedInstructionNumber = number
+                    self.ackedInstructionTime = time.monotonic()
             else:
                 # Older firmware misreads what it doesn't know and runs a different rule. The Program
                 # check refuses that before a start; this catches a board swapped since then. Nothing
@@ -536,18 +583,98 @@ class DFM:
                     isSent = self.MP.SendInstructionDFMV1_0_5(self.ID, self.currentInstruction)
             if isSent:
                 self.lastSentParadigmName = paradigm.name
+                self._CommandSucceeded("instruction")
             else:
                 self.isInstructionUpdateNeeded=True
                 print("Instruction update NACKed")
+                self._CommandFailed("instruction")
                 # The firmware NACKs an instruction in the wrong format, so check the version again.
                 self.isVersionGetNeeded = True
                 isFailed = True
         if(self.isLinkageSetNeeded):
             self.isLinkageSetNeeded=False
-            if not self.MP.SendLinkage(self.ID,self.currentLinkage):
+            if self.MP.SendLinkage(self.ID,self.currentLinkage):
+                self._CommandSucceeded("linkage")
+            else:
                 self.isLinkageSetNeeded=True
                 print("Linkage update NACKed")
+                self._CommandFailed("linkage")
                 isFailed = True
         if(isFailed):
             self.retryTime = time.monotonic() + COMMAND_RETRY_INTERVAL
+
+    def _PendingCommandNames(self):
+        names = []
+        if(self.isBufferResetNeeded):
+            names.append("buffer reset")
+        if(self.isInstructionUpdateNeeded):
+            names.append("instruction")
+        if(self.isLinkageSetNeeded):
+            names.append("linkage")
+        return names
+
+    def _CommandDescription(self,name):
+        if(name != "instruction"):
+            return name
+        index, cycle = self.currentPosition
+        if(index is None):
+            return "instruction ({})".format("all LEDs on" if self.isOutputsOn else "all LEDs off")
+        return "instruction for Interval {}, Cycle {}".format(index+1, cycle)
+
+    def _CommandFailed(self,name):
+        """A command wasn't acknowledged. After 3 failures in a row, or 10 s, it is an error."""
+        trouble = self.commandTrouble.setdefault(name, [time.monotonic(), 0, False])
+        trouble[1] += 1
+        seconds = time.monotonic() - trouble[0]
+        if(not trouble[2] and (trouble[1] >= COMMAND_FAILURES_REPORTED or seconds >= COMMAND_WAIT_REPORTED)):
+            trouble[2] = True
+            self.NewMessage(self.ID,datetime.datetime.today(),0,
+                            "DFM {} hasn't acknowledged its {} ({} tries over {:.0f} s). Still trying.".format(
+                                self.ID,self._CommandDescription(name),trouble[1],seconds),Enums.MESSAGETYPE.ERROR)
+
+    def _CommandWaiting(self,name):
+        """A command isn't being tried because the DFM isn't answering. After 10 s it is an error."""
+        trouble = self.commandTrouble.setdefault(name, [time.monotonic(), 0, False])
+        seconds = time.monotonic() - trouble[0]
+        if(not trouble[2] and seconds >= COMMAND_WAIT_REPORTED):
+            trouble[2] = True
+            self.NewMessage(self.ID,datetime.datetime.today(),0,
+                            "DFM {} isn't answering, so its {} hasn't been sent for {:.0f} s. Still trying.".format(
+                                self.ID,self._CommandDescription(name),seconds),Enums.MESSAGETYPE.ERROR)
+
+    def _CommandSucceeded(self,name):
+        trouble = self.commandTrouble.pop(name, None)
+        if(trouble is not None and trouble[2]):
+            self.NewMessage(self.ID,datetime.datetime.today(),0,
+                            "DFM {} acknowledged its {} after {:.0f} s.".format(
+                                self.ID,self._CommandDescription(name),time.monotonic()-trouble[0]),Enums.MESSAGETYPE.NOTICE)
+
+    def _CheckRunningInstruction(self,packets):
+        """Firmware 4.0.0 repeats the number of the instruction it runs in every record. The newest
+        record (in a reply that wasn't full) of a read made after the last instruction was
+        acknowledged must show that number. If it doesn't, the DFM lost the instruction or never
+        applied it, so it is sent again."""
+        last = packets[-1]
+        if(self.ackedInstructionNumber is None or self.isInstructionUpdateNeeded or self.restartPackets is not None
+                or last.processResult != Enums.PROCESSEDPACKETRESULT.OKAY or not last.isV4 or last.isFullReply
+                or last.readTime is None or last.readTime < self.ackedInstructionTime + INSTRUCTION_APPLY_SECONDS):
+            return
+        if(last.instructionNumber == self.ackedInstructionNumber):
+            self.instructionResends = 0
+            return
+        info = self.instructionInfo.get(self.ackedInstructionNumber)
+        where = "outside the Program" if info is None or info.index is None else "Interval {}, Cycle {}".format(info.index+1, info.cycle)
+        if(self.instructionResends >= MAX_INSTRUCTION_RESENDS):
+            if(self.instructionResends == MAX_INSTRUCTION_RESENDS):
+                self.instructionResends += 1
+                self.NewMessage(self.ID,datetime.datetime.today(),last.recordIndex,
+                                "DFM {} still runs instruction {} instead of {} ({}) after it was sent {} more times. Not sending it again.".format(
+                                    self.ID,last.instructionNumber,self.ackedInstructionNumber,where,MAX_INSTRUCTION_RESENDS),
+                                Enums.MESSAGETYPE.ERROR)
+            return
+        self.instructionResends += 1
+        self.NewMessage(self.ID,datetime.datetime.today(),last.recordIndex,
+                        "DFM {} is running instruction {}, not {} ({}). Sending it again.".format(
+                            self.ID,last.instructionNumber,self.ackedInstructionNumber,where),Enums.MESSAGETYPE.ERROR)
+        self.isInstructionUpdateNeeded = True
     #endregion
