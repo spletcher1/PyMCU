@@ -1,8 +1,8 @@
 # Updating the MCU
 
-Last updated: 2026-10-16 (PyMCU 3.5.2)
+Last updated: 2026-10-18 (PyMCU 4.0.0)
 
-Updates come as one file named like `PyMCU_3.5.2.mcu`. Installing it takes about a minute. If anything goes wrong, the MCU keeps the version it had and your data is never touched.
+Updates come as one file named like `PyMCU_4.0.0.mcu`. Installing it takes about a minute. If anything goes wrong, the MCU keeps the version it had and your data is never touched.
 
 ## You need
 
@@ -23,13 +23,13 @@ Updates come as one file named like `PyMCU_3.5.2.mcu`. Installing it takes about
 4. **Check the version and confirm.** The prompt names the file and shows the new version next to the installed one, for example:
 
     ```
-    Install PyMCU 3.5.2 from PyMCU_3.5.2.mcu?
-    Installed now: 3.5.1. The MCU restarts when the update is done.
+    Install PyMCU 4.0.0 from PyMCU_4.0.0.mcu?
+    Installed now: 3.5.2. The MCU restarts when the update is done.
     ```
 
     Tap **Yes** to install, or **No** to leave everything as it is.
-5. **Wait.** The status bar shows "Updating to 3.5.2... do not remove USB or power." Leave the stick in and the power on.
-6. **The MCU restarts by itself.** The status bar shows "Update to 3.5.2 installed. Restarting... remove USB."
+5. **Wait.** The status bar shows "Updating to 4.0.0... do not remove USB or power." Leave the stick in and the power on.
+6. **The MCU restarts by itself.** The status bar shows "Update to 4.0.0 installed. Restarting... remove USB."
 7. **Check.** After the restart, remove the stick and tap **About**. It should show the new version.
 
 ## Messages
@@ -51,7 +51,17 @@ In every "Update failed" or "Update not started" case, nothing on the MCU change
 - **Your data and programs are safe.** Updates never change recorded data (`FLICData`), saved programs (`FLICPrograms`) or the light/dark theme setting.
 - **Going back** to an older version works the same way, with the older `.mcu` file.
 - **Which programs your DFMs can run** depends on their firmware. From 3.5.1 the MCU checks each program against the connected boards and names anything a board would misread; see [FirmwareCompatibility.md](FirmwareCompatibility.md).
-- **New in 3.5.2:**
+- **Using the MCU** from finding the DFMs to analysing the data is described in [UserGuide.md](UserGuide.md).
+- **New in 4.0.0:**
+    - **Paradigms.** A program names the rules that light the LEDs (open loop, closed loop, fixed interval, non-feeding, progressive ratio and fixed ratio) in `[Paradigm]` sections, and each Interval line names the one it uses. See [ProgramFormat.md](ProgramFormat.md). Progressive ratio and fixed ratio count feeding bouts, and they and fixed interval can start with a set number of closed-loop Activations (Acclimation).
+    - **Old programs still load,** except those using the old progressive ratio or the training count in OptoFrequency. Those are refused with a message that explains how to rewrite them ([ProgramFormat.md](ProgramFormat.md), Converting old programs).
+    - **A program with a mistake doesn't load.** The message gives the line number and the problem, and a misspelled setting is an error instead of being ignored.
+    - **DFM firmware 4.0.0** is needed for progressive ratio, fixed ratio and Acclimation, and a 4.0.0 board needs PyMCU 4.0.0. Older boards keep running everything else.
+    - **The data files have 63 more columns** (90 in all): the Interval, Cycle and Paradigm, and for each Well its Phase, Activations, Requirement, Progress and LED on-time. They are filled for 4.0.0 boards and `NA` for older ones, and the Well signals no longer have 65536 added during training. Analyse them with a pyflic that has PyMCU 4.0 support. See [DataFileColumns.md](DataFileColumns.md).
+    - **The DFM page** shows the Paradigm, its type and the Interval and Cycle in place of the frequency, pulse width and opto state. Tick **Well details** for each Well's Paradigm state in place of the plot.
+    - `Constant` programs now run their Interval, and `StartTime` also accepts `HH:MM`.
+    - **Messages** that repeat are written once with a count, lost records are reported with their index range and time, and error flags are named.
+- **New in 3.5.2** (also in 4.0.0):
     - Programs start at the top of a minute, as the start time shows, and **Start now** means the next whole minute.
     - Baselines come from the first 2 s of the recording, not from before the start, and the LEDs get their settings only once the baseline is done, so they stay off for the first few seconds of a run.
     - While a program waits for its start time, only the DFM on screen is read, so its live view stays current.

@@ -2,7 +2,7 @@
 
 This is the reference for software that reads FLIC data files written by PyMCU 4.0.0 and later. It describes every column, with most detail on the 63 columns added in 4.0.0: what each holds, when it is missing and how that is written, which Programs make it meaningful, and how to use it in analysis and reports.
 
-The terms (Paradigm, Interval, Cycle, Event, Activation, Phase, Requirement and so on) have exact meanings, defined in [../CONTEXT.md](../CONTEXT.md). The Paradigm rules are in [ProgramFormat.md](ProgramFormat.md).
+The terms (Paradigm, Interval, Cycle, Event, Activation, Phase, Requirement and so on) have exact meanings, defined in [../CONTEXT.md](../CONTEXT.md). The Paradigm rules are in [ProgramFormat.md](ProgramFormat.md). The lab's analysis software, pyflic, reads these files; how it uses each column is in its `docs/firmware-4-data-in-pyflic.md`, and the end-to-end workflow is in [UserGuide.md](UserGuide.md).
 
 - [The recording folder](#the-recording-folder)
 - [Reading the file](#reading-the-file)
@@ -13,7 +13,7 @@ The terms (Paradigm, Interval, Cycle, Event, Activation, Phase, Requirement and 
 - [Deriving results](#deriving-results)
 - [Telling file versions apart](#telling-file-versions-apart)
 - [Checks worth running](#checks-worth-running)
-- [Not yet confirmed](#not-yet-confirmed)
+- [Test data](#test-data)
 
 ## The recording folder
 
@@ -21,8 +21,8 @@ Each recording is one folder, `FLICData/<MCU name>_<MM_DD_YYYY_HH_MM>/`, contain
 
 | File | Contents |
 |---|---|
-| `DFM<ID>_<n>.csv` | One per DFM. A new file (`_1`, `_2` …) is started every 12 hours of recording; concatenate them in order of `n`. Each file has its own header row. |
-| `EnvMon_<n>.csv` | The Environmental Monitor (ID 99), if present. It keeps the old 27 columns and none of the new ones. |
+| `DFM<ID>_<n>.csv` | One per DFM. The first is `DFM<ID>_0.csv`, and a new file (`_1`, `_2` …) is started every 12 hours of recording; concatenate them in order of `n`. Each file has its own header row. |
+| `EnvMon_<n>.csv` | The Environmental Monitor (ID 99), if present, numbered the same way from `EnvMon_0.csv`. It keeps the old 27 columns and none of the new ones. |
 | `Messages.csv` | Notices, warnings and errors during the recording: `DFM,Date,Time,Millisecond,Sample,Message,MsgType`. DFM 0 means the MCU itself. Annotations such as "Recording started" have `MsgType` `Unknown`. A message containing a comma is quoted. A message that repeats within 10 minutes is written once, ending "(repeated N more times, the last at HH:MM:SS)". Lost records are reported as "Lost N records (S s): Index A to B, from HH:MM:SS." |
 | `Program.txt` | The Program that ran, as PyMCU understood it after loading. See below. |
 
@@ -157,12 +157,13 @@ Ratio Paradigms only (ProgressiveRatio and FixedRatio): the number of Events the
 
 - FixedRatio: always the Paradigm's `Ratio`.
 - ProgressiveRatio: the k-th Main-phase Activation needs, with Arithmetic Series, `FirstRequirement + Step × (k − 1)`, or with Exponential Series, `round(Scale × e^(Rate × k) − Scale)`, capped at `Cap`. Acclimation Activations don't advance k.
-- `NA` for every other Paradigm type, in Interval 0, for Wells whose DFM reports 0 (see [Not yet confirmed](#not-yet-confirmed)) and for older firmware.
+- `NA` for every other Paradigm type, in Interval 0, for Wells set to `On` or `Off` (the DFM reports 0 for them, and a Well that runs a ratio Paradigm never has a Requirement of 0) and for older firmware.
+- During Acclimation it is reported too: it is the first Main-phase Requirement (seen with FixedRatio on 10/17/2026).
 - It carries over between Intervals that name the same Paradigm, and starts again at the first Requirement when the Paradigm changes.
 
 ### Progress1–Progress12
 
-Ratio Paradigms only: how many Events the Well has produced towards the current Requirement. When Progress reaches Requirement, an Activation starts. Missing exactly where `Requirement` is.
+Ratio Paradigms only: how many Events the Well has produced towards the current Requirement. When Progress reaches Requirement, an Activation starts and Progress returns to 0 at that moment, not when the Activation ends, so Events can count towards the next Requirement only once the Activation is over (DFM firmware `src/LEDControl.c`, 4.0.0). Missing exactly where `Requirement` is.
 
 Events are feeding bouts, not milliseconds of contact or licks. An Event starts when the signal rises above the Well's Threshold, unless an Activation is in progress, and ends when the signal has stayed below the Threshold for `EventGapMs` (default 100 ms). So contact during an Activation doesn't count towards Progress.
 
@@ -184,7 +185,7 @@ Every missing value is written as `NA`. Nothing is left empty.
 | `Cycle` | `Interval` is 0 or `NA`; firmware older than 4.0.0 | |
 | `Paradigm` | Interval 0 before the DFM had an instruction PyMCU knows; firmware older than 4.0.0 | `Idle` outside the Program |
 | `Phase`, `Activations`, `OnMs` | Firmware older than 4.0.0 only | |
-| `Requirement`, `Progress` | Any Paradigm other than ProgressiveRatio or FixedRatio; the DFM reports a Requirement of 0; firmware older than 4.0.0 | |
+| `Requirement`, `Progress` | Any Paradigm other than ProgressiveRatio or FixedRatio; Wells set to `On` or `Off`; firmware older than 4.0.0 | |
 
 `NA` in these columns means "doesn't apply", not "lost data". Lost records leave no row at all; detect them from gaps in `Index`.
 
@@ -238,11 +239,7 @@ Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) w
 - `Requirement` and `Progress` are non-`NA` only under ratio Paradigms, and `Progress` < `Requirement`.
 - `Phase` goes from `A` to `M` at most once per Well per Paradigm run, and never back.
 
-## Not yet confirmed
+## Test data
 
-The firmware source isn't on the MCU, and these behaviours haven't yet been seen in a recording from a 4.0.0 board. Check them against real data before relying on them:
-
-- Whether `Requirement` is reported (and so not `NA`) for `On`/`Off` Wells under a ratio Paradigm. PyMCU writes `NA` wherever the DFM reports 0. During Acclimation it is reported: the first Main-phase Requirement (seen with FixedRatio on 10/17/2026).
-- Whether `Progress` returns to 0 when an Activation starts, or when it ends.
-
-`FLICPrograms/OptoTest1_OpenLoop.txt`, `OptoTest5_ProgressiveRatio.txt` and `OptoTest6_TrainingFirst.txt` exercise all of these.
+- **Simulated recordings:** `scripts/simulate_recording.py` writes a two-hour recording from two DFMs running a ProgressiveRatio Paradigm with Acclimation, through PyMCU's own record parser and file writer, so the files are what an MCU would write. Beside it, a `_truth` folder lists every simulated bout and Activation and a summary per Well, to check an analysis against. Run it from the PyMCU folder: `.venv/bin/python scripts/simulate_recording.py [--out DIR] [--seed N]`.
+- **Bench recordings:** `FLICPrograms/OptoTest1_OpenLoop.txt`, `OptoTest5_ProgressiveRatio.txt` and `OptoTest6_TrainingFirst.txt` exercise OpenLoop, ratio Paradigms and Acclimation on a real 4.0.0 board in 10 minutes each.

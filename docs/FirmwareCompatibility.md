@@ -1,18 +1,20 @@
 # DFM firmware and what PyMCU can run on it
 
-Last updated: 2026-10-14 (PyMCU 4.0.0)
+Last updated: 2026-10-18 (PyMCU 4.0.0)
 
-PyMCU 4.0.0 drives every DFM firmware in the field: the 1.0.5 boards from 2021, both 2.0.0 builds, 2.0.1, 3.5.0 and 4.0.0. The DFM page shows each board's firmware. What a board can run depends on that firmware, so PyMCU checks a Program against every connected board when the file loads and again when Run Program is pressed, and names anything a board can't run. The Program file itself is described in [ProgramFormat.md](ProgramFormat.md); the protocol detail is in `FIRMWARE_VERSIONS.md` in the `DFMV3_V2` firmware repo.
+PyMCU 4.0.0 drives every DFM firmware in the field: the 1.0.5 boards from 2021, both 2.0.0 builds, 2.0.1, 3.5.0 to 3.5.2 and 4.0.0. The DFM page shows each board's firmware. What a board can run depends on that firmware, so PyMCU checks a Program against every connected board when the file loads and again when Run Program is pressed, and names anything a board can't run. The Program file itself is described in [ProgramFormat.md](ProgramFormat.md); the protocol detail is in the `DFMV3_V2` firmware repo: `README.md` for 4.0.0, and `FIRMWARE_VERSIONS.md` for how the older generations differ. For using the MCU from start to finish, see [UserGuide.md](UserGuide.md).
 
 ## Which firmware runs what
 
-| Paradigm type or setting | 1.0.5 | 2.0.0, 2.0.1 | 3.5.0 | 4.0.0 |
+| Paradigm type or setting | 1.0.5 | 2.0.0, 2.0.1 | 3.5.0 to 3.5.2 | 4.0.0 |
 | --- | --- | --- | --- | --- |
 | OpenLoop, ClosedLoop, FixedInterval | Runs | Runs | Runs | Runs |
 | NonFeeding | **Refused** | Runs | Runs | Runs |
 | ProgressiveRatio, FixedRatio, Acclimation | **Refused** | **Refused** | **Refused** | Runs |
 | Times above 65,535 ms | **Refused** | Runs | Runs | Runs |
 | EventGapMs | Ignored | Ignored | Ignored | Used |
+
+A 4.0.0 board sends at most 27 records per reply, so that older boards on the same bus, which hear every reply, aren't overrun. Development 4.0.0 builds made before 2026-10-17 report the same version but send up to 28; reflash any such board before putting it on a bus with older boards.
 
 Firmware before 4.0.0 runs its own version of the rules it supports, from the old decay, delay, max-time-on and pulse-width settings that PyMCU derives from each Paradigm. A 1.0.5 board doesn't know the non-feeding encoding and would run fixed interval instead, with no warning, and its times are two bytes, which is why PyMCU refuses those for that board rather than sending them. Old-style Interval lines are translated to Paradigms when the file loads; the old progressive-ratio and training encodings of firmware 2.0.0 are refused at load because they counted contact time rather than feeding bouts (ADR 0001).
 
@@ -25,7 +27,7 @@ Firmware before 4.0.0 runs its own version of the rules it supports, from the ol
 
 ## Testing the opto rules
 
-Each `OptoTest` program in `FLICPrograms` runs one Paradigm type on every connected DFM for 10 minutes, with thresholds of 50 above baseline (`On` for open loop). They are written in the Paradigm format, and the comment at the top of each file explains the rule, its settings, what to do and what to see. Updates don't install `FLICPrograms`; copy the files to an MCU with **Move programs**. The baseline is the average of each Well's first 10 readings after the recording starts (about 2 s), and a DFM gets its instruction only once its baseline is done, so the LEDs stay off for the first few seconds of every run, open loop included.
+Each `OptoTest` program in `FLICPrograms` runs one Paradigm type on every connected DFM for 10 minutes, with thresholds of 50 above baseline (`On` for open loop). They are written in the Paradigm format, and the comment at the top of each file explains the rule, its settings, what to do and what to see. Updates don't install `FLICPrograms`; copy the files to an MCU with **Programs → Custom → Get (USB)**. The baseline is the average of each Well's first 10 readings after the recording starts (about 2 s), and a DFM gets its instruction only once its baseline is done, so the LEDs stay off for the first few seconds of every run, open loop included.
 
 | Program | Paradigm | Touch one Well and expect | Firmware |
 | --- | --- | --- | --- |
@@ -43,7 +45,7 @@ The 3.x versions of programs 1 to 4 were checked on the bench with DFM firmware 
 
 - **Firmware.** `1.0.5` for a board that doesn't answer the version request (none of that generation do), otherwise what the board reports.
 - **Error boxes.** Before firmware 3.5.0 a missed acknowledgement arrives on bit 1 (DFMV3 builds) or bit 0 (DFMV3_V2 builds), and the version string doesn't say which, so one box, No Ack, covers both. From 3.5.0, No Ack and Overflow are separate boxes. The other six boxes mean the same on every firmware. On a 1.0.5 board the version request itself raises P Type once; PyMCU clears that one report, so a ticked P Type box is a real unknown command.
-- **Data file.** The same columns for every firmware. The Paradigm columns (Interval, Cycle, Paradigm, phases, Activations, requirements) are filled only for records from 4.0.0 boards, and are `NA` for older ones. Firmware 2.0.0 and later flag a Well in training inside its value; PyMCU 4.0.0 drops the flag when it reads the record.
+- **Data file.** The same columns for every firmware. The Paradigm columns (Interval, Cycle, Paradigm, phases, Activations, requirements) are filled only for records from 4.0.0 boards, and are `NA` for older ones. Firmware 2.0.0 to 3.5.2 flag a Well in training inside its value; PyMCU 4.0.0 drops the flag when it reads the record.
 
 ## Checking a build
 

@@ -1,6 +1,6 @@
 # Writing MCU Programs
 
-A Program tells the MCU how long to record and what each DFM's optogenetic LEDs should do. This guide is for PyMCU with DFM firmware 4.0.0. It replaces "Stand Alone MCU Programming Conventions" (the draft for version 2.0). Programs written for that document still load, and [Converting old programs](#converting-old-programs) explains what happens to them.
+A Program tells the MCU how long to record and what each DFM's optogenetic LEDs should do. This guide is for PyMCU with DFM firmware 4.0.0. It replaces "Stand Alone MCU Programming Conventions" (the draft for version 2.0). Programs written for that document still load, and [Converting old programs](#converting-old-programs) explains what happens to them. How a Program fits into running an experiment, from finding the DFMs to analysing the data, is in [UserGuide.md](UserGuide.md).
 
 Questions and suggestions: Scott Pletcher (spletch@umich.edu).
 

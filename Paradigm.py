@@ -1,6 +1,6 @@
 """Paradigms: the named recipes in a Program that decide when a Well's LED turns on.
 
-The terms are defined in CONTEXT.md, and each Paradigm type's rule in docs/v4-paradigms-plan.md.
+The terms are defined in CONTEXT.md, and each Paradigm type's rule in docs/ProgramFormat.md.
 DFM firmware 4.0.0 and later runs the rules itself (DFMV3_V2 src/LEDControl.c). Older firmware
 gets the old decay, delay, max-time-on and pulse-width-flag settings, which encode the same
 behavior for the types it can run.

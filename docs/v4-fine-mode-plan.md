@@ -1,6 +1,6 @@
 # Fine mode: per-scan and per-ms data from one DFM over the bus
 
-Firmware 4.1.0 and the matching PyMCU. Decided in the October 2026 design review; implementation not started. Terms are in [../CONTEXT.md](../CONTEXT.md). Why this design and not an SD card, a daughter board or extra record fields: [adr/0003](adr/0003-fine-data-over-the-bus.md). This is stage 5 of [v4-paradigms-plan.md](v4-paradigms-plan.md) and starts only after 4.0.0 has passed its bench checks.
+Firmware 4.1.0 and the matching PyMCU. Decided in the October 2026 design review; implementation not started in either repo (checked 2026-10-18). Terms are in [../CONTEXT.md](../CONTEXT.md). Why this design and not an SD card, a daughter board or extra record fields: [adr/0003](adr/0003-fine-data-over-the-bus.md). It builds on firmware 4.0.0, whose instruction and Status record layouts are in the DFMV3_V2 `README.md` and whose Paradigm rules are in [ProgramFormat.md](ProgramFormat.md), and starts only after 4.0.0 has passed its bench checks.
 
 This document is the whole specification. An implementer needs nothing else beyond the two repos.
 
@@ -50,13 +50,13 @@ What the two sides promise each other. The reference sections say how.
 
 Each stage ends when its criterion holds. Bench ticks need real DFMs; everything else runs on a PC.
 
-**S1 – Firmware block encoder.** New hardware-free module `src/FineBlock.c` and `src/FineBlock.h` ([Firmware reference](#fineblockc)), plus `tests/test_fineblock.c` built by `tests/run_tests.py`. Done when: every test in [Tests, firmware](#firmware-1) passes, and the golden block hex is pinned in the C test.
+**S1 – Firmware block encoder.** New hardware-free module `src/FineBlock.c` and `src/FineBlock.h` ([Firmware reference](#fineblockc)), plus `tests/test_fineblock.c` built by `tests/run_tests.py`. Done when: every test in [Tests, firmware](#firmware) passes, and the golden block hex is pinned in the C test.
 
 **S2 – Firmware integration.** The Tick-counted record boundary, the mode request, the dual-size ring, fine-mode replies, the `LEDControl.c` getters, version string `4.1.0`, README updates ([Firmware reference](#firmware-reference)). Done when: `run_tests.py` passes, the build fits with the stack reserve no smaller than 4.0.0's, and on a DFM with a test signal (a) a status request after the mode request and a reset returns a 2,304-byte block every 200 ms whose CRC and embedded record check, (b) a plain reset returns it to 127-byte records, (c) `TEST_PIN` shows the block store under 0.5 ms, and (d) error bit 0x80 never sets during an hour in fine mode.
 
 **S3 – PyMCU protocol.** `COMM`, `StatusPacket`, `DataGetter` changes ([PyMCU reference](#pymcu-reference)), with `tests/test_protocol.py` decoding the same golden block the firmware test pins. Done when: `python -m unittest discover -s tests` passes and the Python decoder's CRC check and field values agree with the C test's inputs.
 
-**S4 – PyMCU recording.** The Program key, refusals, mode-before-reset ordering, the fine file, the stop reset, the disk check, the Status panel row. Done when: the tests in [Tests, PyMCU](#pymcu-1) pass, and a recording with a fine DFM on the bench produces a fine file whose record indices are continuous and a data file identical in form to a normal DFM's.
+**S4 – PyMCU recording.** The Program key, refusals, mode-before-reset ordering, the fine file, the stop reset, the disk check, the Status panel row. Done when: the tests in [Tests, PyMCU](#pymcu) pass, and a recording with a fine DFM on the bench produces a fine file whose record indices are continuous and a data file identical in form to a normal DFM's.
 
 **S5 – Converter.** `tools/fine_to_csv.py` ([Converter](#converter)). Done when: its tests pass and it converts a bench fine file with zero CRC failures and reports any index gaps.
 
@@ -100,7 +100,7 @@ A 4-byte request like the others, read raw: `[ID, 0xF5, mode]` where mode is `0x
 
 The pending mode becomes the *active* mode inside the buffer reset (`InitializeStatusPacketBuffer()`), and the pending mode is then set back to normal. So a reset with no preceding request always leaves the DFM in normal mode. The mode request is not an ACK, so `isStatusSetAwaitingAck` clears as for other requests.
 
-`PacketManager` gains `SetPendingMode(uint8_t mode)`, `GetActiveMode(void)`, `GetRecordSize(void)` (127 or 2304) and `GetMaxPacketsPerReply(void)` (28 or 1).
+`PacketManager` gains `SetPendingMode(uint8_t mode)`, `GetActiveMode(void)`, `GetRecordSize(void)` (127 or 2304) and `GetMaxPacketsPerReply(void)` (27, the `MAXPACKETS` of `src/UART2.c`, or 1).
 
 ### The ring in both modes
 
@@ -108,7 +108,7 @@ The pending mode becomes the *active* mode inside the buffer reset (`InitializeS
 
 | Mode | Record size | Ring capacity | Records per reply | Outage held |
 |---|---|---|---|---|
-| Normal | 127 | 780 | 28 | 2.6 min |
+| Normal | 127 | 780 | 27 | 2.6 min |
 | Fine | 2,304 | 42 | 1 | 8.4 s |
 
 In fine mode slot 42 (bytes 96,768 to 99,071) is the *staging* block, where the block in progress is built. A block is copied from staging into the ring slot at `head` when it is stored, so a resend can never send a half-built block. In normal mode `AddCurrentStatus()` keeps writing the record straight into the slot at `head`, as today.
@@ -121,7 +121,7 @@ In fine mode slot 42 (bytes 96,768 to 99,071) is the *staging* block, where the 
 
 In `src/UART2.c`:
 
-- `CurrentStatusPacketSetToUART2()` copies `GetMaxPacketsPerReply()` records of `GetRecordSize()` bytes. In fine mode that is one block. `COBSBUFFERSIZE` (3,820) already holds a 2,304-byte block plus COBS overhead (2,315 bytes).
+- `CurrentStatusPacketSetToUART2()` copies `GetMaxPacketsPerReply()` records of `GetRecordSize()` bytes. In fine mode that is one block. `COBSBUFFERSIZE` (3,693 with 27 records per reply) already holds a 2,304-byte block plus COBS overhead (2,315 bytes).
 - `LatestStatusPacketToUART2()` sends the 127 bytes that `GetLastestStatus()` points at, in both modes.
 - `EmptyPacketToUART2()` is unchanged: the 127-byte empty record is the empty reply in both modes. PyMCU tells the two apart by length.
 - The partial ACK works on blocks unchanged, because it is index-based. With one block per reply it only ever acknowledges that block.

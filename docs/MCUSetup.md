@@ -1,10 +1,10 @@
 # PyMCU Setup on Raspberry Pi 4 and 5 (Trixie / labwc)
 
-Last updated: 2026-10-14
+Last updated: 2026-10-18
 
 ## Overview
 
-This guide (it replaces the old NotesForPI5 and the Pi 4 Notes.txt) is for a Raspberry Pi 4 or Pi 5 running Raspberry Pi OS Trixie (64-bit), the 3.x branch and PyQt6. It covers install, start on boot, screen blanking, USB drives and a near-kiosk desktop.
+This guide (it replaces the old NotesForPI5 and the Pi 4 Notes.txt) is for a Raspberry Pi 4 or Pi 5 running Raspberry Pi OS Trixie (64-bit), PyMCU 3.5 or later and PyQt6. Using the app once it is set up is described in [UserGuide.md](UserGuide.md). It covers install, start on boot, screen blanking, USB drives and a near-kiosk desktop.
 
 One branch and one setup serve both models. The code tells them apart at run time (the About box shows P4 or P5 and which clock it found). What differs is a few lines in `config.txt` (section 1) and the real-time clock (section 7); everything else on this page applies to both.
 
@@ -63,7 +63,7 @@ The app lives in `~/PyMCU` and runs from a uv environment defined by `pyproject.
 
 1. Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh` (installs to `~/.local/bin/uv`).
 2. Log in to GitHub (the repo is private): `sudo apt install gh`, then `gh auth login` (GitHub.com, HTTPS, log in with a web browser) and `gh auth setup-git`. This also lets `git pull` and `git push` work later.
-3. Clone the branch for this version: `git clone -b v4_Dev https://github.com/spletcher1/PyMCU.git ~/PyMCU` (it serves Pi 4 and Pi 5 alike)
+3. Clone the branch for this version: `git clone -b v4_Dev https://github.com/spletcher1/PyMCU.git ~/PyMCU` for PyMCU 4.x, or `-b PIDev` for 3.x. Both serve Pi 4 and Pi 5 alike.
 4. Build the environment: `cd ~/PyMCU && uv sync`
 
 GPIO uses `adafruit-lgpio`, a prebuilt wheel of lgpio 0.2.2, which gpiozero uses on both models. The plain `lgpio` package compiles from source and would need `sudo apt install swig liblgpio-dev` first.
@@ -129,17 +129,17 @@ The app needs no `/home/pi` or `/media/pi` symlinks:
 **How the app handles USB (3.5.0).**
 
 - **Detection:** once a second the app checks which drives are actually mounted. Plugging other USB devices (keyboard, hub) in or out no longer changes the buttons. A folder left behind by a stick pulled without unmounting is ignored.
-- **Locking:** Save data, Move programs and Update are enabled only with a drive present, and stay locked while a program runs or a copy is in progress.
-- **Save data:** cancelling leaves the stick mounted. After a successful copy the app flushes the data and unmounts, and says so only if the unmount worked. A failed copy shows the reason (for example "No space left on device") and leaves the stick mounted for a retry. Files are copied without permission bits, so FAT-formatted sticks work.
+- **Locking:** **Export Data**, **Get (USB)** (on the Programs → Custom page) and **Update MCU** are enabled only with a drive present, and stay locked while a program runs or a copy is in progress.
+- **Export Data:** cancelling leaves the stick mounted. After a successful copy the app flushes the data and unmounts, and says so only if the unmount worked. A failed copy shows the reason (for example "No space left on device") and leaves the stick mounted for a retry. Files are copied without permission bits, so FAT-formatted sticks work.
 - **Programs:** `.txt` files are found in any letter case (`PROGRAM.TXT`). Files saved on Windows with characters such as `°` or `µ` preview instead of crashing the app.
 
-**Which drive is used.** Save data and Move programs use the first drive, in name order, that has their folder at the top level. Drives without that folder are ignored, so an unrelated second stick does no harm.
+**Which drive is used.** Export Data and Get (USB) use the first drive, in name order, that has their folder at the top level. Drives without that folder are ignored, so an unrelated second stick does no harm.
 
 | Action | Folder required on the stick |
 | --- | --- |
-| Save data | `FLICData` |
-| Move programs | `FLICPrograms` (`.txt` files) |
-| Update | none: one `.mcu` file at the top of the stick or in `FLICUpdates` |
+| Export Data | `FLICData` |
+| Get (USB) | `FLICPrograms` (`.txt` files) |
+| Update MCU | none: one `.mcu` file at the top of the stick or in `FLICUpdates` |
 
 Prepare each stick with the folders it will be used for. A blank stick is rejected with "No USB with a FLICData folder found."
 
