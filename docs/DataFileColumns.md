@@ -45,13 +45,14 @@ PR10 (ProgressiveRatio): Frequency 40 Hz, PulseWidth 8 ms, ActivationMs 500 ms, 
 ***DFM 5***
 Linkage: 1,1,2,2,3,3,4,4,5,5,6,6
 Program Type: Linear
-(10/16/2026 23:34:00) Dark, Closed, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 30 min
-(10/17/2026 00:04:00) Dark, PR10, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 330 min
+(10/16/2026 23:34:00) Closed, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 30 min
+(10/17/2026 00:04:00) PR10, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 330 min
 ```
 
 - The `Paradigms:` block gives each Paradigm's name, its type in brackets and every setting, defaults included. This is the only place the Paradigm **type** and settings appear; the data file has only the name. Parse it to map `Paradigm` → type.
-- Each `***DFM n***` block lists that DFM's Intervals in order. The k-th line is `Interval` k in the data file. Each line gives its scheduled start, `Dark` or `Lit`, the Paradigm name, the 12 thresholds (a number, `On` or `Off`) and the length.
-- A recording started without loading a Program runs a simple built-in one, and its file starts with `***ALL DFM***`. It gives `Linkage:` and `Baseline:` at the top and one Interval, `Lit, Idle`, every Well `Off`, for the whole recording, with no `Paradigms:` block. `Idle` is ClosedLoop at 40 Hz and 8 ms.
+- Each `***DFM n***` block lists that DFM's Intervals in order. The k-th line is `Interval` k in the data file. Each line gives its scheduled start, then the Interval in the order of a Program file's Interval line: the Paradigm name, `Dark` or `Lit`, the 12 thresholds (a number, `On` or `Off`) and the length.
+- Recordings made before PyMCU wrote the Paradigm first have `Dark` or `Lit` before the Paradigm name. pyflic reads both orders; a parser of your own should too.
+- A recording started without loading a Program runs a simple built-in one, and its file starts with `***ALL DFM***`. It gives `Linkage:` and `Baseline:` at the top and one Interval, `Idle, Lit`, every Well `Off`, for the whole recording, with no `Paradigms:` block. `Idle` is ClosedLoop at 40 Hz and 8 ms.
 - Old-format Programs get generated Paradigm names that describe them, for example `ClosedLoop-40Hz-8ms-Hold500-MaxOn0`.
 
 ## Reading the file

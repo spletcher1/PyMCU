@@ -14,7 +14,7 @@ def ThresholdText(value):
 
 
 class DFMInstruction:
-    """One Interval of a DFM's Program: dark running, the Paradigm, the Wells' thresholds and how
+    """One Interval of a DFM's Program: the Paradigm, dark running, the Wells' thresholds and how
     long it lasts."""
     def __init__(self,darkstate=Enums.DARKSTATE.OFF,paradigm=None,dur=datetime.timedelta(minutes=180),startt=datetime.timedelta(seconds=0)):
         self.paradigm = paradigm if paradigm is not None else Paradigm.Paradigm.Idle()
@@ -71,8 +71,9 @@ class DFMInstruction:
         return self.elapsedStart + self.duration
 
     def __str__(self):
-        s = "Dark, " if self.theDarkState==Enums.DARKSTATE.ON else "Lit, "
-        s += self.paradigm.name + ", "
+        # Same order as an Interval line in a Program file: Paradigm, then Dark or Lit.
+        s = self.paradigm.name + ", "
+        s += "Dark, " if self.theDarkState==Enums.DARKSTATE.ON else "Lit, "
         s += ",".join(ThresholdText(i) for i in self.adjustedThresholds) + ", "
         s += "{:g} min".format(self.duration.total_seconds()/60)
         return s

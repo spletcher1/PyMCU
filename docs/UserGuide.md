@@ -266,7 +266,7 @@ A Program says how long to record and what each DFM's LEDs should do, and when.
 
 The Program page has buttons for **30 min**, **60 min**, **3 hours**, **6 hours**, **12 hours**, **24 hours** and **5 days**.
 
-**What they do:** load a built-in Program that records every DFM for that long, starting at the next minute, with every LED off. Use them for plain feeding experiments. The Program page then shows it as `***ALL DFM***`, with one Interval, `Lit, Idle`, and every Well `Off`.
+**What they do:** load a built-in Program that records every DFM for that long, starting at the next minute, with every LED off. Use them for plain feeding experiments. The Program page then shows it as `***ALL DFM***`, with one Interval, `Idle, Lit`, and every Well `Off`.
 
 ### Custom Programs
 

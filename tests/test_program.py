@@ -43,6 +43,12 @@ class NewFormat(unittest.TestCase):
         self.assertEqual(program.theInstructionSets[1].instructions[0].optoValues[0], Instruction.ON)
         self.assertEqual(dfm5.instructions[0].theDarkState, Enums.DARKSTATE.ON)
 
+    def test_description_follows_interval_line_order(self):
+        # Program.txt writes each Interval as the Program file does: Paradigm, then Dark or Lit.
+        program, ok = Load("[Paradigm A]\nType: OpenLoop\n[DFM]\nID: 1\nInterval: A, Dark, {}, 10".format(WELLS))
+        self.assertTrue(ok, program.loadError)
+        self.assertIn(") A, Dark, " + WELLS + ", 10 min\n", program.GetProgramDescription())
+
     def test_defaults(self):
         program, ok = Load("""
 [Paradigm A]
