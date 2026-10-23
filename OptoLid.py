@@ -16,11 +16,6 @@ class OptoLid:
             self.theWells[i].decay=currentInstruction.decay            
             self.theWells[i].maxTimeOn = currentInstruction.maxTimeOn
 
-    def SetThreshold(self, thresh, well):
-        if(well<0 or well>11):
-            return
-        self.theWells[well]=thresh
-
     def SetAllThresholds(self,thresh):
         if(len(thresh)!=12):
             return

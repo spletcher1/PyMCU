@@ -1,7 +1,7 @@
 import adafruit_si7021
 import board
 import time
-import smbus
+import smbus2
 
 class SI7021:
     def __init__(self):
@@ -49,7 +49,7 @@ def ModuleTest():
     
 def ModuleTest2():
     # Get I2C bus
-    bus = smbus.SMBus(1)
+    bus = smbus2.SMBus(1)
     bus.write_byte(0x40, 0xF5)
     
     time.sleep(0.3)

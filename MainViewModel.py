@@ -1,92 +1,211 @@
 import sys
-import fcntl
-import struct
-from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from pyudev.pyqt5 import MonitorObserver
-from pyudev import Context,Monitor
+from PyQt6 import QtCore, QtGui, QtWidgets, uic
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import *
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
 import datetime
+import getpass
 import time
-import threading
 import platform
-import DFMGroup 
-import COMM
+import DFMGroup
+import Program
 import Enums
 import Board
 import DFMPlot
 import socket
 import os
 import subprocess
-import glob
 import shutil
+import traceback
 import FLICDataCopy
+import MCUUpdate
+import ScreenBlank
 from TimeInputDialog import DateDialog
 
-if("MCU" in platform.node()):
-    import RPi.GPIO as GPIO
+APP_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+# Shown in the About box; keep in step with the version in pyproject.toml.
+APP_VERSION = "3.5.2"
 
+# The window is laid out for the original 800x480 touch display and fixed at that size in
+# Mainwindow.ui. On the MCU, a bigger screen (the 1280x720 Touch Display 2, or a monitor) scales
+# the whole app up by the largest quarter step at which the design still fits, through Qt's own
+# QT_SCALE_FACTOR, which scales widgets, fonts, style sheets, dialogs and the plot together. The
+# Touch Display 2 shows the app at 1.5x, as 1200x720. See RestartScaledToScreen.
+DESIGN_SIZE = (800, 480)
 
-class GUIUpdateThread(QtCore.QThread):
-    updateGUISignal = QtCore.pyqtSignal()
-    
-    def __init__(self):
-        QtCore.QThread.__init__(self)
-        self.keepRunning=True
-    def run(self):   
-        while self.keepRunning:
-            self.updateGUISignal.emit()
-            time.sleep(1)
-    def StopThread(self):
-        self.keepRunning = False
+# Screen blanking times offered on the settings page, in seconds (0 = never).
+SCREEN_BLANK_STEPS = [0, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1800, 3600]
+
+# Durations of the simple program buttons, by button text.
+SIMPLE_PROGRAM_MINUTES = {"30 min":30, "60 min":60, "3 hours":180, "6 hours":360, "12 hours":720, "24 hours":1440, "5 days":7200}
+
+# DFM button text color for each status, as (light theme, dark theme).
+STATUS_COLORS = {
+    Enums.CURRENTSTATUS.READING: ("black","white"),
+    Enums.CURRENTSTATUS.RECORDING: ("green","green"),
+    Enums.CURRENTSTATUS.ERROR: ("red","red"),
+    Enums.CURRENTSTATUS.MISSING: ("blue","blue"),
+}
+
+STATUS_LABELS = {
+    Enums.CURRENTSTATUS.ERROR: "Error",
+    Enums.CURRENTSTATUS.MISSING: "Miss",
+    Enums.CURRENTSTATUS.READING: "Read",
+    Enums.CURRENTSTATUS.RECORDING: "Rec",
+    Enums.CURRENTSTATUS.UNDEFINED: "None",
+}
+
+def GetUSBDrives():
+    """Mount points of attached USB drives. Raspberry Pi OS mounts them under /media/<user>;
+    /media/pi is checked too for systems set up with that symlink. Folders left behind by a
+    drive that was pulled without unmounting are skipped: only real mount points count."""
+    drives = []
+    for root in dict.fromkeys(os.path.realpath(r) for r in ("/media/pi", "/media/"+getpass.getuser())):
+        try:
+            drives += [f.path for f in os.scandir(root) if f.is_dir() and os.path.ismount(f.path)]
+        except OSError:
+            pass
+    return sorted(drives)
+
+def GetUSBDrive(folder):
+    """First attached USB drive that has the given top-level folder, or None.
+    Drives without it (e.g. a second, unrelated stick) are ignored."""
+    for drive in GetUSBDrives():
+        if os.path.isdir(os.path.join(drive, folder)):
+            return drive
+    return None
+
+def FindUpdateFiles():
+    """Update packages (.mcu, or .tgz from older builds) at the top of any USB drive or in its
+    FLICUpdates folder. Hidden files are skipped, e.g. the ._ copies a Mac leaves on FAT sticks."""
+    found = []
+    for drive in GetUSBDrives():
+        for folder in (drive, os.path.join(drive,"FLICUpdates")):
+            try:
+                found += [f.path for f in os.scandir(folder) if f.is_file() and not f.name.startswith(".")
+                          and f.name.lower().endswith((".mcu",".tgz"))]
+            except OSError:
+                pass
+    return sorted(found)
+
+def GetPiModel(modelFile="/proc/device-tree/model"):
+    """Which Pi this runs on, "P4" or "P5", from the device tree ("Raspberry Pi 4 Model B Rev
+    1.4"); "P?" when it can't be read, e.g. on a development machine. The same code runs on
+    both models; what differs is config.txt and the clock (docs/MCUSetup.md, sections 1 and 7)."""
+    try:
+        with open(modelFile, "rb") as f:
+            words = f.read().decode("ascii", "replace").strip("\0\n ").split()
+    except OSError:
+        return "P?"
+    if len(words)>=3 and words[0]=="Raspberry" and words[1]=="Pi" and words[2].isdigit():
+        return "P"+words[2]
+    return "P?"
+
+def GetRTCText(rtcDir="/sys/class/rtc/rtc0"):
+    """Lines for the About box on the real-time clock, kept short so they never run past the
+    dialog's edge. The Pi 5's built-in RTC reports its battery (J5), e.g. "Clock battery: 2.95 V,
+    OK" and "Battery charging: on"; thresholds suit a rechargeable ML-2020 (3.0 V nominal, 2.0 V
+    when exhausted), and the voltage doesn't fall evenly with charge, so no percentage is shown.
+    A Pi 4 has no built-in clock: its DS3231 module (dtoverlay=i2c-rtc,ds3231 in config.txt) has
+    a coin cell the kernel can't read, so the lines name the clock instead. With no clock at all
+    they say so, because Set Date and Time then can't keep the time through power-off."""
+    def Read(name):
+        with open(os.path.join(rtcDir, name)) as f:
+            return f.read().strip()
+    try:
+        driver = Read("name").split()[0]  # "rtc-ds1307" is the kernel driver for the DS3231
+    except (OSError, IndexError):
+        return "Clock: no RTC found\nTime is lost at power-off"
+    try:
+        volts = int(Read("battery_voltage"))/1e6
+    except (OSError, ValueError):
+        clock = "DS3231 module" if ("ds1307" in driver or "ds3231" in driver) else driver
+        return "Clock: "+clock+"\nClock battery: not monitored"
+    if(volts<0.5):
+        return "Clock battery: none connected"
+    state = "OK" if volts>=2.5 else "low"
+    try:
+        charging = int(Read("charging_voltage"))>0
+    except (OSError, ValueError):
+        charging = False
+    return "Clock battery: {:.2f} V, {}\nBattery charging: {}".format(volts, state, "on" if charging else "off")
+
+def ListProgramFiles(directory):
+    """Program files (.txt in any letter case, e.g. PROGRAM.TXT from Windows) in a folder."""
+    try:
+        return [f.path for f in os.scandir(directory) if f.is_file() and f.name.lower().endswith(".txt")]
+    except OSError:
+        return []
+
+def RunAsRoot(*command):
+    """Runs a command with sudo, never prompting for a password (see the sudoers step in
+    docs/MCUSetup.md). Returns an error message, or None on success."""
+    try:
+        result = subprocess.run(["sudo","-n",*command],capture_output=True,text=True,timeout=60)
+    except (OSError,subprocess.TimeoutExpired) as e:
+        return str(e)
+    if result.returncode!=0:
+        return (result.stderr or result.stdout).strip() or "exit code "+str(result.returncode)
+    return None
 
 class MyMainWindow(QtWidgets.QMainWindow):
-    def __init__( self,pcb ):   
-        self.theBoard=pcb    
-        self.theDFMGroup = DFMGroup.DFMGroup(self.theBoard)
-        super(MyMainWindow,self).__init__()        
+    # The DFM group announces new data from its worker threads. Re-emitting it as a Qt signal
+    # moves the plot update onto the GUI thread, the only thread allowed to redraw widgets.
+    plotUpdateRequested = pyqtSignal()
+
+    def InitializeGUI(self):
         uic.loadUi("Mainwindow.ui",self)
-        self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.Background).name()
+        self.defaultBackgroundColor = self.DFMErrorGroupBox.palette().color(QtGui.QPalette.ColorRole.Window).name()
         tmp2 = "QTextEdit {background-color: "+self.defaultBackgroundColor+"}"
         tmp3 = "QListWidget {background-color: "+self.defaultBackgroundColor+"}"
-        self.MessagesTextEdit.setStyleSheet(tmp2)        
-        self.ProgramTextEdit.setStyleSheet(tmp2)     
-        self.ProgramPreviewTextBox.setStyleSheet(tmp2)       
-        self.FilesListWidget.setStyleSheet(tmp3)                    
-        self.statusmessageduration=5000
-        self.activeDFMNum=-1
-        self.activeDFM=None                        
-        self.MakeConnections()
-        self.StackedPages.setCurrentIndex(1)
-        self.statusLabel = QLabel()  
+        self.MessagesTextEdit.setStyleSheet(tmp2)
+        self.ProgramTextEdit.setStyleSheet(tmp2)
+        self.ProgramPreviewTextBox.setStyleSheet(tmp2)
+        self.FilesListWidget.setStyleSheet(tmp3)
+        self.statusLabel = QLabel()
         self.statusLabel.setFont(QFont('Arial', 11))
-        self.statusLabel.setFrameStyle(QFrame.NoFrame)
-        self.statusLabel.setFrameShadow(QFrame.Plain)
+        self.statusLabel.setFrameStyle(QFrame.Shape.NoFrame)
+        self.statusLabel.setFrameShadow(QFrame.Shadow.Plain)
         self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
-        self.StatusBar.addPermanentWidget(self.statusLabel)    
+        self.StatusBar.addPermanentWidget(self.statusLabel)
         self.StatusBar.setFont(QFont('Arial', 11))
 
         self.toolBar.setFont(QFont('Arial', 9))
 
         self.StatusBar.setStyleSheet('border: 0')
-        self.StatusBar.setStyleSheet("QStatusBar::item {border: none;}")    
+        self.StatusBar.setStyleSheet("QStatusBar::item {border: none;}")
 
         self.EnvironmentGroupBox.setEnabled(False)
-       
+
+        self.StackedPages.setCurrentIndex(1)
+
+    def __init__( self,pcb,is_theme_dark):
+        self.theBoard=pcb
+        self.theDFMGroup = DFMGroup.DFMGroup(self.theBoard)
+        super(MyMainWindow,self).__init__()
+        self.InitializeGUI()
+        self.BuildScreenBlankSetting()
+        self.statusmessageduration=5000
+        self.activeDFMNum=-1
+        self.activeDFM=None
+        self.MakeConnections()
+
         self.DFMButtons = {}
         self.UpdateProgramGUI()
-        self.DisableButtons()
         self.isUSBAttached=False
+        self.isCopyingData=False
+        self.DisableButtons()
 
         self.main_widget = QtWidgets.QWidget(self)
-        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=self.defaultBackgroundColor,width=5, height=4, dpi=100)        
-        self.DFMPlotLayout.addWidget(self.theDFMDataPlot)   
+        self.theDFMDataPlot = DFMPlot.MyDFMDataPlot(self.main_widget,backcolor=self.defaultBackgroundColor,width=5, height=4, dpi=100)
+        self.DFMPlotLayout.addWidget(self.theDFMDataPlot)
 
         self.programDuration = datetime.timedelta(minutes=180)
-        self.SetProgramStartTime(datetime.datetime.today())
+        self.SetProgramStartTime(Program.NextMinute())
 
-        DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.UpdateDFMPlot
+        self.plotUpdateRequested.connect(self.UpdateDFMPlot)
+        DFMGroup.DFMGroup.DFMGroup_updatecomplete+=self.plotUpdateRequested.emit
         DFMGroup.DFMGroup.DFMGroup_programEnded+=self.ProgramEnded
         DFMGroup.DFMGroup.DFMGroup_message+=self.NewDFMMessage
         self.toggleOutputsState=False
@@ -95,204 +214,210 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.currentChosenProgramFile=""
         self.currentProgramFileDirectory=""
 
-        self.context = Context()
-        self.monitor = Monitor.from_netlink(self.context)
-        self.monitor.filter_by(subsystem="usb")
-        self.observer=MonitorObserver(self.monitor)
-        self.observer.deviceEvent.connect(self.device_connected)
-        self.monitor.start()
-
         self.fastUpdateCheckBox.setChecked(False)
         self.zoomPlotCheckBox.setChecked(False)
 
-        self.updateButton.setEnabled(False)
-
         self.currentDFMType = Enums.DFMTYPE.PLETCHERV3
 
-        self.isDataTransferring=False
         self.isMessageUpdateNeeded=False
 
-        ## Check for USB upon startup
-        try:
-            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-            if len(subfolders)>0:
-                self.isUSBAttached=True
-                self.StatusBar.showMessage("USB connected...",2000)
-                self.saveDataAction.setEnabled(True)
-                self.MoveProgramButton.setEnabled(True)
-                self.updateButton.setEnabled(True)
-                QApplication.processEvents()
-        except:
-            print("Normal except: No usb on startup.")
-            pass
+        ## Check for USB upon startup; UpdateGUI keeps checking once a second.
+        self.CheckUSB()
 
-        self.MThread = GUIUpdateThread()
-        self.MThread.updateGUISignal.connect(self.UpdateGUI)      
-        self.MThread.start()
+        self.is_theme_dark=is_theme_dark
+        ## Only need to skip first check if it happens automatically
+        self.firstThemeCheck=is_theme_dark
+        self.darkThemeCheckBox.setChecked(is_theme_dark)
+
+        # Runs the program schedule and refreshes the display once a second.
+        self.guiTimer = QtCore.QTimer(self)
+        self.guiTimer.timeout.connect(self.UpdateGUI)
+        self.guiTimer.start(1000)
+        QtCore.QTimer.singleShot(0,self.UpdateGUI)
 
         self.CheckForLowStorageWarning()
 
+    def BuildScreenBlankSetting(self):
+        # Settings row "Screen off after: [-] 60 s [+]". Changes are saved about a second after
+        # the last tap, so stepping through values doesn't restart swayidle each time.
+        row = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(row)
+        layout.setContentsMargins(0,0,0,0)
+        layout.addWidget(QtWidgets.QLabel("Screen off after:"))
+        self.screenBlankSeconds = ScreenBlank.ReadSeconds()
+        self.screenBlankLabel = QtWidgets.QLabel()
+        self.screenBlankLabel.setMinimumWidth(70)
+        self.screenBlankLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        for text, step in (("\u2212",-1),(None,0),("+",1)):
+            if text is None:
+                layout.addWidget(self.screenBlankLabel)
+                continue
+            button = QtWidgets.QPushButton(text)
+            button.setFixedSize(60,50)
+            button.setFont(QFont('Arial', 16, QFont.Weight.Bold))
+            button.clicked.connect(lambda checked=False, s=step: self.StepScreenBlank(s))
+            layout.addWidget(button)
+        layout.addStretch(1)
+        self.groupBox.layout().addWidget(row, 3, 0)
+        self.groupBox.layout().setRowStretch(4, 1)  # keep the settings rows packed at the top
+        self.screenBlankTimer = QtCore.QTimer(self)
+        self.screenBlankTimer.setSingleShot(True)
+        self.screenBlankTimer.timeout.connect(self.SaveScreenBlank)
+        self.ShowScreenBlank()
 
-    def device_connected(self,device):        
-        if(device.action=="add"):
-            self.isUSBAttached=True
-            self.StatusBar.showMessage("USB connected...",2000)
-            self.saveDataAction.setEnabled(True)
-            self.MoveProgramButton.setEnabled(True)
-            self.updateButton.setEnabled(True)
-            QApplication.processEvents()
-        elif(device.action=="remove"):
-            self.isUSBAttached=False
-            self.StatusBar.showMessage("USB removed...",2000)
-            self.saveDataAction.setEnabled(False)
-            self.MoveProgramButton.setEnabled(False)
-            self.updateButton.setEnabled(False)
-            QApplication.processEvents()
+    def ShowScreenBlank(self):
+        self.screenBlankLabel.setText("Never" if self.screenBlankSeconds==0 else str(self.screenBlankSeconds)+" s")
 
-    def DisableButtons(self):        
-        self.clearDFMAction.setEnabled(False)
-        self.saveDataAction.setEnabled(False)
-        self.clearMessagesAction.setEnabled(False)
-        self.deleteDataAction.setEnabled(False)
-        self.powerOffAction.setEnabled(False)
-        self.T30MinButton.setEnabled(False)
-        self.T60MinButton.setEnabled(False)
-        self.T3HrButton.setEnabled(False)
-        self.T6HrButton.setEnabled(False)
-        self.T12HrButton.setEnabled(False)
-        self.T24HrButton.setEnabled(False)
-        self.T5DButton.setEnabled(False)
-        self.CustomButton.setEnabled(False)
-        self.StartTimeNowButton.setEnabled(False)
-        self.StartTimeEdit.setEnabled(False)
-        self.toggleOutputsAction.setEnabled(False)
-        self.LoadProgramButton.setEnabled(False)
-        self.MoveProgramButton.setEnabled(False)
-        self.DeleteProgramButton.setEnabled(False)
-        self.SetDateAndTimeButton.setEnabled(False)
-      
+    def StepScreenBlank(self,step):
+        # Move to the next listed value; a hand-edited time not in the list snaps to its neighbour.
+        current = self.screenBlankSeconds
+        if step>0:
+            larger = [v for v in SCREEN_BLANK_STEPS if v>current]
+            self.screenBlankSeconds = larger[0] if larger else SCREEN_BLANK_STEPS[-1]
+        else:
+            smaller = [v for v in SCREEN_BLANK_STEPS if v<current]
+            self.screenBlankSeconds = smaller[-1] if smaller else SCREEN_BLANK_STEPS[0]
+        self.ShowScreenBlank()
+        self.screenBlankTimer.start(1200)
 
-    def EnableButtons(self):        
-        self.clearDFMAction.setEnabled(True)
-        if(self.isUSBAttached==True):            
-            self.saveDataAction.setEnabled(True)        
-            self.MoveProgramButton.setEnabled(True)
-        self.clearMessagesAction.setEnabled(True)
-        self.deleteDataAction.setEnabled(True)
-        self.powerOffAction.setEnabled(True)
-        self.T30MinButton.setEnabled(True)
-        self.T60MinButton.setEnabled(True)
-        self.T3HrButton.setEnabled(True)
-        self.T6HrButton.setEnabled(True)
-        self.T12HrButton.setEnabled(True)
-        self.T24HrButton.setEnabled(True)
-        self.T5DButton.setEnabled(True)
-        self.CustomButton.setEnabled(True)
-        self.StartTimeNowButton.setEnabled(True)
-        self.StartTimeEdit.setEnabled(True)
-        self.toggleOutputsAction.setEnabled(True)
-        self.LoadProgramButton.setEnabled(True)
-        self.DeleteProgramButton.setEnabled(True)
-        self.SetDateAndTimeButton.setEnabled(True)
+    def SaveScreenBlank(self):
+        error = ScreenBlank.SetSeconds(self.screenBlankSeconds)
+        if(error is None):
+            when = "never" if self.screenBlankSeconds==0 else "after "+str(self.screenBlankSeconds)+" s"
+            self.StatusBar.showMessage("Screen will turn off "+when+".",self.statusmessageduration)
+        else:
+            print("Screen blank setting failed: "+error)
+            self.StatusBar.showMessage("Screen off time not saved: "+error,self.statusmessageduration)
 
+    def _MessageBox(self,icon,title,text,informativeText=None,buttons=None):
+        # On Wayland a dialog stays in front only with a parent and these window flags, and the
+        # flags must be set after the parent (see docs/MCUSetup.md).
+        msg = QMessageBox()
+        msg.setParent(self)
+        msg.setIcon(icon)
+        msg.setWindowTitle(title)
+        msg.setText(text)
+        if(informativeText is not None):
+            msg.setInformativeText(informativeText)
+        if(buttons is not None):
+            msg.setStandardButtons(buttons)
+        msg.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowType.FramelessWindowHint | QtCore.Qt.WindowType.WindowStaysOnTopHint)
+        return msg
+
+    def _Confirm(self,title,text):
+        msg = self._MessageBox(QMessageBox.Icon.Question,title,text,buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        return msg.exec()==QMessageBox.StandardButton.Yes
+
+    def CheckUSB(self):
+        # Based on what is actually mounted, so other USB devices (keyboard, hub) coming and
+        # going don't change it, and it can't get stuck after a missed event.
+        isAttached = len(GetUSBDrives())>0
+        if(isAttached!=self.isUSBAttached):
+            self.isUSBAttached=isAttached
+            self.StatusBar.showMessage("USB connected..." if isAttached else "USB removed...",2000)
+            self.UpdateUSBButtons()
+
+    def UpdateUSBButtons(self):
+        # USB actions need a drive and are locked while a program runs or data is copying.
+        isAllowed = self.isUSBAttached and not self.areButtonsLocked
+        for control in (self.saveDataAction,self.MoveProgramButton,self.updateButton):
+            control.setEnabled(isAllowed)
+
+    def _ControlsLockedDuringProgram(self):
+        return [self.clearDFMAction, self.clearMessagesAction, self.deleteDataAction, self.powerOffAction,
+                self.T30MinButton, self.T60MinButton, self.T3HrButton, self.T6HrButton, self.T12HrButton,
+                self.T24HrButton, self.T5DButton, self.CustomButton, self.StartTimeNowButton, self.StartTimeSetButton,
+                self.toggleOutputsAction, self.LoadProgramButton, self.DeleteProgramButton, self.SetDateAndTimeButton]
+
+    def DisableButtons(self):
+        self.areButtonsLocked=True
+        for control in self._ControlsLockedDuringProgram():
+            control.setEnabled(False)
+        self.UpdateUSBButtons()
+
+    def EnableButtons(self):
+        if(self.isCopyingData):
+            return
+        self.areButtonsLocked=False
+        for control in self._ControlsLockedDuringProgram():
+            control.setEnabled(True)
+        self.UpdateUSBButtons()
 
     def SetStartTimeNow(self):
-        self.SetProgramStartTime(datetime.datetime.today()+datetime.timedelta(minutes=1))        
-        #self.programStartTime= tmp.toPyDateTime()
+        self.SetProgramStartTime(Program.NextMinute())
 
-
-    def ManualStartTimeChange(self):
-        dt = self.StartTimeEdit.dateTime()
-        dt=dt.toPyDateTime()
-        dt = dt.replace(second=0,microsecond=0)
-        self.SetProgramStartTime(dt)
+    def SetStartTimeClicked(self):
+        initial = QtCore.QDateTime(self.programStartTime)
+        secs = DateDialog.getDateTime(self,title="Program start time",okText="Set Start",initial=initial)
+        if(secs==0):
+            return
+        self.SetProgramStartTime(datetime.datetime.fromtimestamp(secs))
 
     def SetProgramStartTime(self,theTime):
-        self.programStartTime = theTime            
-        self.programEndTime = self.programStartTime + self.programDuration                
-        ss=self.programStartTime.strftime("%m-%d-%Y %H:%M:%S")        
-        qtDate = QtCore.QDateTime.fromString(ss,"MM-dd-yyyy HH:mm:ss")        
-        self.StartTimeEdit.setDateTime(qtDate)
+        # The label shows hours and minutes only, so seconds left here would start the program
+        # partway through the minute shown.
+        self.programStartTime = Program.WholeMinute(theTime)
+        self.programEndTime = self.programStartTime + self.programDuration
+        self.StartTimeLabel.setText(self.programStartTime.strftime(
+            "<table><tr><td>Day:&nbsp;</td><td>%a %m/%d/%Y</td></tr><tr><td>Time:&nbsp;</td><td>%H:%M</td></tr></table>"))
         self.theDFMGroup.currentProgram.startTime = self.programStartTime
         self.UpdateProgramGUI()
         self.StatusBar.showMessage("Set program start time: " + self.programStartTime.strftime("%m/%d/%Y %H:%M:%S") ,self.statusmessageduration)
 
     def SetSimpleProgramButtonClicked(self):
-        if(len(self.theDFMGroup.theDFMs)==0): 
+        if(len(self.theDFMGroup.theDFMs)==0):
             self.StatusBar.showMessage("Load programs only after DFMs have been defined.",self.statusmessageduration)
             return
-        sender = self.sender()
-        tmp = sender.text()      
-        if(tmp == "30 min"):
-            self.programDuration = datetime.timedelta(minutes=30)          
-            self.LoadSimpleProgram()  
-        elif(tmp == "60 min"):
-            self.programDuration = datetime.timedelta(minutes=60)            
-            self.LoadSimpleProgram()
-        elif(tmp == "3 hours"):
-            self.programDuration = datetime.timedelta(minutes=180)
-            self.LoadSimpleProgram()
-        elif(tmp == "6 hours"):
-            self.programDuration = datetime.timedelta(minutes=60*6)
-            self.LoadSimpleProgram()
-        elif(tmp == "12 hours"):
-            self.programDuration = datetime.timedelta(minutes=60*12)
-            self.LoadSimpleProgram()
-        elif(tmp == "24 hours"):
-            self.programDuration = datetime.timedelta(minutes=60*24)
-            self.LoadSimpleProgram()
-        elif(tmp == "5 days"):
-            self.programDuration = datetime.timedelta(minutes=60*24*5)
-            self.LoadSimpleProgram()    
-        elif(tmp == "Custom"):
+        tmp = self.sender().text()
+        # "Custom" is handled by LoadCustomProgram.
+        if(tmp not in SIMPLE_PROGRAM_MINUTES):
             return
-        else:
-            return
-
+        self.programDuration = datetime.timedelta(minutes=SIMPLE_PROGRAM_MINUTES[tmp])
+        self.LoadSimpleProgram()
         self.StatusBar.showMessage("Loaded basic program: " + tmp,self.statusmessageduration)
-                            
+
     def ToggleProgramRun(self):
         if(len(self.theDFMGroup.theDFMs)==0): return
         if(self.theDFMGroup.currentProgram.isActive):
             self.RunProgramButton.setEnabled(False)
-            self.StatusBar.showMessage("Stopping program.",self.statusmessageduration)   
-            QApplication.processEvents()            
+            self.StatusBar.showMessage("Stopping program.",self.statusmessageduration)
+            QApplication.processEvents()
             self.theDFMGroup.StopCurrentProgram()
-            while self.theDFMGroup.currentProgram.isActive:
-                pass
             self.RunProgramButton.setText("Run Program")
             self.toggleOutputsState=False
-            self.RunProgramButton.setEnabled(True)                          
+            self.RunProgramButton.setEnabled(True)
             self.fastUpdateCheckBox.setChecked(False)
-
         else:
+            # Checked again here because a DFM may have been swapped since the program was loaded.
+            if(self.ShowCompatibilityProblems("Program not started")):
+                return
             self.RunProgramButton.setEnabled(False)
-            self.DisableButtons()                        
-            QApplication.processEvents()            
-            self.theDFMGroup.StageCurrentProgram()    
-            self.StatusBar.showMessage("Staging program.",self.statusmessageduration)           
+            self.DisableButtons()
+            QApplication.processEvents()
+            self.theDFMGroup.StageCurrentProgram()
+            self.StatusBar.showMessage("Staging program.",self.statusmessageduration)
             self.toggleOutputsState=False
-            self.RunProgramButton.setText("Stop Program")      
+            self.RunProgramButton.setText("Stop Program")
             self.RunProgramButton.setEnabled(True)
             self.fastUpdateCheckBox.setChecked(False)
 
         self.UpdateDFMButtonTextColors()
-        self.GotoDFMPage()     
+        self.GotoDFMPage()
 
     def LoadSimpleProgram(self):
         self.theDFMGroup.currentProgram.isProgramLoaded=False
-        self.SetProgramStartTime(datetime.datetime.today() + datetime.timedelta(minutes=1))        
+        self.SetProgramStartTime(Program.NextMinute())
         self.programEndTime = self.programStartTime + self.programDuration
         self.theDFMGroup.currentProgram.CreateSimpleProgram(self.programStartTime,self.programDuration)
         self.UpdateProgramGUI()
-    
+
     def UpdateProgramGUI(self):
         if(len(self.theDFMGroup.theDFMs)>0):
             self.ProgramTextEdit.setText(self.theDFMGroup.currentProgram.GetProgramDescription())
         else:
             self.ProgramTextEdit.setText("No program loaded.")
-  
-    def MakeConnections(self):                
+
+    def MakeConnections(self):
         self.messagesAction.triggered.connect(self.GoToMessagesPage)
         self.findDFMAction.triggered.connect(self.FindDFMs)
         self.dataAction.triggered.connect(self.GotoDFMPage)
@@ -303,7 +428,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.powerOffAction.triggered.connect(self.PowerOff)
         self.saveDataAction.triggered.connect(self.SaveDataToUSB)
         self.deleteDataAction.triggered.connect(self.DeleteDataFolder)
-        self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)        
+        self.toggleOutputsAction.triggered.connect(self.ToggleOutputs)
 
         self.T30MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
         self.T60MinButton.clicked.connect(self.SetSimpleProgramButtonClicked)
@@ -316,7 +441,7 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.RunProgramButton.clicked.connect(self.ToggleProgramRun)
         self.StartTimeNowButton.clicked.connect(self.SetStartTimeNow)
 
-        self.StartTimeEdit.dateTimeChanged.connect(self.ManualStartTimeChange)
+        self.StartTimeSetButton.clicked.connect(self.SetStartTimeClicked)
 
         self.CustomButton.clicked.connect(self.LoadCustomProgram)
         self.LoadProgramButton.clicked.connect(self.LoadProgramClicked)
@@ -330,217 +455,167 @@ class MyMainWindow(QtWidgets.QMainWindow):
 
         self.SetDateAndTimeButton.clicked.connect(self.SetTimeDialog)
 
+        self.darkThemeCheckBox.stateChanged.connect(self.ThemeChanged)
+
     def ToggleOutputs(self):
         if(self.toggleOutputsState):
             for d in self.theDFMGroup.theDFMs.values():
                 d.SetOutputsOff()
             self.toggleOutputsState = False
-            self.StatusBar.showMessage("Outputs toggled off.",self.statusmessageduration)  
+            self.StatusBar.showMessage("Outputs toggled off.",self.statusmessageduration)
         else:
             for d in self.theDFMGroup.theDFMs.values():
                 d.SetOutputsOn()
             self.toggleOutputsState = True
-            self.StatusBar.showMessage("Outputs toggled on.",self.statusmessageduration)  
-
-   
+            self.StatusBar.showMessage("Outputs toggled on.",self.statusmessageduration)
 
     def SetTimeDialog(self):
-        secs= DateDialog.getDateTime()
+        secs= DateDialog.getDateTime(self)
         if(secs==0):
             return
-        ss1 = "'@"+str(secs)+"'"
-        ss2 = "sudo hwclock --set --date=\"$(date --date="+ss1+")\""
-        os.system(ss2)  
-        time.sleep(1)
-        os.system("sudo hwclock -s")        
-        return
+        # Set the system clock, then write it to the RTC (rtc0: the Pi 5's built-in clock, or the
+        # DS3231 module on a Pi 4) so it survives power-off on the clock's battery.
+        newTime = datetime.datetime.fromtimestamp(secs).strftime("%Y-%m-%d %H:%M:%S")
+        error = RunAsRoot("/usr/bin/date","-s","@"+str(secs))
+        if(error is None):
+            error = RunAsRoot("/usr/sbin/hwclock","-w")
+        if(error is None):
+            self.StatusBar.showMessage("Clock set to "+newTime+".",self.statusmessageduration)
+        else:
+            print("Setting the clock failed: "+error)
+            self.StatusBar.showMessage("Clock not set: "+error,self.statusmessageduration)
 
-    def AboutPyMCU(self):             
-        stat = os.statvfs("./MainViewModel.py")
-        availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
-        try: 
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            hostip= s.getsockname()[0]
-        except:
+    def GetFreeMegaBytes(self):
+        stat = os.statvfs(APP_DIRECTORY)
+        return (stat.f_bfree*stat.f_bsize)/1048576
+
+    def AboutPyMCU(self):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))
+                hostip= s.getsockname()[0]
+        except OSError:
             print("Normal except: No internet")
             hostip="unknown"
-        
-        msg = QMessageBox()
-        tmpButton = QPushButton("Settings")
-        if(self.theDFMGroup.currentProgram.isActive):
-            tmpButton.setEnabled(False)
-        msg.addButton(tmpButton,QMessageBox.YesRole)
-        msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
-        msg.setIcon(QMessageBox.Information)
-        if(self.theBoard.IsDFMV2Board()):
-            stext = "Flidea Master Control Unit (V2)"
-        else:
-            stext = "Flidea Master Control Unit (V3)"        
-        msg.setText(stext)
-        msg.setWindowTitle("About MCU")
-        ss="Version: 1.0.7\nIP: " + hostip
-        ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
-        msg.setInformativeText(ss)    
-        retval=msg.exec_()           
-        if(retval==0):
+
+        boardVersion = "V2" if self.theBoard.IsDFMV2Board() else "V3"
+        stext = "Flidea Master Control Unit ("+boardVersion+"; "+GetPiModel()+")"
+        ss="Version: " + APP_VERSION + "\nIP: " + hostip
+        ss=ss+"\nStorage: " + str(int(self.GetFreeMegaBytes())) +" MB"
+        ss=ss+"\n" + GetRTCText()
+        msg = self._MessageBox(QMessageBox.Icon.Information,"About MCU",stext,ss)
+        # Leave room on the right so no line can touch the dialog's edge.
+        msg.setStyleSheet("QLabel#qt_msgbox_label, QLabel#qt_msgbox_informativelabel { min-width: 260px; padding-right: 12px; }")
+        settingsButton = msg.addButton("Settings",QMessageBox.ButtonRole.YesRole)
+        msg.addButton("Okay",QMessageBox.ButtonRole.NoRole)
+        settingsButton.setEnabled(not self.theDFMGroup.currentProgram.isActive)
+        msg.exec()
+        if(msg.clickedButton()==settingsButton):
             self.GotoSettingsPage()
 
-    def SetActiveDFM(self,num):       
-        self.activeDFMNum=num              
+    def SetActiveDFM(self,num):
+        self.activeDFMNum=num
         self.theDFMGroup.SetActiveDFM(self.activeDFMNum)
-        self.activeDFM = self.theDFMGroup.activeDFM 
-        
-        if self.theDFMGroup.isWriting:          
+        self.activeDFM = self.theDFMGroup.activeDFM
+
+        if self.theDFMGroup.isWriting:
             if(self.fastUpdateCheckBox.isChecked()):
-                self.theDFMGroup.SetFastProgramReadInterval()            
+                self.theDFMGroup.SetFastProgramReadInterval()
             else:
                 self.theDFMGroup.SetNormalProgramReadInterval()
         self.StatusBar.showMessage("Viewing " + str(self.activeDFM) +".",self.statusmessageduration)
         self.UpdateDFMButtonTextColors()
 
-    def UpdateDFMButtonTextColors(self):        
+    def UpdateDFMButtonTextColors(self):
         for key, value in self.theDFMGroup.theDFMs.items():
             if(self.activeDFMNum==key):
                 ss = 'QPushButton {font-weight:bold;'
             else:
                 ss = 'QPushButton {'
-            if(value.status==Enums.CURRENTSTATUS.READING):               
-                ss+= 'color: black}' 
-                self.DFMButtons[key].setStyleSheet(ss)                                
-            elif(value.status==Enums.CURRENTSTATUS.RECORDING):
-                ss+= 'color: green}' 
-                self.DFMButtons[key].setStyleSheet(ss)
-            elif(value.status==Enums.CURRENTSTATUS.ERROR):
-                ss+= 'color: red}' 
-                self.DFMButtons[key].setStyleSheet(ss)
-            elif(value.status==Enums.CURRENTSTATUS.MISSING):
-                ss+= 'color: blue}' 
-                self.DFMButtons[key].setStyleSheet(ss)
-            else:
-                ss+= 'color: orange}' 
-                self.DFMButtons[key].setStyleSheet(ss)                
-
+            colors = STATUS_COLORS.get(value.status,("orange","orange"))
+            ss+= 'color: ' + colors[1 if self.is_theme_dark else 0] + '}'
+            self.DFMButtons[key].setStyleSheet(ss)
 
     def DFMButtonClicked(self):
         sender = self.sender()
         for key, value in self.DFMButtons.items():
             if sender is value:
-                self.SetActiveDFM(key)   
-                self.UpdateDFMPageGUI()                    
+                self.SetActiveDFM(key)
+                self.UpdateDFMPageGUI()
 
     def SetDFMTypeGUI(self):
         if(self.currentDFMType==Enums.DFMTYPE.PLETCHERV3 or self.currentDFMType==Enums.DFMTYPE.ENVMONV3):
             return
         self.DFMErrorGroupBox.setEnabled(False)
 
-
-    def FindDFMs(self):   
+    def FindDFMs(self):
         self.ClearDFM()
-        self.StatusBar.showMessage("Searching for DFMs. This can take up to 3 seconds.",self.statusmessageduration)     
+        self.StatusBar.showMessage("Searching for DFMs. This can take several seconds.",self.statusmessageduration)
+        QApplication.processEvents()
         QApplication.processEvents()
         self.ClearMessages()
-        self.theDFMGroup.FindDFMs()                      
+        self.theDFMGroup.FindDFMs()
         if(len(self.theDFMGroup.theDFMs)==0):
-            self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)                            
+            self.StatusBar.showMessage("No DFMs found.",self.statusmessageduration)
             return
         self.findDFMAction.setEnabled(False)
         for key, value in self.theDFMGroup.theDFMs.items():
-            s = str(value)
-            tmp = QPushButton(s)
-            tmp.setFlat(False)            
-            tmp.setMinimumHeight(45)
-            #tmp.setMaximumWidth(88)
-            self.DFMListLayout2.setAlignment(Qt.AlignTop)
-            self.DFMListLayout2.addWidget(tmp)            
+            tmp = QPushButton(str(value))
+            tmp.setFlat(False)
+            tmp.setMinimumHeight(40)
+            self.DFMListLayout2.setAlignment(Qt.AlignmentFlag.AlignTop)
+            self.DFMListLayout2.addWidget(tmp)
             self.DFMButtons[key]=tmp
-        
-        
-        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)                        
-        for b in self.DFMButtons.values():
-            b.clicked.connect(self.DFMButtonClicked)             
-        self.programStartTime = datetime.datetime.today()
-        self.programDuration = datetime.timedelta(minutes=180)        
 
+        self.StatusBar.showMessage(str(len(self.theDFMGroup.theDFMs)) + " DFMs found.",self.statusmessageduration)
+        for b in self.DFMButtons.values():
+            b.clicked.connect(self.DFMButtonClicked)
+        self.programStartTime = Program.NextMinute()
+        self.programDuration = datetime.timedelta(minutes=180)
 
         tmp = list(self.theDFMGroup.theDFMs.keys())[0]
         self.currentDFMType = self.theDFMGroup.theDFMs[tmp].DFMType
-        self.SetDFMTypeGUI()        
+        self.SetDFMTypeGUI()
 
-        self.LoadSimpleProgram()        
-        self.SetActiveDFM(self.theDFMGroup.currentDFMKeysList[0])    
+        self.LoadSimpleProgram()
+        self.SetActiveDFM(self.theDFMGroup.currentDFMKeysList[0])
 
         self.UpdateDFMPageGUI()
-        self.GotoDFMPage()     
-     
+        self.GotoDFMPage()
 
     def DeleteDataFolder(self):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Question)
-        msg.setText("Are you sure that you would like to delete all data?")
-        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        msg.setWindowTitle("Delete Data")
-        retval=msg.exec_()
-        if(retval==QMessageBox.Yes):
-            msg2 = QMessageBox()
-            msg2.setIcon(QMessageBox.Question)
-            msg2.setText("Are you REALLY sure ?")
-            msg2.setWindowTitle("Delete Data")
-            msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            retval=msg2.exec_()
-            if(retval==QMessageBox.Yes):
-                os.system("rm -rf FLICData")  
-                self.StatusBar.showMessage("Local data folder has been deleted.",self.statusmessageduration)                              
+        if(self._Confirm("Delete Data","Are you sure that you would like to delete all data?") and
+           self._Confirm("Delete Data","Are you REALLY sure ?")):
+            shutil.rmtree("FLICData",ignore_errors=True)
+            self.StatusBar.showMessage("Local data folder has been deleted.",self.statusmessageduration)
 
     def CheckForLowStorageWarning(self):
-        stat = os.statvfs("./MainViewModel.py")
-        availableMegaBytes=(stat.f_bfree*stat.f_bsize)/1048576
+        availableMegaBytes=self.GetFreeMegaBytes()
         if(availableMegaBytes>1000):
-            return        
-        msg = QMessageBox()        
-        msg.addButton(QPushButton("Okay"),QMessageBox.NoRole)
-        msg.setIcon(QMessageBox.Information)
-        stext = "Warning: Local storage less than 1GB."        
-        msg.setText(stext)
-        msg.setWindowTitle("Low Storage")
-        ss=ss+"\nStorage: " + str(int(availableMegaBytes)) +" MB"
-        msg.setInformativeText(ss)    
-        retval=msg.exec_()           
-        
+            return
+        msg = self._MessageBox(QMessageBox.Icon.Information,"Low Storage","Warning: Local storage less than 1GB.",
+                               "Storage: " + str(int(availableMegaBytes)) +" MB")
+        msg.addButton("Okay",QMessageBox.ButtonRole.NoRole)
+        msg.exec()
+
     def PowerOff(self):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Question)
-        msg.setText("Are you sure that you would like to power off?")
-        msg.setWindowTitle("Power Off")
-        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        retval=msg.exec_()
-        if(retval==QMessageBox.Yes):
-            msg2 = QMessageBox()
-            msg2.setIcon(QMessageBox.Question)
-            msg2.setWindowTitle("Power Off")
-            msg2.setText("Are you REALLY sure that you would like to power off?")
-            msg2.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            retval=msg2.exec_()
-            if(retval==QMessageBox.Yes):
-                print("Shutting down")  
-                self.theDFMGroup.MP.StopReading()                                 
-                #QCoreApplication.instance().quit()
-                subprocess.call("sudo nohup shutdown -h now", shell=True)
+        if(self._Confirm("Power Off","Are you sure that you would like to power off?") and
+           self._Confirm("Power Off","Are you REALLY sure that you would like to power off?")):
+            print("Shutting down")
+            self.theDFMGroup.MP.StopReading()
+            error = RunAsRoot("/usr/sbin/shutdown","-h","now")
+            if(error is not None):
+                print("Power off failed: "+error)
+                self.StatusBar.showMessage("Power off failed: "+error,self.statusmessageduration)
 
     def AssureClearMessages(self):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Question)
-        msg.setWindowTitle("Clear Messages")
-        msg.setText("Are you sure that you would like to clear messages?")
-        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        retval=msg.exec_()
-        if(retval==QMessageBox.Yes):
+        if(self._Confirm("Clear Messages","Are you sure that you would like to clear messages?")):
             self.ClearMessages()
-        
-    def ClearMessages(self):       
-        self.theDFMGroup.theMessageList.ClearMessages()        
-        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))    
-    
+
+    def ClearMessages(self):
+        self.theDFMGroup.theMessageList.ClearMessages()
+        self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
+
     def ClearLayout(self,layout):
         while layout.count():
             child=layout.takeAt(0)
@@ -553,119 +628,102 @@ class MyMainWindow(QtWidgets.QMainWindow):
         self.activeDFMNum=-1
         self.activeDFM=None
         self.DFMButtons.clear()
-        self.UpdateProgramGUI()        
+        self.UpdateProgramGUI()
         self.findDFMAction.setEnabled(True)
         self.ClearMessages()
 
     def GoToMessagesPage(self):
-        self.StackedPages.setCurrentIndex(2)           
+        self.StackedPages.setCurrentIndex(2)
 
-    def GoToProgramPage(self):        
+    def GoToProgramPage(self):
         self.StackedPages.setCurrentIndex(0)
-    
+
     def GotoDFMPage(self):
         self.StackedPages.setCurrentIndex(1)
         self.UpdateGUI()
-     
-    def GotoProgramLoadPage(self):  
+
+    def GotoProgramLoadPage(self):
         self.StackedPages.setCurrentIndex(3)
 
     def GotoSettingsPage(self):
         self.StackedPages.setCurrentIndex(4)
 
+    def UpdateDFMPageGUI(self):
+        dfm = self.activeDFM
+        self.TempLabel.setText("{:.1f}C".format(dfm.reportedTemperature))
+        self.HumidLabel.setText("{:.1f}%".format(dfm.reportedHumidity))
+        self.LUXLabel.setText("{:.1f}".format(dfm.reportedLUX))
+        self.VoltsInLabel.setText("{:.2f}V".format(dfm.reportedVoltsIn))
 
-    def UpdateDFMPageGUI(self):                
-        self.TempLabel.setText("{:.1f}C".format(self.activeDFM.reportedTemperature))
-        self.HumidLabel.setText("{:.1f}%".format(self.activeDFM.reportedHumidity))
-        self.LUXLabel.setText("{:.1f}".format(self.activeDFM.reportedLUX))
-        self.VoltsInLabel.setText("{:.2f}V".format(self.activeDFM.reportedVoltsIn))
-
-        if(self.activeDFM.reportedTemperature + self.activeDFM.reportedHumidity+self.activeDFM.reportedLUX==0):
+        if(dfm.reportedTemperature + dfm.reportedHumidity+dfm.reportedLUX==0):
             self.EnvironmentGroupBox.setEnabled(False)
         else:
-            self.EnvironmentGroupBox.setEnabled(True)                    
+            self.EnvironmentGroupBox.setEnabled(True)
 
-        if(self.activeDFM.reportedDarkState == Enums.DARKSTATE.ON):
+        if(dfm.reportedDarkState == Enums.DARKSTATE.ON):
             self.DarkModeLabel.setText("Yes")
         else:
             self.DarkModeLabel.setText("No")
-        self.FrequencyLabel.setText("{:d}Hz".format(self.activeDFM.reportedOptoFrequency))
-        self.PulseWidthLabel.setText("{:d}ms".format(self.activeDFM.reportedOptoPulsewidth))
+        self.FrequencyLabel.setText("{:d}Hz".format(dfm.reportedOptoFrequency))
+        self.PulseWidthLabel.setText("{:d}ms".format(dfm.reportedOptoPulsewidth))
 
-        if (self.activeDFM.DFMType==Enums.DFMTYPE.PLETCHERV3 or self.activeDFM.DFMType==Enums.DFMTYPE.ENVMONV3):          
-            self.OptoStateLabel.setText("0x{:03X}".format(self.activeDFM.reportedOptoStateCol1))
+        self.FirmwareLabel.setText(dfm.firmwareVersion)
+
+        if (dfm.DFMType==Enums.DFMTYPE.PLETCHERV3 or dfm.DFMType==Enums.DFMTYPE.ENVMONV3):
+            self.OptoStateLabel.setText("0x{:03X}".format(dfm.reportedOptoStateCol1))
         else:
-            self.OptoStateLabel.setText("{:02X},{:02X}".format(self.activeDFM.reportedOptoStateCol1,self.activeDFM.reportedOptoStateCol2))
+            self.OptoStateLabel.setText("{:02X},{:02X}".format(dfm.reportedOptoStateCol1,dfm.reportedOptoStateCol2))
 
-        if(self.activeDFM.status==Enums.CURRENTSTATUS.ERROR):
-            self.CurrentStatusLabel.setText("Error")
-        elif (self.activeDFM.status==Enums.CURRENTSTATUS.MISSING):
-            self.CurrentStatusLabel.setText("Miss")
-        elif (self.activeDFM.status==Enums.CURRENTSTATUS.READING):
-            self.CurrentStatusLabel.setText("Read")
-        elif (self.activeDFM.status==Enums.CURRENTSTATUS.RECORDING):
-            self.CurrentStatusLabel.setText("Record")
-        elif (self.activeDFM.status==Enums.CURRENTSTATUS.UNDEFINED):
-            self.CurrentStatusLabel.setText("None")
-
-        if(self.activeDFM.pastStatus==Enums.PASTSTATUS.PASTERROR):
+        self.CurrentStatusLabel.setText(STATUS_LABELS[dfm.status])
+        if(dfm.pastStatus==Enums.PASTSTATUS.PASTERROR):
             self.PastStatusLabel.setText("Error")
-        if(self.activeDFM.pastStatus==Enums.PASTSTATUS.ALLCLEAR):
+        else:
             self.PastStatusLabel.setText("Clear")
 
-        if(self.activeDFM.currentDFMErrors.GetI2CErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):            
-            self.I2CErrorBox.setChecked(False)
-        else:            
-            self.I2CErrorBox.setChecked(True)
-
-        if(self.activeDFM.currentDFMErrors.GetOERRErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.OERRErrorBox.setChecked(False)
-        else:
-            self.OERRErrorBox.setChecked(True) 
-         
-        if(self.activeDFM.currentDFMErrors.GetPacketErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.PacketErrorBox.setChecked(False)
-        else:
-            self.PacketErrorBox.setChecked(True)
-        if(self.activeDFM.currentDFMErrors.Getsi7021ErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.SIErrorBox.setChecked(False)
-        else:
-            self.SIErrorBox.setChecked(True)
-        if(self.activeDFM.currentDFMErrors.GetTSL2591ErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.TSLErrorBox.setChecked(False)
-        else:
-            self.TSLErrorBox.setChecked(True)
-        if(self.activeDFM.currentDFMErrors.GetFERRErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.FERRErrorBox.setChecked(False)
-        else:
-            self.FERRErrorBox.setChecked(True)
-        if(self.activeDFM.currentDFMErrors.GetInterruptErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.InterruptErrorBox.setChecked(False)
-        else:
-            self.InterruptErrorBox.setChecked(True)
-        if(self.activeDFM.currentDFMErrors.GetMiscErrorStatus()==Enums.REPORTEDERRORSTATUS.NEVER):
-            self.MiscErrorBox.setChecked(False)
-        else:
-            self.MiscErrorBox.setChecked(True)
+        # One checkbox per error bit, bit 0 first. What they show depends on the DFM's firmware.
+        errors = dfm.currentDFMErrors
+        boxes = (self.I2CErrorBox, self.OERRErrorBox, self.PacketErrorBox, self.SIErrorBox,
+                 self.TSLErrorBox, self.FERRErrorBox, self.InterruptErrorBox, self.MiscErrorBox)
+        self.LayOutErrorBoxes(boxes, errors.display)
+        for box, entry in zip(boxes, errors.display):
+            if(entry is None):
+                continue
+            label, description, bits = entry
+            box.setText(label)
+            box.setToolTip(description)
+            box.setChecked(errors.GetStatus(bits)!=Enums.REPORTEDERRORSTATUS.NEVER)
 
         self.UpdateDFMButtonTextColors()
+
+    def LayOutErrorBoxes(self, boxes, display):
+        # Fill the grid slots in order (down the first column, then the second) with the boxes
+        # in use, so a hidden one (e.g. bit 1 on firmware before 3.5.0) leaves no gap under
+        # No Ack; any empty slot ends up last.
+        if(getattr(self,"errorBoxDisplay",None) is display):
+            return
+        self.errorBoxDisplay = display
+        layout = self.DFMErrorGroupBox.layout()
+        slots = [(0,0),(1,0),(4,0),(5,0),(0,1),(1,1),(4,1),(5,1)]
+        shown = [box for box, entry in zip(boxes, display) if entry is not None]
+        for box in boxes:
+            layout.removeWidget(box)
+            box.setVisible(box in shown)
+        for box, (row, col) in zip(shown, slots):
+            layout.addWidget(box, row, col)
 
     def ProgramEnded(self):
         self.RunProgramButton.setText("Run Program")
         self.toggleOutputsState=False
-        self.RunProgramButton.setEnabled(True)                          
+        self.RunProgramButton.setEnabled(True)
         self.fastUpdateCheckBox.setChecked(False)
 
-    def UpdateDFMPlot(self):           
-        if self.activeDFMNum>0 and self.StackedPages.currentIndex()==1:                     
-            #start = time.time()                          
-            self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)                
-            #end=time.time()        
-            #print("Plotting time: "+str(end-start))    
-    
-    def UpdateGUI(self):     
-        if (self.theDFMGroup.currentProgram.isActive):           
-            self.theDFMGroup.UpdateProgramStatus()         
+    def UpdateDFMPlot(self):
+        if self.activeDFMNum>0 and self.StackedPages.currentIndex()==1:
+            self.theDFMDataPlot.UpdateFigure(self.activeDFM,self.theDFMGroup.currentProgram.autoBaseline)
+
+    def UpdateGUI(self):
+        if (self.theDFMGroup.currentProgram.isActive):
+            self.theDFMGroup.UpdateProgramStatus()
             self.DisableButtons()
             if(self.theDFMGroup.isWriting):
                 self.fastUpdateCheckBox.setEnabled(True)
@@ -678,188 +736,163 @@ class MyMainWindow(QtWidgets.QMainWindow):
                 self.fastUpdateCheckBox.setChecked(False)
 
         else:
-            self.EnableButtons()           
+            self.EnableButtons()
             self.fastUpdateCheckBox.setEnabled(False)
-        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))                    
-        if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:                
-            self.UpdateDFMPageGUI() 
+        self.CheckUSB()
+        self.statusLabel.setText(datetime.datetime.today().strftime("%B %d,%Y %H:%M:%S"))
+        if self.activeDFMNum>-1 and self.StackedPages.currentIndex()==1:
+            self.UpdateDFMPageGUI()
         if self.isMessageUpdateNeeded:
-            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))                               
+            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
             self.isMessageUpdateNeeded=False
-                
-    def NewDFMMessage(self,dummy):        
+
+    def NewDFMMessage(self,dummy):
         self.isMessageUpdateNeeded=True
-        
 
     def closeEvent(self,event):
-        self.MThread.StopThread()
+        self.guiTimer.stop()
         self.ClearDFM()
 
     def ProgramFileChoiceChanged(self,curr, prev):
         if(curr == None):
             return
         self.currentChosenProgramFile = curr.text()
-        fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
-        f = open(fn,"r")
-        lines=f.read()       
-        self.ProgramPreviewTextBox.setText(lines)    
+        # Files saved on Windows may not be UTF-8 (e.g. a degree sign); show them anyway.
+        try:
+            with open(self.currentProgramFileDirectory+self.currentChosenProgramFile,"r",encoding="utf-8-sig",errors="replace") as f:
+                self.ProgramPreviewTextBox.setText(f.read())
+        except OSError as e:
+            self.ProgramPreviewTextBox.setText("Cannot read this file: "+str(e))
 
     def LoadProgramClicked(self):
         if(self.currentChosenProgramFile!=""):
             fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
-            try:              
+            try:
                 if(self.theDFMGroup.LoadTextProgram(fn)):
-                    self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration) 
+                    self.StatusBar.showMessage("Custom program loaded.",self.statusmessageduration)
                     self.GoToProgramPage()
-                else:  
-                    self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)   
-                self.UpdateProgramGUI() 
-            except:
+                    self.ShowCompatibilityProblems("Compatibility Check")
+                else:
+                    self.StatusBar.showMessage("Problem loading program: "+self.theDFMGroup.programLoadError,self.statusmessageduration)
+                self.UpdateProgramGUI()
+            except Exception:
                 print("Normal except: problem loading program")
-                self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)    
+                self.StatusBar.showMessage("Problem loading program.",self.statusmessageduration)
         else:
-            self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)    
+            self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)
+
+    def ShowCompatibilityProblems(self,title):
+        """Shows why the loaded program can't run on every connected DFM. True if it can't."""
+        problems = self.theDFMGroup.CheckProgramCompatibility()
+        if(problems):
+            self._MessageBox(QMessageBox.Icon.Warning,title,"This program can't run on every connected DFM:","\n".join(problems)).exec()
+        return bool(problems)
 
     def DeleteProgramFile(self):
         if(self.currentChosenProgramFile!=""):
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Question)
-            msg.setText("Are you sure that you would like to delete this program file?")
-            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msg.setWindowTitle("Delete Program")
-            retval=msg.exec_()
-            if(retval==QMessageBox.Yes):
+            if(self._Confirm("Delete Program","Are you sure that you would like to delete this program file?")):
                 fn = self.currentProgramFileDirectory+self.currentChosenProgramFile
-                try:              
+                try:
                     os.remove(fn)
-                    self.StatusBar.showMessage("Program deleted.",self.statusmessageduration) 
+                    self.StatusBar.showMessage("Program deleted.",self.statusmessageduration)
                     self.LoadFilesListWidget()
-                except:
+                except OSError:
                     print("Normal except: problem deleting program")
-                    self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration) 
+                    self.StatusBar.showMessage("Problem deleting program.",self.statusmessageduration)
         else:
-            self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)      
+            self.StatusBar.showMessage("No program chosen.",self.statusmessageduration)
 
-    ## This function is not used anymore.
-    def LoadFilesListWidgetDEPRICATED(self):
-        self.FilesListWidget.clear()   
-        try:    
-            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-            if len(subfolders)==0:
-                self.currentProgramFileDirectory = "/media/pi/FLICPrograms/"
-            else:
-                self.currentProgramFileDirectory = subfolders[0]+"/FLICPrograms/"    
-
-            files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))
-            for f in files:
-                h, t = os.path.split(f)
-                self.FilesListWidget.insertItem(0,t)
-            if(len(files)>0):
-                self.FilesListWidget.setCurrentRow(0)
-        except:
-            self.StatusBar.showMessage("Problem loading program. Is USB connected?",self.statusmessageduration)  
-    
     def MoveProgramFilesToLocal(self):
-        self.StatusBar.showMessage("Moving programs from USB...",self.statusmessageduration)  
-        try:    
-            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-            if len(subfolders)==0:
-                sourceDirectory = "/media/pi/FLICPrograms/"
-            else:
-                sourceDirectory = subfolders[0]+"/FLICPrograms/"    
-            targetDirectory ="./FLICPrograms/"    
-            files=(glob.glob(sourceDirectory+"*.txt"))
-            if(len(files)>0):
-                for i in files:
-                    shutil.copy(i,targetDirectory)
-            else:
-                self.StatusBar.showMessage("No .txt files found.",self.statusmessageduration)  
-                
-        except:
-            print("Normal except: problem moving program")
-            self.StatusBar.showMessage("Problem moving programs. Is USB connected?",self.statusmessageduration)  
-        sss="Move complete. {:d} program files moved.".format(len(files))
-        self.StatusBar.showMessage(sss,self.statusmessageduration)  
+        self.StatusBar.showMessage("Moving programs from USB...",self.statusmessageduration)
+        drive = GetUSBDrive("FLICPrograms")
+        if drive is None:
+            self.StatusBar.showMessage("No USB with a FLICPrograms folder found.",self.statusmessageduration)
+            return
+        try:
+            files=ListProgramFiles(drive+"/FLICPrograms")
+            os.makedirs("./FLICPrograms",exist_ok=True)
+            for i in files:
+                shutil.copyfile(i,os.path.join("./FLICPrograms",os.path.basename(i)))
+        except OSError as e:
+            print("Problem moving programs: "+str(e))
+            self.StatusBar.showMessage("Problem moving programs: "+str(e),self.statusmessageduration)
+            return
+        if(len(files)==0):
+            self.StatusBar.showMessage("No .txt files found.",self.statusmessageduration)
+        else:
+            sss="Move complete. {:d} program files moved.".format(len(files))
+            self.StatusBar.showMessage(sss,self.statusmessageduration)
         self.LoadCustomProgram()
 
-    
     def LoadFilesListWidget(self):
-        self.FilesListWidget.clear()       
-        self.currentProgramFileDirectory ="./FLICPrograms/"    
-        files=(glob.glob(self.currentProgramFileDirectory+"*.txt"))       
-        files.sort(reverse=True)       
+        self.FilesListWidget.clear()
+        self.currentProgramFileDirectory ="./FLICPrograms/"
+        files=ListProgramFiles(self.currentProgramFileDirectory)
+        files.sort(reverse=True)
         for f in files:
             h, t = os.path.split(f)
             self.FilesListWidget.insertItem(0,t)
         if(len(files)>0):
             self.FilesListWidget.setCurrentRow(0)
-    
-    def LoadCustomProgram( self ): 
+
+    def LoadCustomProgram( self ):
         self.LoadFilesListWidget()
         self.GotoProgramLoadPage()
-        return
-
-    def DataTransferFunction(self):
-        self.isDataTransferring=True
-        try:
-            command = 'cp -r FLICData/ "' + subfolders[0] +'"'   
-            os.system(command)        
-        except:
-            print("Except: problem in DataTransferFunction")
-            self.isDataTransferring=False
-        self.isDataTransferring=False
 
     def SaveDataToUSB( self ):
-        subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]
-        if len(subfolders)==0:
-            self.StatusBar.showMessage("USB not found.",self.statusmessageduration)  
+        drive = GetUSBDrive("FLICData")
+        if drive is None:
+            self.StatusBar.showMessage("No USB with a FLICData folder found.",self.statusmessageduration)
             return
-        else:                                      
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
-            msg.setText("Do not remove USB until copy is noted as complete.")
-            msg.setWindowTitle("Data Transfer")
-            msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)            
-            ss="This may take several minutes.\nPress Okay to begin."
-            msg.setInformativeText(ss)    
-            returnVal=msg.exec_()  
-            
-            QApplication.processEvents()
-            if returnVal==QMessageBox.Ok:   
-                self.DisableButtons()
-                self.GoToMessagesPage()                            
-                self.StatusBar.showMessage("Copying data files...",120000)      
-                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)          
-                self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))         
-                QApplication.processEvents()              
-                destPath = subfolders[0]+'/FLICData'    
-                sourcePath="/home/pi/PyMCU/PyMCU/FLICData"                
-                tmp=FLICDataCopy.FLICDataCopy("Copying files: ")                
-                tmp.StartDataTransfer(sourcePath,destPath)     
-                while(tmp.isDataTransferring):
-                    self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
-                    QApplication.processEvents()  
-                    time.sleep(0.2)      
-                if(tmp.copySuccess):
-                    self.StatusBar.showMessage("Data copy complete.",self.statusmessageduration)  
-                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete.", Enums.MESSAGETYPE.ANNOTATION)  
-                else:
-                    self.StatusBar.showMessage("Data copy failed.",self.statusmessageduration)  
-                    self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed!", Enums.MESSAGETYPE.ERROR)    
-                self.EnableButtons()              
-            else:
-                self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)                
+        # Data is recorded to ./FLICData (see DFMGroup.WriteStarter).
+        sourcePath=os.path.abspath("FLICData")
+        tmp=FLICDataCopy.FLICDataCopy("Copying files: ")
+        if(tmp.countFiles(sourcePath)==0):
+            self.StatusBar.showMessage("No local data to copy.",self.statusmessageduration)
+            return
+        msg = self._MessageBox(QMessageBox.Icon.Warning,"Data Transfer","Do not remove USB until copy is noted as complete.",
+                               "This may take several minutes.\nPress Okay to begin.",
+                               QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        if msg.exec()!=QMessageBox.StandardButton.Ok:
+            # The drive stays mounted, so programs can still be moved or the copy retried.
+            self.StatusBar.showMessage("Data copy canceled.",self.statusmessageduration)
+            return
+
+        self.DisableButtons()
+        self.isCopyingData=True
         try:
-            command = "umount " + '"'+subfolders[0]+'"'
-            os.system(command)    
-            self.isUSBAttached=False            
-            self.saveDataAction.setEnabled(False)
-            self.MoveProgramButton.setEnabled(False)
+            self.GoToMessagesPage()
+            self.StatusBar.showMessage("Copying data files...",120000)
+            self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying data, do not remove USB.", Enums.MESSAGETYPE.ANNOTATION)
+            self.MessagesTextEdit.setText(str(self.theDFMGroup.theMessageList))
             QApplication.processEvents()
-            self.StatusBar.showMessage("USB unmounted. Ready to remove.",self.statusmessageduration)    
-        except:
-            print("Except: Problem saving data to USB.")
-            return
+            tmp.StartDataTransfer(sourcePath,drive+'/FLICData')
+            while(tmp.isDataTransferring):
+                self.StatusBar.showMessage(tmp.GetProgressString(),self.statusmessageduration)
+                QApplication.processEvents()
+                time.sleep(0.2)
+            if(not tmp.copySuccess):
+                print("Data copy failed: "+tmp.errorMessage)
+                self.StatusBar.showMessage("Data copy failed: "+tmp.errorMessage,self.statusmessageduration)
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copy failed! "+tmp.errorMessage, Enums.MESSAGETYPE.ERROR)
+                return
+
+            # Flush everything to the stick before saying it can be removed.
+            os.sync()
+            result = subprocess.run(["umount",drive],capture_output=True,text=True)
+            if(result.returncode==0):
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete. USB unmounted.", Enums.MESSAGETYPE.ANNOTATION)
+                self.StatusBar.showMessage("Data copy complete. USB unmounted, ready to remove.",self.statusmessageduration)
+            else:
+                error = result.stderr.strip()
+                print("Unmount failed: "+error)
+                self.theDFMGroup.NewMessage(0, datetime.datetime.today(), 0, "Copying complete, but USB did not unmount: "+error, Enums.MESSAGETYPE.ERROR)
+                self.StatusBar.showMessage("Copy complete, but USB did not unmount. Wait, then remove it.",self.statusmessageduration)
+        finally:
+            self.isMessageUpdateNeeded=True
+            self.isCopyingData=False
+            self.EnableButtons()
+            self.CheckUSB()
 
     def ZoomPlotChanged(self):
         if(self.zoomPlotCheckBox.isChecked()):
@@ -867,90 +900,163 @@ class MyMainWindow(QtWidgets.QMainWindow):
         else:
             self.theDFMDataPlot.UpdateYAxisRange(0,1000)
 
+    def ThemeChanged(self):
+        if(self.firstThemeCheck):
+            self.firstThemeCheck=False
+            return
+        if(self.darkThemeCheckBox.isChecked()):
+            with open('theme.txt', 'w') as file:
+                file.write("dark")
+            self.StatusBar.showMessage("Dark theme will activate next boot.",self.statusmessageduration)
+        else:
+            with open('theme.txt', 'w') as file:
+                file.write("normal")
+            self.StatusBar.showMessage("Light theme will activate next boot.",self.statusmessageduration)
+
     def FastUpdatesChanged(self):
         if(self.theDFMGroup.isWriting==False):
             ## This shouldn't happen.  Just here to catch strange event.
-            self.StatusBar.showMessage("Fast updates are allowed only during recording.",self.statusmessageduration)  
+            self.StatusBar.showMessage("Fast updates are allowed only during recording.",self.statusmessageduration)
             self.fastUpdateCheckBox.setChecked(False)
-            return 
-        if(self.fastUpdateCheckBox.isChecked()):            
-            self.theDFMGroup.SetFastProgramReadInterval()            
-        else:            
+            return
+        if(self.fastUpdateCheckBox.isChecked()):
+            self.theDFMGroup.SetFastProgramReadInterval()
+        else:
             self.theDFMGroup.SetNormalProgramReadInterval()
 
-    def RunUpdate(self):  
-        try:    
-            subfolders = [f.path for f in os.scandir("/media/pi") if f.is_dir()]       
-            if len(subfolders)==0:
-                sourceDirectory = "/media/pi/FLICUpdates/"
-            else:
-                sourceDirectory = subfolders[0]+"/FLICUpdates/"                            
-            files=(glob.glob(sourceDirectory+"*.tgz"))                
-            if(len(files)==1):               
-                self.StatusBar.showMessage("Updating...",self.statusmessageduration)                    
-                time.sleep(1)
-                command = "/bin/tar -C /home/pi/PyMCU/PyMCU -xvf " + "\""+files[0]+"\""                        
-                os.system(command)            
-                self.StatusBar.showMessage("Update complete. Rebooting. Remove USB.",self.statusmessageduration)                                    
-                time.sleep(5)
-                os.system("sudo shutdown -r now")
-            else:            
-                self.StatusBar.showMessage("Update failed.",self.statusmessageduration)       
-                self.GotoDFMPage()                                           
-        except:
-            pass
-        
+    def RunUpdate(self):
+        # Package built by CreateVersion.sh: docs/Packaging.md (build), docs/Updating.md (install).
+        files = FindUpdateFiles()
+        if(len(files)!=1):
+            reason = "No update file (.mcu) found on the USB." if len(files)==0 else \
+                     "More than one update file on the USB ("+", ".join(os.path.basename(f) for f in files)+"); leave only one."
+            self.StatusBar.showMessage("Update not started: "+reason,self.statusmessageduration)
+            return
+        error = MCUUpdate.CheckArchive(files[0])
+        if(error):
+            self.StatusBar.showMessage("Update not started: "+error,self.statusmessageduration)
+            return
+        newVersion = MCUUpdate.ReadArchiveVersion(files[0]) or "unknown"
+        if(not self._Confirm("Update MCU","Install PyMCU "+newVersion+" from "+os.path.basename(files[0])+"?\n\n"+
+                             "Installed now: "+APP_VERSION+". The MCU restarts when the update is done.")):
+            self.StatusBar.showMessage("Update canceled.",self.statusmessageduration)
+            return
 
-
-    
-
-def ModuleTest():
-    Board.BoardSetup()
-    tmp = DFMGroup.DFMGroup()
-    tmp.FindDFMs(maxNum=7)
-    counter=0
-    while counter<10800:
-        while tmp.MP.message_q.empty() != True:
-            tmp2 = tmp.MP.message_q.get()
-            print(tmp2.message)      
+        self.DisableButtons()
+        self.StatusBar.showMessage("Updating to "+newVersion+"... do not remove USB or power.",600000)
         QApplication.processEvents()
-        time.sleep(1)
+        print("Installing update "+files[0]+" ("+APP_VERSION+" -> "+newVersion+")")
+        success, message = MCUUpdate.InstallUpdate(files[0], APP_DIRECTORY)
+        print("Update: "+message)
+        if(not success):
+            self.StatusBar.showMessage("Update failed: "+message,self.statusmessageduration)
+            self.EnableButtons()
+            return
+        self.StatusBar.showMessage("Update to "+newVersion+" installed. Restarting... remove USB.",self.statusmessageduration)
+        QApplication.processEvents()
+        os.sync()
+        time.sleep(3)
+        error = RunAsRoot("/usr/sbin/shutdown","-r","now")
+        if(error is not None):
+            print("Reboot failed: "+error)
+            self.StatusBar.showMessage("Update installed. Restart the MCU to use it.",self.statusmessageduration)
+            self.EnableButtons()
 
-    tmp.StopReadWorker()
-    time.sleep(1)
-    
-    #print("DFMs Found:" + str(len(tmp.theDFMs)))
-    #tmp.LoadSimpleProgram(datetime.datetime.today(),datetime.timedelta(minutes=3))
-    #print(tmp.currentProgram)
-    #tmp.ActivateCurrentProgram()      
-    #while(1):        
-    #    tmp.theDFMs[0].ReadValues(True)
-    #    print(tmp.theDFMs[0].theData.GetLastDataPoint().GetConsolePrintPacket())   
-    #    time.sleep(1)      
-    #    tmp.UpdateDFMStatus()     
-    #    print(tmp.longestQueue)
-    #    time.sleep(1)
-    
-def main2():
-    files=(glob.glob("FLICPrograms/*.txt"))           
-    print(files)
-    files.sort(reverse=True)   
-    print(files)
+
+def check_theme(app):
+    try:
+        with open('theme.txt', 'r') as file:
+            first_word = file.readline().strip()
+            if(first_word=="dark"):
+                set_dark_theme(app)
+                return True
+            else:
+                return False
+    except Exception:
+        return False
+
+def set_dark_theme(app):
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.WindowText, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.Base, QColor(25, 25, 25))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, Qt.GlobalColor.black)
+    palette.setColor(QPalette.ColorRole.ToolTipText, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.Text, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.Button, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.ButtonText, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.BrightText, Qt.GlobalColor.red)
+    palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
+    palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
+    # Grey out disabled controls (and other-month days in the calendar).
+    for role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText):
+        palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(127, 127, 127))
+    app.setPalette(palette)
+
+def LogException(excType,excValue,excTraceback):
+    # PyQt6 aborts the whole app on an error inside a button or timer handler unless
+    # sys.excepthook is replaced. Log it (RunMCU.sh sends output to mcu.log) and keep running.
+    print(datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")+" Unhandled error:")
+    traceback.print_exception(excType,excValue,excTraceback)
+    sys.stdout.flush()
+
+def ScreenScaleFactor(app):
+    """Largest quarter-step factor at which the 800x480 design fits the primary screen, at least 1:
+    1.5 on the 1280x720 Touch Display 2, 1 on the 800x480 display."""
+    screen = app.primaryScreen()
+    if screen is None:
+        return 1
+    size = screen.size()
+    scale = min(size.width()/DESIGN_SIZE[0], size.height()/DESIGN_SIZE[1])
+    return max(1, int(scale*4)/4)
+
+def RestartScaledToScreen(app):
+    """Starts the app again with QT_SCALE_FACTOR set when the screen is bigger than the design.
+    Qt reads the factor only while the application object is being created, and the screen size
+    can only be asked from an application object, so this first run measures the screen and then
+    replaces itself with a run that has the factor set. Returns, and the caller carries on with
+    the given application, when no restart is needed: on an 800x480 screen, or when QT_SCALE_FACTOR
+    is already in the environment (QT_SCALE_FACTOR=1 in RunMCU.sh turns scaling off)."""
+    if "QT_SCALE_FACTOR" in os.environ:
+        return
+    scale = ScreenScaleFactor(app)
+    if scale <= 1:
+        return
+    os.environ["QT_SCALE_FACTOR"] = "{:g}".format(scale)
+    os.environ["PYTHONUNBUFFERED"] = "1"  # keeps the -u of RunMCU.sh, so mcu.log stays current
+    sys.stdout.flush()
+    command = [sys.executable, os.path.abspath(__file__)] + sys.argv[1:]
+    if os.name == "nt":
+        # On Windows exec hands the console back at once, so wait for the real app instead.
+        sys.exit(subprocess.call(command))
+    os.execv(command[0], command)
 
 def main():
+    sys.excepthook=LogException
+    # Nothing on the MCU's screen is edited by typing, and on Wayland Qt asks for the on-screen
+    # keyboard whenever a text box, even a read-only one, or a table gets the focus.
+    os.environ["QT_IM_MODULE"] = "none"
+    app = QtWidgets.QApplication(sys.argv)
     if("MCU" in platform.node()):
-        theBoard=Board.BoardSetup()  
-    
-    app = QtWidgets.QApplication(sys.argv)    
-    myapp = MyMainWindow(theBoard)    
-    #ModuleTest()    
+        # A screen bigger than the 800x480 design (e.g. Touch Display 2): does not return, the
+        # app starts again scaled to fit.
+        RestartScaledToScreen(app)
+    scale = os.environ.get("QT_SCALE_FACTOR")
+    print(datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")+" PyMCU "+APP_VERSION+" starting"
+          +(" at screen scale "+scale if scale else ""))
+    if("MCU" in platform.node()):
+        theBoard=Board.BoardSetup()
+        # Touch-screen kiosk: no mouse cursor, even before the first touch.
+        app.setOverrideCursor(Qt.CursorShape.BlankCursor)
+    else:
+        theBoard=Board.BoardMock()
+    is_theme_dark=check_theme(app)
+    myapp = MyMainWindow(theBoard,is_theme_dark)
     myapp.showFullScreen()
-    sys.exit(app.exec_()) 
-    print("Done")
-    
+    sys.exit(app.exec())
+
 
 if __name__ == "__main__":
     main()
-    
-
-

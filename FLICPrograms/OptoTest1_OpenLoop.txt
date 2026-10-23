@@ -1,0 +1,17 @@
+# Open loop: every Well's LED is on for the whole Interval, whatever the fly does (threshold 0).
+# All 12 LEDs should light when the program starts and stay on; touching a Well changes nothing.
+# Runs on every firmware, 1.0.5 included.
+[General]
+ExpDurationMin: 10
+OptoFrequency: 40
+OptoPW: 8
+OptoDecay: 0
+OptoDelay: 0
+MaxTimeOn: 0
+Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
+Baseline: Yes
+
+[DFM]
+ID: All
+ProgramType: Linear
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,10

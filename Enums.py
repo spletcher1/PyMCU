@@ -5,10 +5,8 @@ class STATUSREQUESTTYPE(Enum):
     NORMAL=2
 
 class COMMANDTYPE(Enum):
-    FINDDFM=1
     BUFFER_RESET=2
     LINKAGE=3
-    INSTRUCTION=4
     STOP_READING=5
     SEND_DARK=6
     SEND_FREQ=7
@@ -17,16 +15,16 @@ class COMMANDTYPE(Enum):
     PAUSE_READING=10
     RESUME_READING=11
     RESET_COUNTER=12
-    CLEAR_DATAQ=13
     CLEAR_DATAMESSQ=14
-    SET_VERBOSE=15
-    CLEAR_VERBOSE=16
     SET_STARTTIME=17
     SET_REFRESHRATE=18
     SET_FOCAL_DFM=19
     SET_GET_LATESTSTATUS=20
     SET_GET_NORMALSTATUS=21
     FIND_DFM=22
+    INSTRUCTION_V1_0_5=23
+    INSTRUCTION_V2=24
+    GET_VERSION=25
 
 class COMMTYPE(Enum):
     UART=1
@@ -87,3 +85,9 @@ class DFMTYPE(Enum):
     SABLEV2=2
     PLETCHERV3=3
     ENVMONV3=4
+
+# Which instruction format a V3 DFM takes: firmware 1.0.5 (2-byte times, nothing was ever
+# released as "1.5") or 2.0.0 and later (4-byte times).
+class DFMSUBTYPE(Enum):
+    V1_0_5=1
+    V2=2

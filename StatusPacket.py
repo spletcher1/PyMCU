@@ -2,10 +2,30 @@ import array
 import datetime
 from Enums import PROCESSEDPACKETRESULT,DFMTYPE
 
+V3_PACKET_SIZE = 56
+# A V3 status packet is filled in every 200 ms, so its index gives its time.
+V3_PACKET_INTERVAL = 0.2
+# Order of the wells in V2 (I2C) packets.
+V2_WELL_ORDER = [0,2,1,3,10,7,11,4,8,5,9,6]
+
+
+def Checksum32(data):
+    """Two's complement of the byte sum, as computed by the V3 firmware."""
+    return -sum(data) & 0xFFFFFFFF
+
+
+def _BigEndian(data, start, size):
+    return int.from_bytes(bytes(data[start:start+size]), "big")
+
+
+def _LittleEndian(data, start, size):
+    return int.from_bytes(bytes(data[start:start+size]), "little")
+
+
 class StatusPacket:
     def __init__(self,sampleIndex,DFMID,DFMType):
         self.analogValues=array.array("i",(0 for i in range(0,12)))
-        self.packetTime = datetime.datetime.today() 
+        self.packetTime = datetime.datetime.today()
         self.voltsIn = 0.0
         self.temp = 0.0
         self.humidity = 0.0
@@ -21,306 +41,141 @@ class StatusPacket:
         self.DFMID=DFMID
         self.processResult=''
         self.DFMType=DFMType
+        # How many times the reader had reset this DFM's buffer when the packet was read. Record
+        # indexes start again at 1 after each reset.
+        self.bufferResetCount=0
 
-    def ProcessStatusPacket(self,bytesData,startTime,index=0):     
-        if(self.DFMType==DFMTYPE.SABLEV2):           
+    def ProcessStatusPacket(self,bytesData,startTime,index=0):
+        if(self.DFMType==DFMTYPE.SABLEV2):
             self.ProcessStatusPacketSableV2(bytesData,startTime)
-        elif(self.DFMType==DFMTYPE.PLETCHERV2):            
-            return self.ProcessStatusPacketPletcherV2(bytesData,startTime)
-        elif(self.DFMType==DFMTYPE.PLETCHERV3):            
-            return self.ProcessStatusPacketPletcherV3(bytesData,startTime,index)
+        elif(self.DFMType==DFMTYPE.PLETCHERV2):
+            self.ProcessStatusPacketPletcherV2(bytesData,startTime)
+        elif(self.DFMType==DFMTYPE.PLETCHERV3):
+            self.ProcessStatusPacketPletcherV3(bytesData,startTime,index)
         elif(self.DFMType==DFMTYPE.ENVMONV3):
-            return self.ProcessStatusPacketEnvMonV3(bytesData,startTime,index)
+            self.ProcessStatusPacketEnvMonV3(bytesData,startTime,index)
 
     def AddEnvironmentalInformation(self,temp,lux,humid):
         self.temp = temp
-        self.humidity = humid       
+        self.humidity = humid
         self.lux = lux
 
-    def ProcessStatusPacketSableV2(self,bytesData,currentTime):        
-        if(len(bytesData)!=52):
-            self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES   
-            return 
-        
-        wellIndexer=[0,2,1,3,10,7,11,4,8,5,9,6]   
-        self.errorFlags = 0        
-        calculatedCheckSum=0
-
+    #region V2 (I2C) packets: little-endian 32-bit well values, then an additive checksum
+    def _ProcessV2Wells(self,bytesData):
+        checksum=0
         for i in range(0,12):
-            baseindex=(i*4)
-            currentValue = bytesData[baseindex]
-            currentValue += bytesData[baseindex+1]<<8
-            currentValue += bytesData[baseindex+2]<<16
-            currentValue += bytesData[baseindex+3]<<24
-            calculatedCheckSum+=currentValue
-            self.analogValues[wellIndexer[i]] = currentValue >> 7
-           
+            value = _LittleEndian(bytesData,i*4,4)
+            checksum+=value
+            self.analogValues[V2_WELL_ORDER[i]] = value >> 7
+        return checksum
+
+    def _FinishV2Packet(self,bytesData,currentTime,checksumIndex,calculatedCheckSum):
+        self.temp = 0
+        self.humidity = 0
+        self.lux = 0
+        self.recordIndex = 1
+        self.packetTime = currentTime
+        expectedCheckSum = _LittleEndian(bytesData,checksumIndex,4)
+        if(calculatedCheckSum != expectedCheckSum):
+            print("Checksum error: "+str(expectedCheckSum)+"  "+str(calculatedCheckSum))
+            self.processResult = PROCESSEDPACKETRESULT.CHECKSUMERROR
+        else:
+            self.processResult = PROCESSEDPACKETRESULT.OKAY
+
+    def ProcessStatusPacketSableV2(self,bytesData,currentTime):
+        if(len(bytesData)!=52):
+            self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
+            return
+        self.errorFlags = 0
+        calculatedCheckSum = self._ProcessV2Wells(bytesData)
         self.voltsIn = 0
         self.optoState1 = 0
-        self.optoState2 = 0        
-
+        self.optoState2 = 0
         self.optoFrequency = 0
         self.optoPulseWidth = 0
-        self.darkStatus = 0        
+        self.darkStatus = 0
+        self._FinishV2Packet(bytesData,currentTime,48,calculatedCheckSum)
 
-        self.temp = 0
-        self.humidity = 0       
-        self.lux = 0
-        self.recordIndex = 1        
-        self.packetTime = currentTime
-
-        expectedCheckSum = bytesData[48]
-        expectedCheckSum += bytesData[49]<<8
-        expectedCheckSum += bytesData[50]<<16
-        expectedCheckSum += bytesData[51]<<24
-       
-        if(calculatedCheckSum != expectedCheckSum):            
-            print("Checksum error")
-            self.processResult = PROCESSEDPACKETRESULT.CHECKSUMERROR
-            return
-
-        self.processResult = PROCESSEDPACKETRESULT.OKAY   
-        return
-
-    def ProcessStatusPacketPletcherV2(self,bytesData,currentTime):           
+    def ProcessStatusPacketPletcherV2(self,bytesData,currentTime):
         if(len(bytesData)!=64):
-            self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES   
+            self.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
             return
-
-        wellIndexer=[0,2,1,3,10,7,11,4,8,5,9,6]           
-        self.errorFlags = 0        
-        calculatedCheckSum=0
-
-        for i in range(0,12):
-            baseindex=(i*4)
-            currentValue = bytesData[baseindex]
-            currentValue += bytesData[baseindex+1]<<8
-            currentValue += bytesData[baseindex+2]<<16
-            currentValue += bytesData[baseindex+3]<<24
-            calculatedCheckSum+=currentValue
-            self.analogValues[wellIndexer[i]] = currentValue >> 7
-           
+        self.errorFlags = 0
+        calculatedCheckSum = self._ProcessV2Wells(bytesData)
         self.voltsIn = 0
-
-        currentValue = bytesData[52]
-        currentValue += bytesData[53]<<8
-        currentValue += bytesData[54]<<16
-        currentValue += bytesData[55]<<24
-        self.optoState1 = currentValue
-        calculatedCheckSum +=currentValue
-
-        currentValue = bytesData[56]
-        currentValue += bytesData[57]<<8
-        currentValue += bytesData[58]<<16
-        currentValue += bytesData[59]<<24
-        self.optoState2 = currentValue
-        calculatedCheckSum +=currentValue
-
+        self.optoState1 = _LittleEndian(bytesData,52,4)
+        self.optoState2 = _LittleEndian(bytesData,56,4)
+        self.darkStatus = bytesData[48]
         self.optoFrequency = bytesData[49]
         self.optoPulseWidth = bytesData[50]
-        self.darkStatus = bytesData[48]
-        
-        calculatedCheckSum += bytesData[48]+(bytesData[49]<<8)+(bytesData[50]<<16)
+        calculatedCheckSum += self.optoState1 + self.optoState2 + _LittleEndian(bytesData,48,3)
+        self._FinishV2Packet(bytesData,currentTime,60,calculatedCheckSum)
+    #endregion
 
-        self.temp = 0
-        self.humidity = 0       
-        self.lux = 0             
-        self.recordIndex = 1    
-        self.packetTime = currentTime
+    #region V3 (UART) packets: layout of struct StatusPacket in DFMV3_V2/src/PacketManager.h
+    # 0 ID, 1 error flags, 2-37 wells (3 bytes each), 38-40 volts in, 41-42 opto state,
+    # 43-44 opto frequency, 45-46 opto pulse width, 47 dark, 48-51 index, 52-55 checksum
+    def _ProcessV3Common(self,bytesData,startTime,packetNum):
+        """Sets the fields shared by DFM and EnvMon packets. Returns the packet's offset."""
+        base = packetNum*V3_PACKET_SIZE
+        self.errorFlags = bytesData[base+1]
+        self.darkStatus = bytesData[base+47]
+        self.recordIndex = _BigEndian(bytesData,base+48,4)
+        self.packetTime = startTime + datetime.timedelta(seconds=self.recordIndex*V3_PACKET_INTERVAL)
+        return base
 
-        expectedCheckSum = bytesData[60]
-        expectedCheckSum += bytesData[61]<<8
-        expectedCheckSum += bytesData[62]<<16
-        expectedCheckSum += bytesData[63]<<24
-       
-        #calculatedCheckSum = 637322
-        if(calculatedCheckSum != expectedCheckSum):   
-            print("Checksum error: "+str(expectedCheckSum)+"  "+str(calculatedCheckSum))                            
-            self.processResult = PROCESSEDPACKETRESULT.CHECKSUMERROR    
-            return    
+    def _CheckV3Checksum(self,bytesData,base):
+        calculatedCheckSum = Checksum32(bytesData[base:base+52])
+        expectedCheckSum = _BigEndian(bytesData,base+52,4)
+        if(calculatedCheckSum != expectedCheckSum):
+            print(str(calculatedCheckSum)+":"+str(expectedCheckSum))
+            self.processResult = PROCESSEDPACKETRESULT.CHECKSUMERROR
+        else:
+            self.processResult = PROCESSEDPACKETRESULT.OKAY
 
-        self.processResult = PROCESSEDPACKETRESULT.OKAY   
-        return
-
-    def ProcessStatusPacketPletcherV3(self,bytesData,startTime,packetNum):        
-        ## This function should receive packetnumbers 0-4        
-        indexer = (packetNum*56)
-        # Calculate the checksum
-        calculatedCheckSum=0        
-        for cs in range(indexer,(indexer+52)) :
-            calculatedCheckSum+=bytesData[cs]
-        calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
-        expectedCheckSum = bytesData[(indexer+52)]<<24
-        expectedCheckSum += bytesData[(indexer+53)]<<16
-        expectedCheckSum += bytesData[(indexer+54)]<<8
-        expectedCheckSum += bytesData[(indexer+55)]
-       
-        #if(calculatedCheckSum != expectedCheckSum):     
-        #    print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
-        #    self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
-        #    return
-        
-        ## Add one to move past the ID
-        indexer+=1
-       
-        self.errorFlags = bytesData[indexer]        
+    def ProcessStatusPacketPletcherV3(self,bytesData,startTime,packetNum):
+        base = self._ProcessV3Common(bytesData,startTime,packetNum)
         for i in range(0,12):
-            baseindex=(i*3)+(indexer+1)
-            currentValue = bytesData[baseindex]<<16
-            currentValue += bytesData[baseindex+1]<<8
-            currentValue += bytesData[baseindex+2]
-            self.analogValues[i] = currentValue >>7
-           
-        currentValue = bytesData[(indexer+37)]<<16
-        currentValue += bytesData[(indexer+38)]<<8
-        currentValue += bytesData[(indexer+39)]        
-        self.voltsIn = ((currentValue>>7)/(1024))*3.3*2
-
-        self.optoState1 = bytesData[(indexer+40)] <<8
-        self.optoState1 += bytesData[(indexer+41)]
-        #self.optoState2 = bytesData[(indexer+41)]
-        self.optoState2 =0
-        
-        currentValue = bytesData[(indexer+42)]<<8
-        currentValue += bytesData[(indexer+43)]
-        self.optoFrequency = currentValue
-
-        currentValue = bytesData[(indexer+44)]<<8
-        currentValue += bytesData[(indexer+45)]
-        self.optoPulseWidth = currentValue
-
-        self.darkStatus = bytesData[(indexer+46)]
-        
-        currentValue = bytesData[(indexer+47)]<<24
-        currentValue += bytesData[(indexer+48)]<<16
-        currentValue += bytesData[(indexer+49)]<<8
-        currentValue += bytesData[(indexer+50)]
-        self.recordIndex = currentValue         
-        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
-        #self.packetTime = datetime.datetime.today()
-
+            # Each well is the sum of the last 128 readings. The firmware sets the top bit
+            # (+65536 here) while the well is in training; it is kept in the data file.
+            self.analogValues[i] = _BigEndian(bytesData,base+2+i*3,3) >> 7
+        self.voltsIn = ((_BigEndian(bytesData,base+38,3)>>7)/(1024))*3.3*2
+        self.optoState1 = _BigEndian(bytesData,base+41,2)
+        self.optoState2 = 0
+        self.optoFrequency = _BigEndian(bytesData,base+43,2)
+        self.optoPulseWidth = _BigEndian(bytesData,base+45,2)
         self.temp = 0
-        self.humidity = 0       
-        self.lux = 0         
-        
-        if(calculatedCheckSum != expectedCheckSum):     
-            print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
-            self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
-            return
+        self.humidity = 0
+        self.lux = 0
+        self._CheckV3Checksum(bytesData,base)
 
-        self.processResult =  PROCESSEDPACKETRESULT.OKAY      
-        return
-
-
-    def ProcessStatusPacketEnvMonV3(self,bytesData,startTime,packetNum):        
-        ## This function should receive packetnumbers 0-4        
-        indexer = (packetNum*56)
-        # Calculate the checksum
-        calculatedCheckSum=0        
-        for cs in range(indexer,(indexer+52)) :
-            calculatedCheckSum+=bytesData[cs]
-        calculatedCheckSum = (calculatedCheckSum ^ 0xFFFFFFFF) + 0x01
-        expectedCheckSum = bytesData[(indexer+52)]<<24
-        expectedCheckSum += bytesData[(indexer+53)]<<16
-        expectedCheckSum += bytesData[(indexer+54)]<<8
-        expectedCheckSum += bytesData[(indexer+55)]
-       
-        #if(calculatedCheckSum != expectedCheckSum):     
-        #    print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
-        #    self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
-        #    return
-        
-        ## Add one to move past the ID
-        indexer+=1
-       
-        self.errorFlags = bytesData[indexer]      
-
-        currentValue = bytesData[(indexer+1)]<<24
-        currentValue += bytesData[(indexer+2)]<<16
-        currentValue += bytesData[(indexer+3)]<<8
-        currentValue += bytesData[(indexer+4)]
-        self.temp = currentValue/1000.0
-
-        currentValue = bytesData[(indexer+5)]<<24
-        currentValue += bytesData[(indexer+6)]<<16
-        currentValue += bytesData[(indexer+7)]<<8
-        currentValue += bytesData[(indexer+8)]
-        self.humidity = currentValue/1000.0
-        
-        currentValue = bytesData[(indexer+9)]<<24
-        currentValue += bytesData[(indexer+10)]<<16
-        currentValue += bytesData[(indexer+11)]<<8
-        currentValue += bytesData[(indexer+12)]
-        self.lux = currentValue/1000.0       
-
+    def ProcessStatusPacketEnvMonV3(self,bytesData,startTime,packetNum):
+        base = self._ProcessV3Common(bytesData,startTime,packetNum)
+        self.temp = _BigEndian(bytesData,base+2,4)/1000.0
+        self.humidity = _BigEndian(bytesData,base+6,4)/1000.0
+        self.lux = _BigEndian(bytesData,base+10,4)/1000.0
+        # Bytes 14-19 are on/off states, shown as wells 1-6.
         for i in range(0,12):
-            self.analogValues[i] = 0
-
-        if(bytesData[(indexer+13)]==0):
-            self.analogValues[0] = 0
-        else:
-            self.analogValues[0] = 500
-            
-        if(bytesData[(indexer+14)]==0):
-            self.analogValues[1] = 0
-        else:
-            self.analogValues[1] = 500
-
-        if(bytesData[(indexer+15)]==0):
-            self.analogValues[2] = 0
-        else:
-            self.analogValues[2] = 500
-
-        if(bytesData[(indexer+16)]==0):
-            self.analogValues[3] = 0
-        else:
-            self.analogValues[3] = 500    
-
-        if(bytesData[(indexer+17)]==0):
-            self.analogValues[4] = 0
-        else:
-            self.analogValues[4] = 500
-
-        if(bytesData[(indexer+18)]==0):
-            self.analogValues[5] = 0
-        else:
-            self.analogValues[5] = 500    
-
-        self.darkStatus = bytesData[(indexer+46)]
-        
-        currentValue = bytesData[(indexer+47)]<<24
-        currentValue += bytesData[(indexer+48)]<<16
-        currentValue += bytesData[(indexer+49)]<<8
-        currentValue += bytesData[(indexer+50)]
-        self.recordIndex = currentValue        
-        self.packetTime = startTime + datetime.timedelta(seconds=currentValue*0.2)        
-        #self.packetTime = datetime.datetime.today()
-        
-
+            self.analogValues[i] = 500 if i<6 and bytesData[base+14+i]!=0 else 0
         self.voltsIn = 0.0
-        
-        if(calculatedCheckSum != expectedCheckSum):     
-            print(str(calculatedCheckSum)+":"+str(expectedCheckSum))       
-            self.processResult =  PROCESSEDPACKETRESULT.CHECKSUMERROR
-            return
-
-        self.processResult =  PROCESSEDPACKETRESULT.OKAY      
-        return
+        self._CheckV3Checksum(bytesData,base)
+    #endregion
 
     def GetConsolePrintPacket(self):
         tmp = self.packetTime.microsecond/1000
         ss = "("+str(self.DFMID)+":"+str(self.sample)+") "
         ss += self.packetTime.strftime("%m/%d/%Y %H:%M:%S")
         ss+=' {:7.2f}'.format(tmp)
-        ss += '  Wells: {:4d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}{:6d}'.format(self.analogValues[0],self.analogValues[1],self.analogValues[2],self.analogValues[3],self.analogValues[4],self.analogValues[5],self.analogValues[6],self.analogValues[7],self.analogValues[8],self.analogValues[9],self.analogValues[10],self.analogValues[11])       
+        ss += '  Wells: {:4d}'.format(self.analogValues[0]) + ''.join('{:6d}'.format(v) for v in self.analogValues[1:])
         ss += '   E:{:<4d}  T:{:<6.2f}  H:{:<6.2f}  L:{:<6.2f}  V:{:4.2f}  OS1:{:02X}  OS2:{:02X}'.format(self.errorFlags,self.temp,self.humidity,self.lux,self.voltsIn,self.optoState1,self.optoState2)
         ss += '  D:{:<2d}  F:{:<4d}  PW:{:<4d} Ind:{:<6d}'.format(self.darkStatus,self.optoFrequency,self.optoPulseWidth,self.recordIndex)
-        return ss 
+        return ss
+
     def GetDataBufferPrintPacket(self):
         tmp = self.packetTime.microsecond/1000
         ss = self.packetTime.strftime("%m/%d/%Y,%H:%M:%S,")
         ss+='{:.2f},{:d},'.format(tmp,self.sample)
-        ss += '{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},'.format(self.analogValues[0],self.analogValues[1],self.analogValues[2],self.analogValues[3],self.analogValues[4],self.analogValues[5],self.analogValues[6],self.analogValues[7],self.analogValues[8],self.analogValues[9],self.analogValues[10],self.analogValues[11])
+        ss += ''.join('{:d},'.format(v) for v in self.analogValues)
         ss += '{:.2f},{:0.2f},{:.2f},{:0.2f},'.format(self.temp,self.humidity,self.lux,self.voltsIn)
         ss += '{:d},{:d},{:d},{:d},{:d},{:d},{:d}\n'.format(self.darkStatus,self.optoFrequency,self.optoPulseWidth,self.optoState1,self.optoState2,self.errorFlags,self.recordIndex)
-        return ss 
+        return ss

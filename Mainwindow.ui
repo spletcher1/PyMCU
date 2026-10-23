@@ -40,7 +40,7 @@
      <number>6</number>
     </property>
     <property name="bottomMargin">
-     <number>2</number>
+     <number>4</number>
     </property>
     <item>
      <widget class="QStackedWidget" name="StackedPages">
@@ -166,36 +166,9 @@
              </widget>
             </item>
             <item>
-             <widget class="QDateTimeEdit" name="StartTimeEdit">
-              <property name="minimumSize">
-               <size>
-                <width>0</width>
-                <height>50</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>170</width>
-                <height>16777215</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <pointsize>13</pointsize>
-               </font>
-              </property>
-              <property name="minimumDate">
-               <date>
-                <year>2019</year>
-                <month>12</month>
-                <day>14</day>
-               </date>
-              </property>
-              <property name="displayFormat">
-               <string>MM/dd/yyyy HH:mm</string>
-              </property>
-              <property name="calendarPopup">
-               <bool>false</bool>
+             <widget class="QLabel" name="StartTimeLabel">
+              <property name="text">
+               <string>--/--/---- --:--</string>
               </property>
              </widget>
             </item>
@@ -209,6 +182,19 @@
               </property>
               <property name="text">
                <string>Now</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="StartTimeSetButton">
+              <property name="maximumSize">
+               <size>
+                <width>170</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Set</string>
               </property>
              </widget>
             </item>
@@ -382,10 +368,10 @@
            </size>
           </property>
           <property name="frameShape">
-           <enum>QFrame::StyledPanel</enum>
+           <enum>QFrame::Box</enum>
           </property>
           <property name="frameShadow">
-           <enum>QFrame::Raised</enum>
+           <enum>QFrame::Plain</enum>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_11">
            <property name="spacing">
@@ -424,10 +410,13 @@
               </size>
              </property>
              <property name="frameShape">
-              <enum>QFrame::Box</enum>
+              <enum>QFrame::NoFrame</enum>
              </property>
              <property name="frameShadow">
-              <enum>QFrame::Raised</enum>
+              <enum>QFrame::Plain</enum>
+             </property>
+             <property name="lineWidth">
+              <number>0</number>
              </property>
              <property name="horizontalScrollBarPolicy">
               <enum>Qt::ScrollBarAlwaysOff</enum>
@@ -443,8 +432,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>112</width>
-                <height>332</height>
+                <width>116</width>
+                <height>336</height>
                </rect>
               </property>
               <layout class="QVBoxLayout" name="DFMListLayout2">
@@ -458,7 +447,7 @@
                 <number>2</number>
                </property>
                <property name="rightMargin">
-                <number>6</number>
+                <number>2</number>
                </property>
                <property name="bottomMargin">
                 <number>3</number>
@@ -515,7 +504,10 @@
            <enum>QFrame::Box</enum>
           </property>
           <property name="frameShadow">
-           <enum>QFrame::Raised</enum>
+           <enum>QFrame::Plain</enum>
+          </property>
+          <property name="lineWidth">
+           <number>1</number>
           </property>
           <layout class="QHBoxLayout" name="DFMPlotLayout">
            <property name="spacing">
@@ -548,7 +540,7 @@
            <enum>QFrame::Box</enum>
           </property>
           <property name="frameShadow">
-           <enum>QFrame::Raised</enum>
+           <enum>QFrame::Plain</enum>
           </property>
           <layout class="QVBoxLayout" name="DFMListLayout">
            <property name="spacing">
@@ -561,7 +553,7 @@
             <number>2</number>
            </property>
            <property name="rightMargin">
-            <number>2</number>
+            <number>4</number>
            </property>
            <property name="bottomMargin">
             <number>2</number>
@@ -583,8 +575,8 @@
              <property name="font">
               <font>
                <pointsize>10</pointsize>
-               <weight>75</weight>
-               <bold>true</bold>
+               <weight>50</weight>
+               <bold>false</bold>
               </font>
              </property>
              <property name="title">
@@ -617,6 +609,8 @@
                 <property name="font">
                  <font>
                   <pointsize>10</pointsize>
+                  <weight>75</weight>
+                  <bold>true</bold>
                  </font>
                 </property>
                 <property name="frameShape">
@@ -648,6 +642,7 @@
                   <widget class="QLabel" name="label_4">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -667,6 +662,7 @@
                   <widget class="QLabel" name="label_2">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -686,6 +682,7 @@
                   <widget class="QLabel" name="label">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -705,6 +702,7 @@
                   <widget class="QLabel" name="label_3">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -734,6 +732,8 @@
                 <property name="font">
                  <font>
                   <pointsize>10</pointsize>
+                  <weight>75</weight>
+                  <bold>true</bold>
                  </font>
                 </property>
                 <property name="frameShape">
@@ -762,6 +762,7 @@
                   <widget class="QLabel" name="TempLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -775,6 +776,7 @@
                   <widget class="QLabel" name="HumidLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -788,6 +790,7 @@
                   <widget class="QLabel" name="LUXLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -801,6 +804,7 @@
                   <widget class="QLabel" name="VoltsInLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -833,8 +837,8 @@
              <property name="font">
               <font>
                <pointsize>10</pointsize>
-               <weight>75</weight>
-               <bold>true</bold>
+               <weight>50</weight>
+               <bold>false</bold>
               </font>
              </property>
              <property name="title">
@@ -867,6 +871,8 @@
                 <property name="font">
                  <font>
                   <pointsize>10</pointsize>
+                  <weight>75</weight>
+                  <bold>true</bold>
                  </font>
                 </property>
                 <property name="frameShape">
@@ -918,6 +924,7 @@
                   <widget class="QLabel" name="label_6">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -937,6 +944,7 @@
                   <widget class="QLabel" name="label_7">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -959,6 +967,7 @@
                   <widget class="QLabel" name="label_8">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -981,6 +990,7 @@
                   <widget class="QLabel" name="label_9">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -997,12 +1007,30 @@
                   <widget class="QLabel" name="label_10">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
                    <property name="text">
                     <string>Past Status:</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="label_12">
+                   <property name="font">
+                    <font>
+                     <pointsize>10</pointsize>
+                     <weight>50</weight>
+                     <bold>false</bold>
+                    </font>
+                   </property>
+                   <property name="text">
+                    <string>Firmware:</string>
                    </property>
                    <property name="alignment">
                     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1023,6 +1051,8 @@
                 <property name="font">
                  <font>
                   <pointsize>10</pointsize>
+                  <weight>75</weight>
+                  <bold>true</bold>
                  </font>
                 </property>
                 <property name="frameShape">
@@ -1051,6 +1081,7 @@
                   <widget class="QLabel" name="DarkModeLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -1064,6 +1095,7 @@
                   <widget class="QLabel" name="FrequencyLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -1077,6 +1109,7 @@
                   <widget class="QLabel" name="PulseWidthLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -1090,6 +1123,7 @@
                   <widget class="QLabel" name="OptoStateLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -1103,6 +1137,7 @@
                   <widget class="QLabel" name="CurrentStatusLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
@@ -1116,12 +1151,27 @@
                   <widget class="QLabel" name="PastStatusLabel">
                    <property name="font">
                     <font>
+                     <pointsize>10</pointsize>
                      <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
                    <property name="text">
                     <string>NA</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="FirmwareLabel">
+                   <property name="font">
+                    <font>
+                     <pointsize>10</pointsize>
+                     <weight>50</weight>
+                     <bold>false</bold>
+                    </font>
+                   </property>
+                   <property name="text">
+                    <string>0.0.0</string>
                    </property>
                   </widget>
                  </item>
@@ -1142,8 +1192,8 @@
              <property name="font">
               <font>
                <pointsize>10</pointsize>
-               <weight>75</weight>
-               <bold>true</bold>
+               <weight>50</weight>
+               <bold>false</bold>
               </font>
              </property>
              <property name="title">
@@ -1385,6 +1435,9 @@
                  <property name="enabled">
                   <bool>true</bool>
                  </property>
+                 <property name="readOnly">
+                  <bool>true</bool>
+                 </property>
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                    <horstretch>0</horstretch>
@@ -1550,6 +1603,7 @@
                <widget class="QListWidget" name="FilesListWidget">
                 <property name="font">
                  <font>
+                  <family>Ubuntu</family>
                   <pointsize>11</pointsize>
                  </font>
                 </property>
@@ -1701,8 +1755,21 @@
                <height>50</height>
               </size>
              </property>
+             <property name="maximumSize">
+              <size>
+               <width>200</width>
+               <height>50</height>
+              </size>
+             </property>
              <property name="text">
               <string>Update MCU</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QCheckBox" name="darkThemeCheckBox">
+             <property name="text">
+              <string>Use Dark Theme</string>
              </property>
             </widget>
            </item>
@@ -1795,7 +1862,7 @@
   <action name="powerOffAction">
    <property name="icon">
     <iconset>
-     <normaloff>exit.png</normaloff>exit.png</iconset>
+     <normaloff>images/exit.png</normaloff>images/exit.png</iconset>
    </property>
    <property name="text">
     <string>Power Off</string>
@@ -1804,7 +1871,7 @@
   <action name="findDFMAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-find.png</normaloff>gtk-find.png</iconset>
+     <normaloff>images/gtk-find.png</normaloff>images/gtk-find.png</iconset>
    </property>
    <property name="text">
     <string>Find DFM</string>
@@ -1813,7 +1880,7 @@
   <action name="clearDFMAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-cancel.png</normaloff>gtk-cancel.png</iconset>
+     <normaloff>images/gtk-cancel.png</normaloff>images/gtk-cancel.png</iconset>
    </property>
    <property name="text">
     <string>Clear DFM</string>
@@ -1822,7 +1889,7 @@
   <action name="messagesAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-select-all.png</normaloff>gtk-select-all.png</iconset>
+     <normaloff>images/gtk-select-all.png</normaloff>images/gtk-select-all.png</iconset>
    </property>
    <property name="text">
     <string>Messages</string>
@@ -1834,7 +1901,7 @@
   <action name="programAction">
    <property name="icon">
     <iconset>
-     <normaloff>gnome-stock-text-indent.png</normaloff>gnome-stock-text-indent.png</iconset>
+     <normaloff>images/gnome-stock-text-indent.png</normaloff>images/gnome-stock-text-indent.png</iconset>
    </property>
    <property name="text">
     <string>Programs</string>
@@ -1846,7 +1913,7 @@
   <action name="aboutMCUAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-about.png</normaloff>gtk-about.png</iconset>
+     <normaloff>images/gtk-about.png</normaloff>images/gtk-about.png</iconset>
    </property>
    <property name="text">
     <string>About</string>
@@ -1858,7 +1925,7 @@
   <action name="saveDataAction">
    <property name="icon">
     <iconset>
-     <normaloff>gtk-floppy.png</normaloff>gtk-floppy.png</iconset>
+     <normaloff>images/gtk-floppy.png</normaloff>images/gtk-floppy.png</iconset>
    </property>
    <property name="text">
     <string>Export Data</string>
@@ -1870,7 +1937,7 @@
   <action name="deleteDataAction">
    <property name="icon">
     <iconset>
-     <normaloff>editdelete.png</normaloff>editdelete.png</iconset>
+     <normaloff>images/editdelete.png</normaloff>images/editdelete.png</iconset>
    </property>
    <property name="text">
     <string>Delete Data</string>
@@ -1882,7 +1949,7 @@
   <action name="dataAction">
    <property name="icon">
     <iconset>
-     <normaloff>gnome-monitor.png</normaloff>gnome-monitor.png</iconset>
+     <normaloff>images/gnome-monitor.png</normaloff>images/gnome-monitor.png</iconset>
    </property>
    <property name="text">
     <string>Live Data</string>
@@ -1894,7 +1961,7 @@
   <action name="clearMessagesAction">
    <property name="icon">
     <iconset>
-     <normaloff>editclear.png</normaloff>editclear.png</iconset>
+     <normaloff>images/editclear.png</normaloff>images/editclear.png</iconset>
    </property>
    <property name="text">
     <string>Clear Msg</string>
@@ -1906,7 +1973,7 @@
   <action name="toggleOutputsAction">
    <property name="icon">
     <iconset>
-     <normaloff>kcontrol.png</normaloff>kcontrol.png</iconset>
+     <normaloff>images/kcontrol.png</normaloff>images/kcontrol.png</iconset>
    </property>
    <property name="text">
     <string>Outputs</string>
@@ -1918,7 +1985,7 @@
   <action name="ejectAction">
    <property name="icon">
     <iconset>
-     <normaloff>USB.png</normaloff>USB.png</iconset>
+     <normaloff>images/USB.png</normaloff>images/USB.png</iconset>
    </property>
    <property name="text">
     <string>Eject USB</string>

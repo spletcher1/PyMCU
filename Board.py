@@ -1,49 +1,53 @@
 import platform
+import time
 if("MCU" in platform.node()):
-    import RPi.GPIO as GPIO
+    from gpiozero import LED, InputDevice
 
+class BoardMock():
+    def __init__(self):
+        pass
+    def IsDFMV3Board(self):
+        return True
+    def IsDFMV2Board(self):
+        return False
+    def GetBoardVersion(self):
+        return "V3"
+    def TurnOnDFMPower(self):
+        pass
+    def TurnOffDFMPower(self):
+        pass
 
 class BoardSetup():
-    def __init__(self):
-        GPIO.setwarnings(False)
-        GPIO.setmode(GPIO.BCM)
+    def __init__(self):        
 
         self.ledPIN=13
         self.relayPIN=6
         self.boardIDPin=5
 
-        GPIO.setup(self.ledPIN,GPIO.OUT)
-        GPIO.setup(self.relayPIN,GPIO.OUT)
-        GPIO.output(self.relayPIN,GPIO.HIGH)
-        GPIO.output(self.ledPIN,GPIO.HIGH) 
-    
-        GPIO.setup(self.boardIDPin,GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        self.Led = LED(self.ledPIN)
+        self.relay = LED(self.relayPIN)
+        self.BoardID = InputDevice(pin=self.boardIDPin, pull_up=False)
+        
+        self.TurnOnDFMPower()
 
     def IsDFMV3Board(self):
-        if (self.GetBoardVersion()=="V3"):
-            return True
-        else:
-            return False
-        
+        return self.GetBoardVersion()=="V3"
+
     def IsDFMV2Board(self):
-        if (self.GetBoardVersion()=="V2"):
-            return True
-        else:
-            return False
-        
+        return self.GetBoardVersion()=="V2"
+
     def GetBoardVersion(self):
-        if(GPIO.input(self.boardIDPin)):
-            return "V3"
-        else:
-            return "V2"
+        return "V3" if self.BoardID.value else "V2"
 
-
+    def TurnOnDFMPower(self):
+        self.relay.on()
+        self.Led.on()       
 
     def TurnOffDFMPower(self):
-        GPIO.output(self.relayPIN,GPIO.LOW)
-        GPIO.output(self.ledPIN,GPIO.LOW)
-
+        self.relay.off()
+        self.Led.off()        
 
 if __name__=="__main__" :
     tmp = BoardSetup()
-    print(tmp.GetBoardVersion())
+    print(tmp.GetBoardVersion())  
+    time.sleep(10) 

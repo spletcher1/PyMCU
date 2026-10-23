@@ -1,26 +1,28 @@
-from multiprocessing import Queue, Process
-import queue
-import COMM
 import datetime
-import StatusPacket
-from Enums import COMMTYPE,DFMTYPE,COMMANDTYPE,PROCESSEDPACKETRESULT,STATUSREQUESTTYPE
-import math
-import Board
+import itertools
+import multiprocessing
+import queue
+import threading
 import time
-import sys
-import EnvironmentalMonitor
 
-class MP_Message:
-    def __init__(self,message):
-        self.time = datetime.datetime.today()
-        self.message=message
+import COMM
+import EnvironmentalMonitor
+import StatusPacket
+from Enums import COBSRESULT, COMMANDTYPE, COMMTYPE, DFMTYPE, PROCESSEDPACKETRESULT, STATUSREQUESTTYPE
+
+# The reader runs in a forked process that inherits this object's state. Python 3.14 makes
+# forkserver the default on Linux, which would try to pickle the object instead.
+_mp = multiprocessing.get_context("fork")
+
 
 class MP_Command:
-    def __init__(self,ctype,arg):
+    def __init__(self,ctype,arg,requestID=None):
         self.commandType = ctype
         self.arguments=arg
+        self.requestID=requestID
     def __str__(self):
         return str(self.commandType) + ":" + str(self.arguments)
+
 
 class DFMInfo:
     def __init__(self,id,dfmtype):
@@ -33,379 +35,347 @@ class DFMInfo:
 
 
 class DataGetter:
+    """Owns the DFM bus. All bus traffic happens in a separate reader process; the main process
+    talks to it through command_q, answer_q (replies to requests) and data_q (status packets)."""
+
     def __init__(self):
-        self.message_q=Queue()
-        self.command_q=Queue()               
-        self.answer_q=Queue()      
-        self.data_q=Queue()   
-        self.theCOMM = None                
+        self.command_q=_mp.Queue()
+        self.answer_q=_mp.Queue()
+        self.data_q=_mp.Queue()
+        self.requestLock = threading.Lock()
+        self.requestIDs = itertools.count(1)
+        self.theCOMM = None
         self.COMMType = None
-        self.DFMInfos = []    
-        self.focalDFMs = []            
-        self.verbose=False
-        self.theReader=None
+        self.DFMInfos = []
+        self.focalDFMs = []
+        # Reader-process state, by DFM ID.
+        self.bufferResetCounts = {}
+        self.firmwareVersions = {}
+        # DFMs whose last status reply was full, so more packets are waiting on them.
+        self.laggingDFMs = []
         self.refreshRate=0.25
         self.startTime = datetime.datetime.today()
         self.currentReadIndex=1
-        self.continueRunning = False
-        self.isPaused = False
-        self.getLatestStatusOnly=False  
-        self.theEnvironmentalMonitor = EnvironmentalMonitor.EnvironmentalMonitor(5) 
-        self.theReader = Process(target=self.ReadWorker)
-        self.theReader.start()
-        self.QueueMessage("Reader started.")     
+        self.isPaused = True
+        self.getLatestStatusOnly=False
         self.EnvMonV3_Temperature=0.0
         self.EnvMonV3_Humidity=0.0
-        self.EnvMonV3_LUX=0.0            
-             
-      
+        self.EnvMonV3_LUX=0.0
+        self.theEnvironmentalMonitor = EnvironmentalMonitor.EnvironmentalMonitor(5)
+        # A daemon, so the app can exit without stopping it first.
+        self.theReader = _mp.Process(target=self.ReadWorker, daemon=True)
+        self.theReader.start()
+
     #region Functions that can be called from outside the process
+    def _Request(self, commandType, arguments, timeout):
+        """Runs a command in the reader process and returns its answer, or None on timeout."""
+        with self.requestLock:
+            requestID = next(self.requestIDs)
+            self.command_q.put(MP_Command(commandType, arguments, requestID))
+            deadline = time.monotonic() + timeout
+            while True:
+                try:
+                    answerID, answer = self.answer_q.get(timeout=max(0, deadline - time.monotonic()))
+                except queue.Empty:
+                    print("get Answer timeout")
+                    return None
+                # Anything else is a late answer to an earlier request that timed out.
+                if answerID == requestID:
+                    return answer
 
-    def StopReading(self):   
-        self.QueueMessage("Reader termination requested.")         
-        self.command_q.put(MP_Command(COMMANDTYPE.STOP_READING,''))              
-    def GetAnswer(self, tout):     
-        try:                
-            tmp = self.answer_q.get(block=True,timeout=tout)                              
-            return tmp
-        except:           
-            print("get Answer timeout")     
-            return None
+    def _Command(self, commandType, arguments=''):
+        self.command_q.put(MP_Command(commandType, arguments))
+
+    def StopReading(self):
+        self._Command(COMMANDTYPE.STOP_READING)
     def ClearQueues(self):
-        self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
+        self._Command(COMMANDTYPE.CLEAR_DATAMESSQ)
     def PauseReading(self):
-        self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
+        self._Command(COMMANDTYPE.PAUSE_READING)
     def ResumeReading(self):
-        self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))
-    def StartReading(self):        
-        self.command_q.put(MP_Command(COMMANDTYPE.PAUSE_READING,''))
-        self.command_q.put(MP_Command(COMMANDTYPE.CLEAR_DATAMESSQ,''))
-        self.command_q.put(MP_Command(COMMANDTYPE.RESET_COUNTER,''))
-        self.command_q.put(MP_Command(COMMANDTYPE.RESUME_READING,''))    
+        self._Command(COMMANDTYPE.RESUME_READING)
+    def StartReading(self):
+        self._Command(COMMANDTYPE.PAUSE_READING)
+        self._Command(COMMANDTYPE.CLEAR_DATAMESSQ)
+        self._Command(COMMANDTYPE.RESET_COUNTER)
+        self._Command(COMMANDTYPE.RESUME_READING)
     def FindDFM(self,COMMType):
-        self.ClearAnswerQueueInternal()
-        self.command_q.put(MP_Command(COMMANDTYPE.FIND_DFM,[COMMType]))
-        return self.GetAnswer(20)
+        return self._Request(COMMANDTYPE.FIND_DFM,[COMMType],20) or []
+    ## These return True only if the DFM acknowledged the command.
     def SendBufferReset(self,ID):
-        self.ClearAnswerQueueInternal()
-        self.command_q.put(MP_Command(COMMANDTYPE.BUFFER_RESET,[ID]))
-        return self.GetAnswer(3)
-    def SendInstruction(self,ID,currentInstruction):
-        self.ClearAnswerQueueInternal()
-        self.command_q.put(MP_Command(COMMANDTYPE.INSTRUCTION,[ID,currentInstruction]))
-        return self.GetAnswer(3)
+        return self._Request(COMMANDTYPE.BUFFER_RESET,[ID],3) is True
+    def SendInstructionDFMV2_0(self,ID,currentInstruction):
+        return self._Request(COMMANDTYPE.INSTRUCTION_V2,[ID,currentInstruction],3) is True
+    def SendInstructionDFMV1_0_5(self,ID,currentInstruction):
+        return self._Request(COMMANDTYPE.INSTRUCTION_V1_0_5,[ID,currentInstruction],3) is True
     def SendLinkage(self,ID,currentLinkage):
-        self.ClearAnswerQueueInternal()
-        self.command_q.put(MP_Command(COMMANDTYPE.LINKAGE,[ID,currentLinkage]))
-        return self.GetAnswer(3)
+        return self._Request(COMMANDTYPE.LINKAGE,[ID,currentLinkage],3) is True
+    def GetVersion(self,ID):
+        ## Returns the version as bytes (b'1.0.5' if the DFM doesn't answer), or None on timeout.
+        return self._Request(COMMANDTYPE.GET_VERSION,[ID],3)
     def SendFrequency(self,ID,frequency):
-        self.command_q.put(MP_Command(COMMANDTYPE.SEND_FREQ,[ID,frequency]))        
+        self._Command(COMMANDTYPE.SEND_FREQ,[ID,frequency])
     def SendPulseWidth(self,ID,pulseWidth):
-        self.command_q.put(MP_Command(COMMANDTYPE.SEND_PW,[ID,pulseWidth]))        
+        self._Command(COMMANDTYPE.SEND_PW,[ID,pulseWidth])
     def SendDarkState(self,ID,val):
-        self.command_q.put(MP_Command(COMMANDTYPE.SEND_DARK,[ID,val]))   
+        self._Command(COMMANDTYPE.SEND_DARK,[ID,val])
     def SendOptoState(self,ID,os1,os2):
-        self.command_q.put(MP_Command(COMMANDTYPE.SEND_OPTOSTATE,[ID,os1,os2]))        
+        self._Command(COMMANDTYPE.SEND_OPTOSTATE,[ID,os1,os2])
     def SetReadInterval(self,interval):
-        self.command_q.put(MP_Command(COMMANDTYPE.SET_REFRESHRATE,[interval]))
-    def SetFocusDFM(self,dfmid):  
-        self.command_q.put(MP_Command(COMMANDTYPE.SET_FOCAL_DFM,[dfmid]))    
+        self._Command(COMMANDTYPE.SET_REFRESHRATE,[interval])
+    def SetFocusDFM(self,dfmid):
+        self._Command(COMMANDTYPE.SET_FOCAL_DFM,[dfmid])
     def SetStatusRequestType(self,requestType):
-
         if(requestType==STATUSREQUESTTYPE.LATESTONLY):
-            self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_LATESTSTATUS,''))
+            self._Command(COMMANDTYPE.SET_GET_LATESTSTATUS)
         else:
-            self.command_q.put(MP_Command(COMMANDTYPE.SET_GET_NORMALSTATUS,''))
+            self._Command(COMMANDTYPE.SET_GET_NORMALSTATUS)
     def SetStartTime(self):
-        self.command_q.put(MP_Command(COMMANDTYPE.SET_STARTTIME,[datetime.datetime.today()]))
-                  
+        self._Command(COMMANDTYPE.SET_STARTTIME,[datetime.datetime.today()])
     #endregion
 
-
     # Remember that any variables set at the time of process forking can not be changed except
-    # Through a queue.
-    def FindDFMInternal(self): 
-        if(self.theCOMM is None):           
-            return []            
-        self.DFMInfos.clear()
-        ## Check for EnvMonV3 first because it needs to be in the list first to update
-        ## the values correctly.    
-        for i in range(1,100):
-            if(i==24 and self.COMMType == COMMTYPE.I2C):
-                continue # RTC
-            if(i==88 and self.COMMType == COMMTYPE.I2C):
-                continue # Light Sensor
-            if(i==89 and self.COMMType == COMMTYPE.I2C):
-                continue # Humidity sensor
-            tmp = self.theCOMM.PollSlave(i)                            
-            if(tmp != '' ):                
-                self.DFMInfos.append(DFMInfo(i,tmp))                        
-            time.sleep(0.010)
-        if(len(self.DFMInfos) > 0):            
-            tmp=self.DFMInfos
-            ## Reverse the list here so if an EnvMonV3 is present, it is queried first.
-            ## This will ensure the environmental info tacked on to the DFM status packets is as
-            ## up to date as possible (although still being updated only every 5sec or so.) For
-            ## finer environmental detail the user will need to look in the EnvMon file.
-            self.DFMInfos.reverse()            
-            self.StartReading()
-            self.isPaused=False        
-        return tmp
+    # through a queue.
+    #region Reader process
+    def _CloseCOMM(self):
+        if self.theCOMM is not None:
+            try:
+                self.theCOMM.Close()
+            except Exception as e:
+                print(f"Close COMM: {e!r}")
+        self.theCOMM = None
 
-    def ClearAnswerQueueInternal(self):
-        try:
-            while True:
-                self.answer_q.get_nowait()
-        except queue.Empty:
-            pass        
-        
+    def FindDFMInternal(self,COMMType):
+        self._CloseCOMM()
+        if(COMMType==COMMTYPE.UART):
+            self.theCOMM=COMM.UARTCOMM()
+            self.refreshRate=0.3
+            skippedIDs=()
+        elif(COMMType==COMMTYPE.I2C):
+            self.theCOMM=COMM.I2CCOMM()
+            self.refreshRate=0.2
+            skippedIDs=(24,88,89) # RTC, light sensor, humidity sensor
+        else:
+            return []
+        self.COMMType = COMMType
+        # The main process makes new DFM objects for what is found, so this starts over too.
+        self.bufferResetCounts = {}
+        self.firmwareVersions = {}
+        self.laggingDFMs = []
+        found=[]
+        for i in range(1,100):
+            if i in skippedIDs:
+                continue
+            dfmType = self.theCOMM.PollSlave(i)
+            if dfmType is not None:
+                found.append(DFMInfo(i,dfmType))
+            time.sleep(0.010)
+        ## Read in descending order so an EnvMonV3 (ID 99) is read first each round. This
+        ## keeps the environmental info tacked on to the DFM status packets as up to date as
+        ## possible (although still being updated only every 5sec or so.) For finer
+        ## environmental detail the user will need to look in the EnvMon file.
+        self.DFMInfos = found[::-1]
+        if(len(found)>0):
+            self.focalDFMs = [found[0]] if COMMType==COMMTYPE.UART else found
+            self.ClearQueuesInternal()
+            self.currentReadIndex=1
+            self.isPaused=False
+        return found
+
     def ClearQueuesInternal(self):
-        try:
-            while True:
-                self.message_q.get_nowait()
-        except queue.Empty:
-            pass
+        # The answer queue is left alone: requests skip answers that aren't theirs.
         try:
             while True:
                 self.data_q.get_nowait()
         except queue.Empty:
-            pass       
-        try:
-            while True:
-                self.answer_q.get_nowait()
-        except queue.Empty:
-            pass        
-        
+            pass
+
+    def _Answer(self, command, answer):
+        self.answer_q.put((command.requestID, answer))
+
     def ProcessCommand(self):
         try:
-            tmp=self.command_q.get(False)  
-        except:
-            return False        
-        if (tmp is not None):  
-            #print(tmp)
-            if(tmp.commandType == COMMANDTYPE.FIND_DFM):              
-                if(tmp.arguments[0]==COMMTYPE.UART):                  
-                    self.theCOMM=COMM.UARTCOMM()
-                    self.COMMType = COMMTYPE.UART                    
-                    self.refreshRate=0.3
-                    returnList = list(self.FindDFMInternal())
-                    ## Flip the return list so the DFMs are in increasing order in the GUI.
-                    returnList.reverse()                      
-                    if(len(returnList)>0):
-                        self.focalDFMs = [returnList[0]]
-                    self.answer_q.put(returnList)
-                elif(tmp.arguments[0]==COMMTYPE.I2C):
-                    self.theCOMM=COMM.I2CCOMM()
-                    self.COMMType = COMMTYPE.I2C
-                    self.refreshRate=0.2 
-                    returnList = list(self.FindDFMInternal())
-                    returnList.reverse()    
-                    if(len(returnList)>0):
-                        self.focalDFMs = returnList                     
-                    self.answer_q.put(returnList)
-                else:
-                    self.answer_q.put([])    
-                self.theEnvironmentalMonitor.Initialize()                           
-            elif(tmp.commandType==COMMANDTYPE.STOP_READING):
-                self.DFMInfos = []  
-                self.theCOMM = None
-                self.refreshRate=0.25
-                self.isPaused=True
-            elif(tmp.commandType==COMMANDTYPE.PAUSE_READING):                    
-                self.isPaused=True
-            elif(tmp.commandType==COMMANDTYPE.RESUME_READING):                    
-                self.isPaused=False             
-            elif(tmp.commandType==COMMANDTYPE.RESET_COUNTER):                    
-                self.currentReadIndex=1                
-            elif(tmp.commandType==COMMANDTYPE.CLEAR_DATAMESSQ):
-                self.ClearQueuesInternal()                                        
-            elif(tmp.commandType==COMMANDTYPE.SET_VERBOSE):
-                self.verbose=True
-            elif(tmp.commandType==COMMANDTYPE.CLEAR_VERBOSE):
-                self.verbose=False   
-            elif(tmp.commandType==COMMANDTYPE.SET_STARTTIME):
-                self.startTime=tmp.arguments[0]                                 
-            elif(tmp.commandType==COMMANDTYPE.SET_REFRESHRATE):
-                self.refreshRate = tmp.arguments[0]                                          
-            elif(tmp.commandType==COMMANDTYPE.BUFFER_RESET):                             
-                answer=self.theCOMM.RequestBufferReset(tmp.arguments[0])                                    
-                self.answer_q.put([tmp.arguments[0],answer])                
-            elif(tmp.commandType==COMMANDTYPE.SET_FOCAL_DFM):
-                if(tmp.arguments[0]==0):
-                    self.focalDFMs = self.DFMInfos                    
-                else:
-                    for i in self.DFMInfos:                        
-                        if i.ID == tmp.arguments[0]:
-                            self.focalDFMs = [i]                                                        
-            elif(tmp.commandType==COMMANDTYPE.LINKAGE):                
-                answer=self.theCOMM.SendLinkage(tmp.arguments[0],tmp.arguments[1])
-                self.answer_q.put([tmp.arguments[0],answer])
-            elif(tmp.commandType==COMMANDTYPE.INSTRUCTION):                
-                answer=self.theCOMM.SendInstruction(tmp.arguments[0],tmp.arguments[1])
-                self.answer_q.put([tmp.arguments[0],answer])
-            elif(tmp.commandType==COMMANDTYPE.SEND_DARK):                                       
-                self.theCOMM.SendDark(tmp.arguments[0],tmp.arguments[1])
-                ss = "Dark state sent to DFM " + str(tmp.arguments[0]) +"."                                    
-                self.QueueMessage(ss) 
-            elif(tmp.commandType==COMMANDTYPE.SEND_FREQ):                                       
-                self.theCOMM.SendFrequency(tmp.arguments[0],tmp.arguments[1])  
-                ss = "Freqeuncy sent to DFM " + str(tmp.arguments[0]) +"."                   
-                self.QueueMessage(ss)                         
-            elif(tmp.commandType==COMMANDTYPE.SEND_PW):                                                           
-                self.theCOMM.SendPulseWidth(tmp.arguments[0],tmp.arguments[1])  
-                ss = "Pulsewidth sent to DFM " + str(tmp.arguments[0]) +"."                    
-                self.QueueMessage(ss)                         
-            elif(tmp.commandType==COMMANDTYPE.SEND_OPTOSTATE):                                       
-                self.theCOMM.SendOptoState(tmp.arguments[0],tmp.arguments[1],tmp.arguments[2])  
-                ss = "Optostate sent to DFM " + str(tmp.arguments[0]) +"."                                
-                self.QueueMessage(ss)   
-            elif(tmp.commandType==COMMANDTYPE.SET_GET_LATESTSTATUS):
-                self.getLatestStatusOnly=True
-            elif(tmp.commandType==COMMANDTYPE.SET_GET_NORMALSTATUS):
-                self.getLatestStatusOnly=False
-            else:
-                print("Unknown Command")
-                return False 
-        else:
+            command=self.command_q.get(block=False)
+        except queue.Empty:
             return False
+        try:
+            self._ExecuteCommand(command)
+        except Exception as e:
+            # Keep the reader alive, and don't leave the requester waiting for its timeout.
+            print(f"Reader command failed ({command}): {e!r}")
+            if command.requestID is not None:
+                self._Answer(command, None)
         return True
 
+    def _ExecuteCommand(self, command):
+        commandType = command.commandType
+        args = command.arguments
+        if(commandType == COMMANDTYPE.FIND_DFM):
+            self._Answer(command, self.FindDFMInternal(args[0]))
+            self.theEnvironmentalMonitor.Initialize()
+        elif(commandType==COMMANDTYPE.STOP_READING):
+            self._CloseCOMM()
+            self.DFMInfos = []
+            self.refreshRate=0.25
+            self.isPaused=True
+        elif(commandType==COMMANDTYPE.PAUSE_READING):
+            self.isPaused=True
+        elif(commandType==COMMANDTYPE.RESUME_READING):
+            self.isPaused=False
+        elif(commandType==COMMANDTYPE.RESET_COUNTER):
+            self.currentReadIndex=1
+        elif(commandType==COMMANDTYPE.CLEAR_DATAMESSQ):
+            self.ClearQueuesInternal()
+        elif(commandType==COMMANDTYPE.SET_STARTTIME):
+            self.startTime=args[0]
+        elif(commandType==COMMANDTYPE.SET_REFRESHRATE):
+            self.refreshRate = args[0]
+        elif(commandType==COMMANDTYPE.SET_FOCAL_DFM):
+            if(args[0]==0):
+                self.focalDFMs = self.DFMInfos
+            else:
+                self.focalDFMs = [i for i in self.DFMInfos if i.ID==args[0]] or self.focalDFMs
+        elif(commandType==COMMANDTYPE.BUFFER_RESET):
+            self._Answer(command, self.BufferResetInternal(args[0]))
+        elif(commandType==COMMANDTYPE.GET_VERSION):
+            version = self.theCOMM.GetVersion(args[0])
+            self.firmwareVersions[args[0]] = version
+            self._Answer(command, version)
+        elif(commandType==COMMANDTYPE.LINKAGE):
+            self._Answer(command, self.theCOMM.SendLinkage(args[0],args[1]))
+        elif(commandType==COMMANDTYPE.INSTRUCTION_V1_0_5):
+            self._Answer(command, self.theCOMM.SendInstructionDFMV1_0_5(args[0],args[1]))
+        elif(commandType==COMMANDTYPE.INSTRUCTION_V2):
+            self._Answer(command, self.theCOMM.SendInstructionDFMV2_0(args[0],args[1]))
+        elif(commandType==COMMANDTYPE.SEND_DARK):
+            self.theCOMM.SendDark(args[0],args[1])
+        elif(commandType==COMMANDTYPE.SEND_FREQ):
+            self.theCOMM.SendFrequency(args[0],args[1])
+        elif(commandType==COMMANDTYPE.SEND_PW):
+            self.theCOMM.SendPulseWidth(args[0],args[1])
+        elif(commandType==COMMANDTYPE.SEND_OPTOSTATE):
+            self.theCOMM.SendOptoState(args[0],args[1],args[2])
+        elif(commandType==COMMANDTYPE.SET_GET_LATESTSTATUS):
+            self.getLatestStatusOnly=True
+        elif(commandType==COMMANDTYPE.SET_GET_NORMALSTATUS):
+            self.getLatestStatusOnly=False
+        else:
+            print("Unknown Command")
+
+    def BufferResetInternal(self,ID):
+        isReset = self.theCOMM.RequestBufferReset(ID)
+        if isReset:
+            # Reads are tagged with this count, so the main process can tell reads of the old
+            # buffer that are still queued from reads of the new one.
+            self.bufferResetCounts[ID] = self.bufferResetCounts.get(ID,0)+1
+        return isReset
+
     def ReadWorker(self):
-        self.currentReadIndex=1
-        self.refreshRate=0.25
-        CommandsInARow=0
-        self.isPaused=True      
-        self.QueueMessage("Read worker started.")        
-        lastTime = time.time()  
-        lastTime_Env = time.time()  
-        while(True):  
-            if(CommandsInARow>12 or self.ProcessCommand()==False):                         
-                CommandsInARow=0
+        commandsInARow=0
+        lastTime = time.time()
+        lastTime_Env = time.time()
+        while(True):
+            # Commands go first, but no more than 13 in a row so reading isn't starved.
+            if(commandsInARow<=12 and self.ProcessCommand()):
+                commandsInARow+=1
+            else:
+                commandsInARow=0
                 if(self.isPaused==False):
-                    if(time.time()-lastTime>self.refreshRate):                                                               
-                        lastTime = time.time()                             
-                        self.ReadValues()                                                                                                                                   
+                    if(time.time()-lastTime>self.refreshRate):
+                        lastTime = time.time()
+                        self.ReadRound()
+                    elif(self.laggingDFMs):
+                        # Read these again now rather than next round, so a backlog drains
+                        # instead of growing. Commands still get a turn between reads.
+                        self.ReadValues([i for i in self.focalDFMs if i in self.laggingDFMs])
                 if(time.time()-lastTime_Env>1):
                     self.theEnvironmentalMonitor.StepMonitor()
-                    lastTime_Env = time.time()                            
-            else:
-                CommandsInARow+=1
-
+                    lastTime_Env = time.time()
             time.sleep(0.002)
-            # Note that when reading is stopped it should stop (especially for V3)
-            # after the last DFM in the list, not in the middle somehwere.
-        self.QueueMessage("Read worker ended.")                
-        return
-    
-    def ReadValues(self): 
-        currentTime = datetime.datetime.today()             
+
+    def ReadRound(self):
+        """Reads every focal DFM once."""
         self.EnvMonV3_Temperature=0.0
         self.EnvMonV3_Humidity=0.0
-        self.EnvMonV3_LUX=0.0   
-        for info in self.focalDFMs:
-            try:                 
-                bytesData=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)                                                                                                                            
-                packList=self.ProcessPacket(info,bytesData,currentTime)     
-                tmp = True                    
-                for p in packList:                    
-                    if p.processResult != PROCESSEDPACKETRESULT.OKAY:                                    
-                        tmp = False                
-                if (tmp):                                        
-                    self.theCOMM.SendAck(info.ID)                                                     
-                self.data_q.put(packList)                 
-            except:                        
-                ss = "Get status exception (" + str(info.ID) +")."                                
-                self.QueueMessage(ss)
-            time.sleep(0.002)        
+        self.EnvMonV3_LUX=0.0
+        self.ReadValues(self.focalDFMs)
 
-    def QueueMessage(self,message):
-        if(self.verbose and self.message_q.qsize()<1000):
-            self.message_q.put(MP_Message(message))
+    def ReadValues(self,infos):
+        currentTime = datetime.datetime.today()
+        lagging = []
+        for info in infos:
+            # Firmware 4.0.0 and later sends records this PyMCU can't read; the DFM reports that instead.
+            if COMM.UsesParadigmFirmware(self.firmwareVersions.get(info.ID, b"")):
+                continue
+            try:
+                result,payload=self.theCOMM.GetStatusPacket(info.ID,info.DFMType,self.getLatestStatusOnly)
+                packList=self.ProcessPacket(info,result,payload,currentTime)
+                resetCount = self.bufferResetCounts.get(info.ID,0)
+                for p in packList:
+                    p.bufferResetCount = resetCount
+                # Queued before the ACK: if the ACK fails the DFM just sends the packets again.
+                self.data_q.put(packList)
+                self._Acknowledge(info,packList)
+                if(len(payload) >= COMM.MAX_STATUS_PACKETS*StatusPacket.V3_PACKET_SIZE):
+                    lagging.append(info)
+            except Exception as e:
+                print(f"Get status exception ({info.ID}): {e!r}")
+            time.sleep(0.002)
+        self.laggingDFMs = lagging
 
-    def QueueCommand(self,command):        
-        self.command_q.put(command)
-        if(self.verbose):
-            ss = "Command queued (" + str(command.arguments[0])+"): " +str(command.commandType)
-            self.QueueMessage(ss)              
+    def _Acknowledge(self,info,packList):
+        """A V3 DFM drops the packets it sent once they are ACKed, so only packets that were read
+        correctly are acknowledged. The read stops at the first bad packet."""
+        numGood = sum(1 for _ in itertools.takewhile(lambda p: p.processResult == PROCESSEDPACKETRESULT.OKAY, packList))
+        if(numGood == len(packList)):
+            self.theCOMM.SendAck(info.ID)
+        elif(numGood > 0 and info.DFMType == DFMTYPE.PLETCHERV3 and
+             COMM.SupportsPartialAck(self.firmwareVersions.get(info.ID, b""))):
+            # The good packets are kept, so the DFM need only send the rest again.
+            self.theCOMM.SendPartialAck(info.ID, packList[numGood-1].recordIndex)
 
-    def ProcessPacket(self,info,bytesData,currentTime):              
-        if(bytesData==-1):                            
-            currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
-            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.NOANSWER          
-            print(f"No answer: {info.ID}")                      
-            return [currentStatusPacket]      
-        elif(bytesData==-2):  
-            currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)            
-            currentStatusPacket.processResult = PROCESSEDPACKETRESULT.INCOMPLETEPACKET          
-            print("Incomplete packet")          
-            return [currentStatusPacket]    
-        if(info.DFMType==DFMTYPE.PLETCHERV3 or info.DFMType==DFMTYPE.ENVMONV3):           
-            numPacketsReceived = len(bytesData)/56                                 
-            if (math.floor(numPacketsReceived)!=numPacketsReceived):             
-                currentStatusPacket=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
-                currentStatusPacket.processResult = PROCESSEDPACKETRESULT.WRONGNUMBYTES
-                print("Wrong num bytes: " + str(numPacketsReceived))
-                print(bytesData)
-                return [currentStatusPacket]
-            else:
-                numPacketsReceived = int(numPacketsReceived)                                
-            currentStatusPackets=[]
-            for i in range(0,numPacketsReceived):               
-                tmpPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)  
-                # This gets the startTime of the experiment.  The others get the time of the packet                                       
-                tmpPacket.ProcessStatusPacket(bytesData,self.startTime,i)
-                if(info.DFMType==DFMTYPE.ENVMONV3):
-                    ## This works here because the EnvMon will always be called first each round of read values.
-                    self.EnvMonV3_Temperature=tmpPacket.temp
-                    self.EnvMonV3_Humidity=tmpPacket.humidity
-                    self.EnvMonV3_LUX=tmpPacket.lux     
-                elif(info.DFMType==DFMTYPE.PLETCHERV3):
-                    tmpPacket.AddEnvironmentalInformation(self.EnvMonV3_Temperature,self.EnvMonV3_LUX,self.EnvMonV3_Humidity)
-                currentStatusPackets.append(tmpPacket)        
-                self.currentReadIndex+=1        
-            return currentStatusPackets
-        else:
+    def _FailedPacket(self,info,result):
+        packet=StatusPacket.StatusPacket(0,info.ID,info.DFMType)
+        packet.processResult = result
+        return [packet]
+
+    def ProcessPacket(self,info,result,bytesData,currentTime):
+        """Turns one read into a non-empty list of status packets."""
+        if(result==COBSRESULT.NOANSWER):
+            print(f"No answer: {info.ID}")
+            return self._FailedPacket(info,PROCESSEDPACKETRESULT.NOANSWER)
+        if(result!=COBSRESULT.OKAY):
+            print("Incomplete packet")
+            return self._FailedPacket(info,PROCESSEDPACKETRESULT.INCOMPLETEPACKET)
+        if(info.DFMType!=DFMTYPE.PLETCHERV3 and info.DFMType!=DFMTYPE.ENVMONV3):
             currentStatusPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)
-            currentStatusPacket.ProcessStatusPacket(bytesData,currentTime)     
+            currentStatusPacket.ProcessStatusPacket(bytesData,currentTime)
             if(self.theEnvironmentalMonitor.isPresent):
-                currentStatusPacket.AddEnvironmentalInformation(self.theEnvironmentalMonitor.temperature,self.theEnvironmentalMonitor.light,self.theEnvironmentalMonitor.humidity)            
-            self.currentReadIndex+=1                         
+                currentStatusPacket.AddEnvironmentalInformation(self.theEnvironmentalMonitor.temperature,self.theEnvironmentalMonitor.light,self.theEnvironmentalMonitor.humidity)
+            self.currentReadIndex+=1
             return [currentStatusPacket]
 
-def ModuleTest():
-    Board.BoardSetup()
-    mp=DataGetter()
-    mp.theCOMM=COMM.UARTCOMM()
-    mp.COMMType = COMMTYPE.UART  
-    print(mp.FindDFMInternal())
-    for i in range(1,12):
-        mp.theCOMM.RequestBufferReset(i)
-        time.sleep(0.1)
-    time.sleep(1)
-    mp.focalDFMs=mp.DFMInfos[7:8]
-    mp.getLatestStatusOnly=False
-    for i in range(0,10):
-        mp.ReadValues()
-        print('*')        
-        time.sleep(1)
-    mp.ClearQueuesInternal()
-    
-def ModuleTestI2C():
-    Board.BoardSetup()
-    mp=DataGetter()
-    tmp = mp.FindDFM(COMMTYPE.I2C)
-    print(tmp)  
-    while True:   
-        try:           
-            tmp = mp.data_q.get(block=False)                    
-            #print(tmp[0].GetConsolePrintPacket())
-        except:
-            pass
-        time.sleep(.1)
-    mp.ClearQueuesInternal()
-    
-
-
-if __name__=="__main__" :
-    ModuleTest()
-    
+        numPacketsReceived, extraBytes = divmod(len(bytesData),StatusPacket.V3_PACKET_SIZE)
+        if(numPacketsReceived==0 or extraBytes!=0):
+            print("Wrong num bytes: " + str(len(bytesData)/StatusPacket.V3_PACKET_SIZE))
+            return self._FailedPacket(info,PROCESSEDPACKETRESULT.WRONGNUMBYTES)
+        currentStatusPackets=[]
+        for i in range(0,numPacketsReceived):
+            tmpPacket = StatusPacket.StatusPacket(self.currentReadIndex,info.ID,info.DFMType)
+            # This gets the startTime of the experiment.  The others get the time of the packet
+            tmpPacket.ProcessStatusPacket(bytesData,self.startTime,i)
+            if(info.DFMType==DFMTYPE.ENVMONV3):
+                ## This works here because the EnvMon will always be called first each round of read values.
+                self.EnvMonV3_Temperature=tmpPacket.temp
+                self.EnvMonV3_Humidity=tmpPacket.humidity
+                self.EnvMonV3_LUX=tmpPacket.lux
+            else:
+                tmpPacket.AddEnvironmentalInformation(self.EnvMonV3_Temperature,self.EnvMonV3_LUX,self.EnvMonV3_Humidity)
+            currentStatusPackets.append(tmpPacket)
+            self.currentReadIndex+=1
+            if(tmpPacket.processResult!=PROCESSEDPACKETRESULT.OKAY):
+                # Without an ACK the DFM resends this packet and the ones after it. Recording the
+                # later ones now would get the resent copy of this one discarded as a repeat.
+                break
+        return currentStatusPackets
+    #endregion

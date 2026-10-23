@@ -1,0 +1,20 @@
+# Progressive ratio by contact time: OptoDelay and MaxTimeOn both above 0 select it.
+# The first touch lights the LED at once for 2 s (OptoDecay). After the nth activation the next
+# needs n x 1 s (OptoDelay) more contact, up to 5 s (MaxTimeOn). Contact adds up across touches
+# and only a new instruction starts it again. Hold a Well: on at 0, 3, 7, 12, 18, 25, 32 s...,
+# 2 s each, the gaps growing 1, 2, 3, 4, 5 s and then staying at 5 s.
+# Needs firmware 2.0.0 or later; PyMCU refuses it for a 1.0.5 board.
+[General]
+ExpDurationMin: 10
+OptoFrequency: 40
+OptoPW: 8
+OptoDecay: 2000
+OptoDelay: 1000
+MaxTimeOn: 5000
+Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
+Baseline: Yes
+
+[DFM]
+ID: All
+ProgramType: Linear
+Interval: 0,50,50,50,50,50,50,50,50,50,50,50,50,10

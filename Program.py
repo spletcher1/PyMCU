@@ -1,10 +1,21 @@
+import copy
 import datetime
 import Enums
 import InstructionSet
-import Instruction
 import Event
 import Message
 import array
+
+PROGRAM_TYPES = {"linear": Enums.INSTRUCTIONSETTYPE.LINEAR, "repeating": Enums.INSTRUCTIONSETTYPE.REPEATING,
+                 "circadian": Enums.INSTRUCTIONSETTYPE.CIRCADIAN, "constant": Enums.INSTRUCTIONSETTYPE.CONSTANT}
+
+def WholeMinute(t):
+    """t with the seconds dropped, so a program starts at the top of a minute."""
+    return t.replace(second=0, microsecond=0)
+
+def NextMinute():
+    """The start of the next minute, the earliest a program can start."""
+    return WholeMinute(datetime.datetime.today() + datetime.timedelta(minutes=1))
 
 class MCUProgram():
     Program_message = Event.Event()
@@ -17,10 +28,11 @@ class MCUProgram():
         return self.GetProgramDescription()
 
     def ClearProgram(self):
-        ddt = datetime.datetime.today() + datetime.timedelta(minutes=1)
-        self.startTime = datetime.datetime(ddt.year, ddt.month, ddt.day, ddt.hour, ddt.minute, 0)
+        self.startTime = NextMinute()
         self.experimentDuration = datetime.timedelta(minutes=1)
         self.theInstructionSets.clear()
+        # The [DFM] section with 'ID: All', for connected DFMs the file doesn't list by number.
+        self.allInstructionSet = None
         self.optoFrequency = 40
         self.optoPulseWidth= 8
         self.optoDecay= 0
@@ -31,6 +43,7 @@ class MCUProgram():
         self.autoBaseline = True
         self.isActive = False
         self.isProgramLoaded = False
+        self.loadError = ""
 
     def NewMessage(self,ID, errorTime, sample,  message,mt):
         tmp = Message.Message(ID,errorTime,sample,message,mt,-99)
@@ -121,7 +134,7 @@ class MCUProgram():
     def CreateSimpleProgram(self,starttime,dur):
         # This will create a "linear" experiment with the current begin time and duration.
         self.ClearProgram()
-        self.startTime=starttime
+        self.startTime=WholeMinute(starttime)
         self.experimentDuration=dur
         for i in range(0,99):
             self.AddSimpleProgram(i,dur)
@@ -144,165 +157,141 @@ class MCUProgram():
             for x in range(0,12):
                 self.globalLinkage[x]=int(ss[x])
     
-    def LoadProgram(self,lines, dfmList):        
+    def LoadProgram(self,lines, dfmList):
+        """Loads a Program file (its lines) for the connected DFMs (a dict by ID). Returns True,
+        or False with the reason in loadError and as a Notice in the messages: a line that can't
+        be used is named, with what it must be."""
         self.ClearProgram()
-        currentSection=""
-        currentDFM=-1
         try:
-            for l in lines:
-                l = l.strip()         
-                if len(l)==0 or l[0]=="#":
+            self._ParseLines(lines)
+            self._FillIn(dfmList)
+            self.isProgramLoaded = True
+            return True
+        except InstructionSet.ProgramError as e:
+            self._LoadFailed(str(e))
+        except Exception as e:
+            self._LoadFailed("unexpected error: {!r}".format(e))
+        return False
+
+    def _LoadFailed(self,reason):
+        self.NewMessage(0,datetime.datetime.today(),0,"Problem loading program: " + reason,Enums.MESSAGETYPE.NOTICE)
+        self.ClearProgram()
+        self.loadError = reason
+
+    def _NewInstructionSet(self):
+        """An InstructionSet that starts from the [General] settings."""
+        ti = InstructionSet.InstructionSet()
+        ti.optoDecay = self.optoDecay
+        ti.optoDelay = self.optoDelay
+        ti.optoFrequency = self.optoFrequency
+        ti.optoPulseWidth = self.optoPulseWidth
+        ti.linkage = self.globalLinkage[:]
+        ti.maxTimeOn = self.maxTimeOn
+        ti.instructionSetType = self.globalPType
+        return ti
+
+    def _ParseLines(self,lines):
+        section = ""
+        current = None    # the InstructionSet of the [DFM] or [EnvMon] section being read
+        for lineNumber, raw in enumerate(lines, 1):
+            l = raw.strip()
+            if len(l)==0 or l[0]=="#":
+                continue
+            if "[" in l and "]" in l:
+                section = l[l.index("[")+1:l.index("]")].strip().lower()
+                current = None
+                continue
+            key, sep, value = l.partition(":")
+            if not sep:
+                continue
+            key, value = key.strip().lower(), value.strip()
+            if(section=="general"):
+                self._SetGeneral(key,value,lineNumber)
+            elif(section in ("dfm","envmon")):
+                if(key=="id"):
+                    current = self._NewInstructionSet()
+                    if(section=="dfm" and value.lower()=="all"):
+                        self.allInstructionSet = current
+                    else:
+                        ID = 99 if section=="envmon" else InstructionSet.CheckedInt("ID",value,lineNumber,1,99)
+                        self.theInstructionSets[ID] = current
+                elif(current is not None):
+                    self._SetDFM(current,key,value,lineNumber)
+
+    def _SetGeneral(self,key,value,lineNumber):
+        if(key=="expdurationmin"):
+            self.experimentDuration = datetime.timedelta(minutes=InstructionSet.CheckedInt("ExpDurationMin",value,lineNumber,0,100000000))
+        elif(key=="optofrequency"):
+            self.optoFrequency = InstructionSet.CheckedFrequency(value,lineNumber)
+        elif(key=="optopw"):
+            self.optoPulseWidth = InstructionSet.CheckedPulseWidth(value,lineNumber)
+        elif(key=="optodecay"):
+            self.optoDecay = InstructionSet.CheckedInt("OptoDecay",value,lineNumber,0,InstructionSet.MAX_TIME_MS)
+        elif(key=="optodelay"):
+            self.optoDelay = InstructionSet.CheckedInt("OptoDelay",value,lineNumber,0,InstructionSet.MAX_TIME_MS)
+        elif(key=="maxtimeon"):
+            self.maxTimeOn = InstructionSet.CheckedInt("MaxTimeOn",value,lineNumber,0,InstructionSet.MAX_TIME_MS)
+        elif(key=="programtype"):
+            self.globalPType = PROGRAM_TYPES.get(value.lower(),Enums.INSTRUCTIONSETTYPE.CONSTANT)
+        elif(key=="linkage"):
+            self.SetLinkageFromString(value)
+        elif(key=="baseline"):
+            self.autoBaseline = (value.lower()=="yes")
+        elif(key=="starttime"):
+            self.startTime = self._ParseStartTime(value,lineNumber)
+
+    def _ParseStartTime(self,text,lineNumber):
+        """'MM/DD/YYYY HH:MM:SS', or 'HH:MM:SS' for today."""
+        try:
+            if "/" in text:
+                return datetime.datetime.strptime(text,"%m/%d/%Y %H:%M:%S")
+            return datetime.datetime.combine(datetime.date.today(),datetime.datetime.strptime(text,"%H:%M:%S").time())
+        except ValueError:
+            raise InstructionSet.ProgramError("line {}: StartTime must be MM/DD/YYYY HH:MM:SS or HH:MM:SS, not '{}'".format(lineNumber,text))
+
+    def _SetDFM(self,iset,key,value,lineNumber):
+        if(key=="linkage"):
+            iset.SetLinkageFromString(value)
+        elif(key=="optodelay"):
+            iset.optoDelay = InstructionSet.CheckedInt("OptoDelay",value,lineNumber,0,InstructionSet.MAX_TIME_MS)
+        elif(key=="optodecay"):
+            iset.optoDecay = InstructionSet.CheckedInt("OptoDecay",value,lineNumber,0,InstructionSet.MAX_TIME_MS)
+        elif(key=="optofrequency"):
+            iset.optoFrequency = InstructionSet.CheckedFrequency(value,lineNumber)
+        elif(key=="optopw"):
+            iset.optoPulseWidth = InstructionSet.CheckedPulseWidth(value,lineNumber)
+        elif(key=="maxtimeon"):
+            iset.maxTimeOn = InstructionSet.CheckedInt("MaxTimeOn",value,lineNumber,0,InstructionSet.MAX_TIME_MS)
+        elif(key=="programtype"):
+            iset.SetProgramTypeFromString(value)
+        elif(key=="interval"):
+            iset.AddInstructionFromString(value,lineNumber)
+
+    def _FillIn(self,dfmList):
+        """Drops DFMs that aren't connected, gives connected DFMs the file doesn't list the
+        'ID: All' program or else a simple program, and checks each program's Intervals."""
+        if(self.experimentDuration.total_seconds()==0):
+            for iset in list(self.theInstructionSets.values()) + [self.allInstructionSet]:
+                if iset is None:
                     continue
-                if "[" in l and "]" in l:
-                    currentSection = l[l.index("[")+1:l.index("]")]
-                else:
-                    if(currentSection.lower()=="general"):
-                        thesplit = l.split(":")                    
-                        if(len(thesplit)>2):
-                            thesplit[1]+=":" + thesplit[2] + ":" + thesplit[3]
-                        if(len(thesplit)>=2):
-                            if(thesplit[0].lower().strip()=="expdurationmin"):
-                                self.experimentDuration = datetime.timedelta(minutes=int(thesplit[1].strip()))
-                            elif(thesplit[0].lower().strip()=="optofrequency"):
-                                self.optoFrequency = int(thesplit[1].strip())
-                            elif(thesplit[0].lower().strip()=="optopw"):
-                                self.optoPulseWidth = int(thesplit[1].strip())
-                            elif(thesplit[0].lower().strip()=="optodecay"):
-                                self.optoDecay = int(thesplit[1].strip())
-                            elif(thesplit[0].lower().strip()=="optodelay"):
-                                self.optoDelay = int(thesplit[1].strip())
-                            elif(thesplit[0].lower().strip()=="maxtimeon"):
-                                self.maxTimeOn = int(thesplit[1].strip())
-                            elif(thesplit[0].lower().strip()=="programtype"):
-                                pt=thesplit[1].strip().lower()
-                                if(pt.lower()=="linear"):
-                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.LINEAR
-                                elif(pt.lower()=="repeating"):
-                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.REPEATING
-                                elif(pt.lower()=="circadian"):
-                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.CIRCADIAN
-                                elif(pt.lower()=="constant"):
-                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.CONSTANT
-                                else:
-                                    self.globalPType = Enums.INSTRUCTIONSETTYPE.CONSTANT
-                            elif(thesplit[0].lower().strip()=="linkage"):                              
-                                self.SetLinkageFromString(thesplit[1].strip())
-                            elif(thesplit[0].lower().strip()=="baseline"):
-                                if(thesplit[1].strip().lower()=="yes"):
-                                        self.autoBaseline=True
-                                else:
-                                    self.autoBaseline=False
-                            elif(thesplit[0].lower().strip()=="starttime"):
-                                st=thesplit[1].lower().strip()
-                                if "/" in st: # Assume the date is as MM/DD/YYYY HH:MM:SS
-                                    self.startTime = datetime.datetime.strptime(st,"%m/%d/%Y %H:%M:%S")
-                                else:
-                                    tmp = datetime.datetime.today().strftime("%m/%d/%Y") + " " + st
-                                    self.startTime = datetime.datetime.strptime(tmp,"%m/%d/%Y %H:%M:%S")
-                    elif(currentSection.lower()=="dfm"):
-                        thesplit = l.split(":")
-                        if(len(thesplit)==2):
-                            if (thesplit[0].lower().strip() == "id"):
-                                currentDFM = int(thesplit[1].strip())
-                                ti = InstructionSet.InstructionSet()
-                                ti.optoDecay = self.optoDecay
-                                ti.optoDelay = self.optoDelay
-                                ti.optoFrequency = self.optoFrequency
-                                ti.optoPulseWidth = self.optoPulseWidth
-                                ti.linkage = self.globalLinkage[:]
-                                ti.maxTimeOn = self.maxTimeOn                                
-                                ti.instructionSetType = self.globalPType
-                                self.theInstructionSets[currentDFM] = ti
-                            elif(thesplit[0].lower().strip() == "linkage"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].SetLinkageFromString(thesplit[1].strip())
-                            elif(thesplit[0].lower().strip() == "optodelay"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoDelay=int(thesplit[1].lower().strip())
-                            elif(thesplit[0].lower().strip() == "optodecay"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoDecay=int(thesplit[1].lower().strip())
-                            elif(thesplit[0].lower().strip() == "optofrequency"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoFrequency=int(thesplit[1].lower().strip())
-                            elif(thesplit[0].lower().strip() == "optopw"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].optoPulseWidth=int(thesplit[1].lower().strip())
-                            elif(thesplit[0].lower().strip() == "maxtimeon"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].maxTimeOn=int(thesplit[1].lower().strip())
-                            elif(thesplit[0].lower().strip() == "programtype"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].SetProgramTypeFromString(thesplit[1].lower().strip())
-                            elif(thesplit[0].lower().strip() == "interval"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].AddInstructionFromString(thesplit[1].lower().strip())
-                    elif(currentSection.lower()=="envmon"):
-                        thesplit = l.split(":")
-                        if(len(thesplit)==2):
-                            if (thesplit[0].lower().strip() == "id"):
-                                currentDFM = 99
-                                ti = InstructionSet.InstructionSet()
-                                ti.optoDecay = self.optoDecay
-                                ti.optoDelay = self.optoDelay
-                                ti.optoFrequency = self.optoFrequency
-                                ti.optoPulseWidth = self.optoPulseWidth
-                                ti.linkage = self.globalLinkage[:]
-                                ti.maxTimeOn = self.maxTimeOn                                
-                                ti.instructionSetType = self.globalPType
-                                self.theInstructionSets[currentDFM] = ti     
-                            elif(thesplit[0].lower().strip() == "programtype"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].SetProgramTypeFromString(thesplit[1].lower().strip())
-                            elif(thesplit[0].lower().strip() == "interval"):
-                                if(currentDFM != -1):
-                                    self.theInstructionSets[currentDFM].AddInstructionFromString(thesplit[1].lower().strip())
-            if(self.experimentDuration.total_seconds()==0):
-                for key in self.theInstructionSets:
-                    if self.theInstructionSets[key].GetDuration() > self.experimentDuration:
-                        self.experimentDuration = self.theInstructionSets[key].GetDuration()
-            
-            # Get rid of DFMs that are not in the experiment to simplify the description textbox.           
-            tmp ={}
-            for key in self.theInstructionSets:
-                a = False
-                for d in dfmList.values():
-                    if d.ID == key:
-                        a = True
-                if a==True:
-                    tmp[key]=self.theInstructionSets[key]
-
-            self.theInstructionSets = tmp
-            
-            for d in dfmList.values():                
-                if(d.ID in self.theInstructionSets.keys()):
-                    pass
-                else :
-                    self.AddSimpleProgram(d.ID,self.experimentDuration)
-                    ss="DFM " + str(d.ID) + " not listed in program file. Adding simple program"
-                    self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)   
-
-            allIsWell=True
-            for values in self.theInstructionSets.values():
-                if(values.Validate())==False:
-                    ss="Invalid instruction"
-                    self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)
-                    allIsWell=False
-
-            if(allIsWell==False):
-                ss="Program load error"
-                self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)            
-                self.isProgramLoaded = False
-                self.ClearProgram()
-            else:
-                self.isProgramLoaded=True            
-
-            return allIsWell
-        except:
-            ss="General program load failure"
-            self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)   
-            return False      
-
+                if iset.GetDuration() > self.experimentDuration:
+                    self.experimentDuration = iset.GetDuration()
+        connected = {d.ID for d in dfmList.values()}
+        # Get rid of DFMs that are not in the experiment to simplify the description textbox.
+        self.theInstructionSets = {ID: iset for ID, iset in self.theInstructionSets.items() if ID in connected}
+        for ID in sorted(connected - set(self.theInstructionSets)):
+            # Not the environmental monitor, which has its own [EnvMon] section.
+            if(self.allInstructionSet is not None and dfmList[ID].DFMType != Enums.DFMTYPE.ENVMONV3):
+                # A copy each, as a DFM's baseline is stored in its Intervals.
+                self.theInstructionSets[ID] = copy.deepcopy(self.allInstructionSet)
+                continue
+            InstructionSet.CheckOptoSettings(self.optoFrequency,self.optoPulseWidth,self.optoDecay,self.optoDelay,self.maxTimeOn,0)
+            self.AddSimpleProgram(ID,self.experimentDuration)
+            ss="DFM " + str(ID) + " not listed in program file. Adding simple program"
+            self.NewMessage(0,datetime.datetime.today(),0,ss,Enums.MESSAGETYPE.NOTICE)
+        for ID, iset in sorted(self.theInstructionSets.items()):
+            if(iset.Validate()==False):
+                raise InstructionSet.ProgramError("DFM {}: a Circadian program's Intervals must add up to 24 hours, not {:g}".format(ID,iset.GetDuration().total_seconds()/3600))
 
     def UpdateStartAndEndTime(self,sTime,eTime):
         if(eTime<sTime): # This is a mistake to just update start time.
