@@ -93,7 +93,8 @@ MODELS = {
                 config_remove=["dtparam=rtc_bbat_vchg"],
                 cmdline_remove=["console=serial0", "console=ttyAMA0"],
                 services_off=["hciuart.service", "serial-getty@ttyAMA0.service"],
-                dsi_modules=["vc4"], initramfs="/boot/firmware/initramfs8"),
+                # The display's regulator is on I2C bus 10, behind the pinctrl mux on BSC0.
+                dsi_modules=["vc4", "i2c-mux-pinctrl"], initramfs="/boot/firmware/initramfs8"),
     "PI5": dict(model="Raspberry Pi 5", section="pi5",
                 config_add=["dtparam=i2c_arm=on", "dtparam=uart0=on", "dtparam=rtc_bbat_vchg=3000000"],
                 config_remove=["dtoverlay=i2c-rtc"],
