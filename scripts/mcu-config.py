@@ -11,9 +11,11 @@ sets up the files of the user who ran sudo (run without sudo, it calls sudo itse
 
 Every setting from the guide is reported as ok, fixed, added or disabled; --check reports without
 changing anything. Covered: config.txt and cmdline.txt, /etc/modules, the serial console and
-Bluetooth services, the user's groups, the uv environment, labwc autostart (app and screen
-blanking), pcmanfm USB and desktop settings, the taskbar, labwc keyboard shortcuts, screen
-orientation (kanshi), hwclock and sudoers, and the Plymouth boot splash. Not covered, do by hand:
+Bluetooth services, the user's groups, the uv environment (and that the app's sensor library loads,
+which on a Pi 4 needs rpi-lgpio), labwc autostart (app and screen blanking), pcmanfm USB and desktop
+settings, the taskbar, labwc keyboard shortcuts, screen orientation (kanshi), hwclock and sudoers,
+the Plymouth boot splash, and on a Pi 4 the touch display's drivers in the initramfs so the splash
+shows. Not covered, do by hand:
 flashing the OS, desktop auto-login, timezone and hostname (raspi-config), installing uv and gh,
 SSH key-only login, the user's password.
 
@@ -49,6 +51,7 @@ MODEL_FILE = "/proc/device-tree/model"
 SUDOERS_FILE = "/etc/sudoers.d/pymcu"
 HWCLOCK = "/usr/sbin/hwclock"
 PLYMOUTH_THEMES = "/usr/share/plymouth/themes"
+INITRAMFS_MODULES = "/etc/initramfs-tools/modules"
 DRM_DIR = "/sys/class/drm"
 XDG_PCMANFM = "/etc/xdg/pcmanfm/default"
 
@@ -74,6 +77,12 @@ PANEL = {
 DESKTOP = {"wallpaper_mode": "color", "desktop_bg": "#000000000000",
            "show_documents": "0", "show_trash": "0", "show_mounts": "0"}
 VOLUME = {"mount_on_startup": "1", "mount_removable": "1", "autorun": "0"}
+# Drivers of the touch display, which must be in the initramfs for the boot splash to have a screen.
+# With MODULES=dep the initramfs gets only what the Pi that built it was using, and Plymouth's hook
+# never adds a panel's bridge, so a Pi 4 booting a card set up on a Pi 5 shows no splash: the display
+# only comes up once the root filesystem loads these.
+ORIGINAL_DISPLAY_MODULES = ["tc358762", "panel-simple", "rpi-panel-attiny-regulator"]
+TOUCH_DISPLAY_2_MODULES = ["panel-ilitek-ili9881c", "rpi-panel-v2-regulator"]
 
 # What each model needs, per docs/MCUSetup.md sections 1 and 7. config_remove lists line starts
 # that belong to the other model and are commented out if found.
@@ -83,12 +92,14 @@ MODELS = {
                             "dtoverlay=i2c-rtc,ds3231"],
                 config_remove=["dtparam=rtc_bbat_vchg"],
                 cmdline_remove=["console=serial0", "console=ttyAMA0"],
-                services_off=["hciuart.service", "serial-getty@ttyAMA0.service"]),
+                services_off=["hciuart.service", "serial-getty@ttyAMA0.service"],
+                dsi_modules=["vc4"], initramfs="/boot/firmware/initramfs8"),
     "PI5": dict(model="Raspberry Pi 5", section="pi5",
                 config_add=["dtparam=i2c_arm=on", "dtparam=uart0=on", "dtparam=rtc_bbat_vchg=3000000"],
                 config_remove=["dtoverlay=i2c-rtc"],
                 cmdline_remove=[],
-                services_off=["serial-getty@ttyAMA0.service"]),
+                services_off=["serial-getty@ttyAMA0.service"],
+                dsi_modules=None, initramfs=None),
 }
 
 
@@ -487,18 +498,20 @@ def CheckAppEnvironment(rep, home, user):
     else:
         rep.warn("uv not found at " + uv + ". Install: curl -LsSf https://astral.sh/uv/install.sh | sh")
     venv = os.path.join(APP_DIR, ".venv")
+    # As the user, so the environment isn't owned by root when run through sudo.
+    as_user = ["sudo", "-u", user, "-H"] if IsRoot() and os.environ.get("SUDO_USER") else []
     if os.path.isdir(venv):
         rep.ok("uv environment " + venv)
     elif os.path.exists(uv):
         rep.change("added", "uv environment (uv sync; needs the network)")
         if not rep.check:
-            # As the user, so the environment isn't owned by root when run through sudo.
-            as_user = ["sudo", "-u", user, "-H"] if IsRoot() and os.environ.get("SUDO_USER") else []
             code, out, err = Run(as_user + [uv, "sync"], cwd=APP_DIR)
             if code != 0:
                 rep.fail("uv sync: " + err.strip()[-300:])
     else:
         rep.warn("no uv environment yet: run uv sync once uv is installed")
+    if os.path.isdir(venv) and os.path.exists(uv):
+        CheckSensorLibrary(rep, uv, as_user)
     script = os.path.join(APP_DIR, "RunMCU.sh")
     if not os.path.exists(script):
         rep.fail(script + " missing")
@@ -513,6 +526,30 @@ def CheckAppEnvironment(rep, home, user):
             rep.ok(tool + (" (not checked in test mode)" if PREFIX else " installed"))
         else:
             rep.warn(tool + " not installed: sudo apt install " + tool)
+
+
+def CheckSensorLibrary(rep, uv, as_user):
+    """The app imports adafruit-blinka's board at start, and on a Pi 4 that needs RPi.GPIO (rpi-lgpio):
+    an environment synced before rpi-lgpio was added stops the app before its window opens."""
+    load = as_user + [uv, "run", "--no-sync", "python", "-c", "import board"]
+    if PREFIX:
+        rep.ok("sensor library not checked in test mode")
+        return
+    code, out, err = Run(load, cwd=APP_DIR)
+    if code == 0:
+        rep.ok("sensor library (adafruit-blinka) loads")
+        return
+    rep.change("fixed", "sensor library didn't load: " + (err.strip().splitlines() or ["?"])[-1][:120]
+               + " (uv sync --frozen; needs the network)")
+    if rep.check:
+        return
+    code, out, err = Run(as_user + [uv, "sync", "--frozen"], cwd=APP_DIR)
+    if code != 0:
+        rep.fail("uv sync --frozen: " + err.strip()[-300:])
+        return
+    code, out, err = Run(load, cwd=APP_DIR)
+    if code != 0:
+        rep.fail("sensor library still doesn't load: " + err.strip()[-300:])
 
 
 def CheckAutostart(rep, home, user):
@@ -731,7 +768,10 @@ def CheckSplash(prof, rep):
     if PREFIX:
         rep.ok("default theme not checked in test mode")
         return
-    code, current, err = Run(["plymouth-set-default-theme"])
+    # In /usr/sbin, which isn't on the path when run without sudo.
+    set_theme = shutil.which("plymouth-set-default-theme",
+                             path=os.environ.get("PATH", "") + ":/usr/sbin:/sbin") or "plymouth-set-default-theme"
+    code, current, err = Run([set_theme])
     if code != 0:
         rep.warn("plymouth-set-default-theme not available; splash not activated")
         return
@@ -741,9 +781,45 @@ def CheckSplash(prof, rep):
     rep.change("fixed", "default theme flic (rebuilds the initramfs, about a minute)")
     rep.reboot = True
     if not rep.check:
-        code, out, err = Run(["plymouth-set-default-theme", "-R", "flic"], root=True)
+        code, out, err = Run([set_theme, "-R", "flic"], root=True)
         if code != 0:
             rep.fail("plymouth-set-default-theme -R flic: " + (out + err).strip()[-300:])
+
+
+def CheckDisplayDrivers(prof, rep):
+    """Lists the touch display's drivers for the initramfs and rebuilds it if they aren't in it."""
+    if not prof["display_modules"]:
+        return
+    rep.section("Display drivers for the boot splash  (" + INITRAMFS_MODULES + ")")
+    text = ReadText(INITRAMFS_MODULES) or ""
+    listed = {l.strip() for l in text.splitlines()}
+    missing = [m for m in prof["display_modules"] if m not in listed]
+    for m in prof["display_modules"]:
+        if m in missing:
+            rep.change("added", m)
+        else:
+            rep.ok(m)
+    if missing and not rep.check:
+        WriteSystem(INITRAMFS_MODULES, text.rstrip("\n") + ("\n" if text.strip() else "") + "\n".join(missing) + "\n")
+    if PREFIX:
+        rep.ok("initramfs not checked in test mode")
+        return
+    initramfs = prof["initramfs"]
+    code, out, err = Run(["lsinitramfs", initramfs])
+    if code != 0:
+        rep.warn("can't list " + initramfs + ": " + err.strip()[-200:])
+        return
+    built = {os.path.basename(p).split(".ko")[0] for p in out.splitlines() if ".ko" in p}
+    absent = [m for m in prof["display_modules"] if m not in built]
+    if not absent:
+        rep.ok(initramfs + " has them")
+        return
+    rep.change("fixed", initramfs + " rebuilt, it lacked " + ", ".join(absent) + " (about a minute)")
+    rep.reboot = True
+    if not rep.check:
+        code, out, err = Run(["update-initramfs", "-u", "-k", "all"], root=True)
+        if code != 0:
+            rep.fail("update-initramfs -u -k all: " + (out + err).strip()[-300:])
 
 
 # ---------------------------------------------------------------- main
@@ -763,6 +839,11 @@ def ParseProfile(words, left):
     else:
         prof["transform"] = "normal"
         prof["splash"] = "MCU.png"
+    # Only the Pi 4 needs them listed; the Pi 5's splash shows without.
+    if prof["dsi_modules"] is not None:
+        prof["display_modules"] = prof["dsi_modules"] + (TOUCH_DISPLAY_2_MODULES if rotated else ORIGINAL_DISPLAY_MODULES)
+    else:
+        prof["display_modules"] = []
     return prof
 
 
@@ -793,6 +874,7 @@ def main():
     CheckOrientation(prof, rep, home, user)
     CheckClockAndSudo(rep, user)
     CheckSplash(prof, rep)
+    CheckDisplayDrivers(prof, rep)
     print("\nSummary: {} ok, {} {}, {} warnings, {} failed".format(
         rep.oks, rep.changes, "would change" if args.check else "changed", rep.warnings, rep.failures))
     if rep.reboot:
