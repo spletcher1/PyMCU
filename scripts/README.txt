@@ -88,8 +88,9 @@ Screen types: original display and Touch Display 2
 --------------------------------------------------
 
   Original 7" touch display (800x480, landscape)
-        Use the profile without "Rotated" (PI4 or PI5). The screen keeps its
-        normal orientation, and the boot splash is images/MCU.png.
+        Use the profile without "Rotated" (PI4 or PI5). The screen is held in
+        its normal (landscape) orientation, and the boot splash is
+        images/MCU.png.
 
   Touch Display 2 (720x1280, a portrait panel used in landscape)
         Use the "Rotated" profile (PI4 Rotated or PI5 Rotated). The panel is
@@ -107,15 +108,24 @@ Screen types: original display and Touch Display 2
         1200x720), so nothing else needs setting.
 
 The orientation is written to ~/.config/kanshi/config, the same file the
-desktop's Screen Configuration tool writes. Each display has its own profile
-there, under the name the Pi gives it (such as DSI-1 or DSI-2), so a Pi 4 and
-a Pi 5 can share one SD card. It applies at the next login, or at once with:
-kanshictl reload
+desktop's Screen Configuration tool writes, even for the normal orientation,
+so that kanshi turns the screen back at every login if something else turned
+it. Each display has its own profile there, under the name the Pi gives it
+(such as DSI-1 or DSI-2), so a Pi 4 and a Pi 5 can share one SD card. It
+applies at the next login, or at once with:  kanshictl reload
 
-A rotation set anywhere else overrides kanshi: a wlr-randr command in a labwc
-or desktop autostart file, or kanshi started with its own config file. The
-script warns about both, naming the file and line. Remove such a line to let
-the profile decide.
+A rotation set anywhere else would override kanshi, so the script fixes those
+too:
+
+  - A wlr-randr rotation in a labwc or desktop autostart file, yours or the
+    system's, is switched off: the line is commented out and marked
+    "disabled by mcu-config", or a desktop entry gets Hidden=true. A system
+    file is first saved as <file>.mcu-config.bak.
+  - If an autostart line starts kanshi with its own config file
+    (kanshi -c FILE), that file gets the same profile.
+
+If no touch display is found, the orientation isn't checked, and the script
+says so with a WARNING.
 
 The boot splash is drawn before the desktop rotates the screen, which is why
 the Touch Display 2 needs a pre-rotated splash image.

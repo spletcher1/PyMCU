@@ -13,10 +13,10 @@ Every setting from the guide is reported as ok, fixed, added or disabled; --chec
 changing anything. Covered: config.txt and cmdline.txt, /etc/modules, the serial console and
 Bluetooth services, the user's groups, the uv environment, labwc autostart (app and screen
 blanking), pcmanfm USB and desktop settings, the taskbar, labwc keyboard shortcuts, screen
-orientation (kanshi, and a warning for any rotation set in an autostart file instead), hwclock
-and sudoers, and the Plymouth boot splash. The splash goes into the boot images of both the Pi 4
-and the Pi 5 kernels, so the card can move between them, and each Pi's display keeps its own
-kanshi profile. Not covered, do by hand:
+orientation (a kanshi profile for the connected display in every config kanshi reads, and any
+wlr-randr rotation in an autostart file disabled), hwclock and sudoers, and the Plymouth boot
+splash. The splash goes into the boot images of both the Pi 4 and the Pi 5 kernels, so the card
+can move between them, and each Pi's display keeps its own kanshi profile. Not covered, do by hand:
 flashing the OS, desktop auto-login, timezone and hostname (raspi-config), installing uv and gh,
 SSH key-only login, the user's password.
 
@@ -60,6 +60,9 @@ DRM_DIR = "/sys/class/drm"
 # Files whose commands run when the desktop starts, where a wlr-randr rotation would override kanshi.
 AUTOSTART_FILES = ["~/.config/labwc/autostart", "/etc/xdg/labwc/autostart",
                    "~/.config/autostart/*.desktop", "/etc/xdg/autostart/*.desktop"]
+ROTATION_RE = re.compile(r"\bwlr-randr\b.*--transform")
+# kanshi -c FILE or --config FILE: that kanshi reads FILE instead of ~/.config/kanshi/config.
+KANSHI_CONFIG_RE = re.compile(r"\bkanshi\b.*?\s(?:-c|--config)(?:\s+|=)\"?([^\"\s&;]+)")
 XDG_PCMANFM = "/etc/xdg/pcmanfm/default"
 
 GROUPS = ["gpio", "i2c", "dialout"]
@@ -611,37 +614,65 @@ def ConnectedDsiOutputs():
     return names
 
 
+def AutostartFiles(home):
+    """The autostart files that exist, as (path, system). A system path is without the test prefix."""
+    files = []
+    for pattern in AUTOSTART_FILES:
+        if pattern.startswith("~/"):
+            files += [(p, False) for p in sorted(glob.glob(os.path.join(home, pattern[2:])))]
+        else:
+            files += [(p[len(PREFIX):], True) for p in sorted(glob.glob(SysPath(pattern)))]
+    return files
+
+
+def KanshiConfigFiles(home):
+    """The config files kanshi reads, as (path, system): ~/.config/kanshi/config, and any file an
+    autostart line starts kanshi with instead (kanshi -c FILE)."""
+    configs = [(os.path.join(home, ".config", "kanshi", "config"), False)]
+    for path, system in AutostartFiles(home):
+        for line in (ReadText(path, system=system) or "").splitlines():
+            m = None if line.strip().startswith("#") else KANSHI_CONFIG_RE.search(line)
+            if not m:
+                continue
+            config = m.group(1)
+            for start in ("~/", "$HOME/", "${HOME}/"):
+                if config.startswith(start):
+                    config = os.path.join(home, config[len(start):])
+                    break
+            entry = (config, not config.startswith(home))
+            if entry not in configs:
+                configs.append(entry)
+    return configs
+
+
 def CheckOrientation(prof, rep, home, user):
-    path = os.path.join(home, ".config", "kanshi", "config")
-    rep.section("Screen orientation  (" + path + ", as written by Screen Configuration)")
+    """Gives the connected display a kanshi profile with the profile's orientation, in every file
+    kanshi reads. The profile is written even for normal, so that kanshi turns the display back at
+    login whatever turned it before."""
+    for n, (path, system) in enumerate(KanshiConfigFiles(home)):
+        CheckKanshiConfig(prof, rep, path, system, user, default=n == 0)
+
+
+def CheckKanshiConfig(prof, rep, path, system, user, default):
+    rep.section("Screen orientation  (" + path + (", as written by Screen Configuration)" if default
+                                                  else ", which an autostart line starts kanshi with)"))
     want = prof["transform"]
-    text = ReadText(path, system=False)
     outputs = ConnectedDsiOutputs()
-    if text is None:
-        if want == "normal":
-            rep.ok("no kanshi config, so kanshi doesn't rotate the display")
-            return
-        name = outputs[0] if outputs else "DSI-2"
-        if not outputs:
-            rep.warn("no connected DSI display found under " + DRM_DIR + "; assuming output " + name)
-        rep.change("added", "profile with output " + name + " transform " + want)
-        if not rep.check:
-            WriteUser(path, "profile {\n\toutput " + name + " enable transform " + want + "\n}\n", user)
-        print("           (applies at the next login, or: kanshictl reload)")
+    if not outputs:
+        # Lines for the Pi 4's and the Pi 5's displays can share the file: without knowing which
+        # display this is, none of them is changed.
+        rep.warn("no connected DSI display found under " + DRM_DIR + ", so the orientation isn't checked")
         return
-    lines = text.splitlines()
+    text = ReadText(path, system=system)
+    lines = text.splitlines() if text is not None else []
     output_lines = [i for i, l in enumerate(lines) if re.match(r"\s*output\s", l)]
-    if outputs:
-        # A Pi 4 and a Pi 5 can name their display differently. A line for a display that isn't
-        # connected is the other model's: kanshi skips it here, and it is kept for when the card
-        # goes back.
-        dsi_lines = [i for i in output_lines if OutputName(lines[i]) in outputs]
-        for i in output_lines:
-            name = OutputName(lines[i])
-            if i not in dsi_lines and "dsi" in name.lower():
-                rep.ok(lines[i].strip() + "  (" + name + " isn't connected: kept for the Pi it belongs to)")
-    else:
-        dsi_lines = [i for i in output_lines if "dsi" in lines[i].lower()]
+    # A Pi 4 and a Pi 5 can name their display differently. A line for a display that isn't
+    # connected is the other model's: kanshi skips it here, and it is kept for when the card goes back.
+    dsi_lines = [i for i in output_lines if OutputName(lines[i]) in outputs]
+    for i in output_lines:
+        name = OutputName(lines[i])
+        if i not in dsi_lines and "dsi" in name.lower():
+            rep.ok(lines[i].strip() + "  (" + name + " isn't connected: kept for the Pi it belongs to)")
     if not dsi_lines and len(output_lines) == 1 and "dsi" not in OutputName(lines[output_lines[0]]).lower():
         dsi_lines = output_lines   # the display named another way, such as output *
     changed = False
@@ -658,42 +689,54 @@ def CheckOrientation(prof, rep, home, user):
             lines[i] = lines[i].rstrip() + " transform " + want
         changed = True
     if not dsi_lines:
-        if want == "normal":
-            rep.ok("no profile for " + (outputs[0] if outputs else "a DSI display") + ", so kanshi doesn't rotate it")
-        else:
-            name = outputs[0] if outputs else "DSI-2"
-            rep.change("added", "profile with output " + name + " transform " + want)
-            lines += ["", "profile {", "\toutput " + name + " enable transform " + want, "}"]
-            changed = True
+        rep.change("added", "profile with output " + outputs[0] + " transform " + want)
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines += ["profile {", "\toutput " + outputs[0] + " enable transform " + want, "}"]
+        changed = True
     if changed:
         print("           (applies at the next login, or: kanshictl reload)")
-        if not rep.check:
+        if rep.check:
+            return
+        if system:
+            WriteSystem(path, "\n".join(lines) + "\n")
+        else:
             WriteUser(path, "\n".join(lines) + "\n", user)
 
 
-def CheckOtherRotation(rep, home):
-    """Warns about rotation set where this script doesn't manage it. A wlr-randr command in an
-    autostart file runs after kanshi and wins; a kanshi started with its own config file ignores
-    ~/.config/kanshi/config. Either leaves the screen turned whatever the profile."""
+def CheckOtherRotation(prof, rep, home, user):
+    """Disables rotation set outside kanshi: a wlr-randr --transform command in an autostart file
+    runs alongside kanshi at login and can win, leaving the screen turned whatever the profile.
+    Shell lines are commented out; a .desktop entry gets Hidden=true. System files are backed up
+    once as <file>.mcu-config.bak."""
     rep.section("Screen rotation outside kanshi  (autostart files)")
     found = False
-    for pattern in AUTOSTART_FILES:
-        pattern = os.path.join(home, pattern[2:]) if pattern.startswith("~/") else SysPath(pattern)
-        for path in sorted(glob.glob(pattern)):
-            for number, line in enumerate((ReadText(path, system=False) or "").splitlines(), 1):
-                s = line.strip()
-                if s.startswith("#"):
-                    continue
-                if re.search(r"\bwlr-randr\b.*--transform", s):
-                    rep.warn(path + " line " + str(number) + " rotates the screen at login: " + s
-                             + "  (remove it, so the orientation comes from kanshi)")
-                    found = True
-                elif re.search(r"\bkanshi\b.*\s(-c|--config)\b", s):
-                    rep.warn(path + " line " + str(number) + " starts kanshi with its own config file, so "
-                             "~/.config/kanshi/config isn't used: " + s)
-                    found = True
+    for path, system in AutostartFiles(home):
+        text = ReadText(path, system=system) or ""
+        lines = text.splitlines()
+        hits = [i for i, l in enumerate(lines) if not l.strip().startswith("#") and ROTATION_RE.search(l)]
+        desktop = path.endswith(".desktop")
+        if not hits or (desktop and re.search(r"^\s*Hidden\s*=\s*true\s*$", text, re.M | re.I)):
+            continue
+        found = True
+        for i in hits:
+            rep.change("disabled", path + " line " + str(i + 1) + ": " + lines[i].strip()
+                       + "  (the orientation comes from kanshi)")
+        if desktop:
+            new = SetIniKeys(text, "Desktop Entry", {"Hidden": "true"})[0]
+        else:
+            for i in hits:
+                lines[i] = "#" + lines[i].strip() + "   (disabled by mcu-config " + prof["name"] + ")"
+            new = "\n".join(lines) + "\n"
+        print("           (applies at the next login)")
+        if rep.check:
+            continue
+        if system:
+            WriteSystem(path, new, backup=True)
+        else:
+            WriteUser(path, new, user)
     if not found:
-        rep.ok("no wlr-randr rotation, and kanshi uses ~/.config/kanshi/config")
+        rep.ok("no wlr-randr rotation in the autostart files")
 
 
 def CheckClockAndSudo(rep, user):
@@ -891,7 +934,7 @@ def main():
     CheckDesktop(rep, home, user)
     CheckKeybinds(rep, home, user)
     CheckOrientation(prof, rep, home, user)
-    CheckOtherRotation(rep, home)
+    CheckOtherRotation(prof, rep, home, user)
     CheckClockAndSudo(rep, user)
     CheckSplash(prof, rep)
     RebuildBootImages(rep)
