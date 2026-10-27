@@ -15,6 +15,9 @@ dependencies = [
     # GPIO (lgpio is the pin factory gpiozero uses on the Pi 4 and Pi 5 under Trixie)
     "gpiozero",
     "adafruit-lgpio",
+    # RPi.GPIO for adafruit-blinka on the Pi 4, whose pins it drives through RPi.GPIO (on the Pi 5 it
+    # uses lgpio). rpi-lgpio provides RPi.GPIO on top of lgpio; see override-dependencies below.
+    "rpi-lgpio",
     # Environmental sensors (board/busio come from adafruit-blinka)
     "adafruit-blinka",
     "adafruit-circuitpython-tsl2591",
@@ -25,3 +28,6 @@ dependencies = [
 [tool.uv]
 # Flat collection of scripts run via `uv run python MainViewModel.py`, not an installable package
 package = false
+# rpi-lgpio asks for lgpio, which has no wheels for Python 3.13 and would have to be built on the MCU.
+# adafruit-lgpio installs the same lgpio module with wheels, so the lgpio requirement is dropped.
+override-dependencies = ["lgpio; sys_platform == 'never'"]

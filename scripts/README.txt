@@ -159,8 +159,9 @@ What the script sets up
   - The i2c-dev kernel module (/etc/modules).
   - Serial console and Bluetooth services, as described above.
   - The user's groups: gpio, i2c, dialout. These apply at the next login.
-  - The app's Python environment (uv sync, if .venv doesn't exist yet), and
-    that RunMCU.sh is executable.
+  - The app's Python environment (uv sync, if .venv doesn't exist yet), that
+    its sensor library loads (a Pi 4 needs rpi-lgpio for it), and that
+    RunMCU.sh is executable.
   - Starting the app at login, and screen blanking when idle
     (~/.config/labwc/autostart). A new MCU starts at 60 seconds. A time
     already chosen in the app is kept.
@@ -175,6 +176,8 @@ What the script sets up
     images of both kernels on the card (initramfs8 for a Pi 4, initramfs_2712
     for a Pi 5), so the right splash shows on either. Rebuilding them takes
     about a minute each.
+  - Pi 4 only: the touch display's drivers in the boot images
+    (/etc/initramfs-tools/modules), so the splash has a screen to show on.
 
 It sets up the files of the user who ran sudo. Run without sudo, it asks for
 the password itself when it needs it.
