@@ -107,8 +107,15 @@ Screen types: original display and Touch Display 2
         1200x720), so nothing else needs setting.
 
 The orientation is written to ~/.config/kanshi/config, the same file the
-desktop's Screen Configuration tool writes. It applies at the next login, or
-at once with:  kanshictl reload
+desktop's Screen Configuration tool writes. Each display has its own profile
+there, under the name the Pi gives it (such as DSI-1 or DSI-2), so a Pi 4 and
+a Pi 5 can share one SD card. It applies at the next login, or at once with:
+kanshictl reload
+
+A rotation set anywhere else overrides kanshi: a wlr-randr command in a labwc
+or desktop autostart file, or kanshi started with its own config file. The
+script warns about both, naming the file and line. Remove such a line to let
+the profile decide.
 
 The boot splash is drawn before the desktop rotates the screen, which is why
 the Touch Display 2 needs a pre-rotated splash image.
@@ -154,8 +161,10 @@ What the script sets up
   - Screen orientation, as described above.
   - The hwclock tool, and sudo rights for the app to shut down and set the
     date and clock (/etc/sudoers.d/pymcu).
-  - The FLIC boot splash (a Plymouth theme named flic). Installing it
-    rebuilds the initramfs, which takes about a minute.
+  - The FLIC boot splash (a Plymouth theme named flic). It goes into the boot
+    images of both kernels on the card (initramfs8 for a Pi 4, initramfs_2712
+    for a Pi 5), so the right splash shows on either. Rebuilding them takes
+    about a minute each.
 
 It sets up the files of the user who ran sudo. Run without sudo, it asks for
 the password itself when it needs it.
@@ -199,9 +208,14 @@ Run the script again with the new profile, then reboot.
 
   - Pi 4 to Pi 5, or back: the clock lines that belong only to the other
     model are commented out and marked "disabled by mcu-config", and the
-    new model's lines are added.
+    new model's lines are added. The other Pi's kanshi profile is kept, so
+    its orientation is still right if the card goes back.
   - Original display to Touch Display 2, or back: the orientation and the
     boot splash are changed to match.
+
+Both Pis' boot images are rebuilt whenever the splash changes. If one still
+has an older splash, for example on a card set up with an earlier version of
+this script, --check reports it and the next run rebuilds it.
 
 
 Reading the output

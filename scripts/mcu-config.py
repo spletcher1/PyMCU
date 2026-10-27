@@ -13,8 +13,10 @@ Every setting from the guide is reported as ok, fixed, added or disabled; --chec
 changing anything. Covered: config.txt and cmdline.txt, /etc/modules, the serial console and
 Bluetooth services, the user's groups, the uv environment, labwc autostart (app and screen
 blanking), pcmanfm USB and desktop settings, the taskbar, labwc keyboard shortcuts, screen
-orientation (kanshi), hwclock and sudoers, and the Plymouth boot splash, in the boot images of
-both the Pi 4 and the Pi 5 kernels so the card can move between them. Not covered, do by hand:
+orientation (kanshi, and a warning for any rotation set in an autostart file instead), hwclock
+and sudoers, and the Plymouth boot splash. The splash goes into the boot images of both the Pi 4
+and the Pi 5 kernels, so the card can move between them, and each Pi's display keeps its own
+kanshi profile. Not covered, do by hand:
 flashing the OS, desktop auto-login, timezone and hostname (raspi-config), installing uv and gh,
 SSH key-only login, the user's password.
 
@@ -55,6 +57,9 @@ FIRMWARE_DIR = "/boot/firmware"
 # move between a Pi 4 and a Pi 5, and the splash must be in both.
 BOOT_IMAGES = {"initramfs8": "Pi 4", "initramfs_2712": "Pi 5"}
 DRM_DIR = "/sys/class/drm"
+# Files whose commands run when the desktop starts, where a wlr-randr rotation would override kanshi.
+AUTOSTART_FILES = ["~/.config/labwc/autostart", "/etc/xdg/labwc/autostart",
+                   "~/.config/autostart/*.desktop", "/etc/xdg/autostart/*.desktop"]
 XDG_PCMANFM = "/etc/xdg/pcmanfm/default"
 
 GROUPS = ["gpio", "i2c", "dialout"]
@@ -614,7 +619,7 @@ def CheckOrientation(prof, rep, home, user):
     outputs = ConnectedDsiOutputs()
     if text is None:
         if want == "normal":
-            rep.ok("no kanshi config: the display keeps its normal orientation")
+            rep.ok("no kanshi config, so kanshi doesn't rotate the display")
             return
         name = outputs[0] if outputs else "DSI-2"
         if not outputs:
@@ -664,6 +669,31 @@ def CheckOrientation(prof, rep, home, user):
         print("           (applies at the next login, or: kanshictl reload)")
         if not rep.check:
             WriteUser(path, "\n".join(lines) + "\n", user)
+
+
+def CheckOtherRotation(rep, home):
+    """Warns about rotation set where this script doesn't manage it. A wlr-randr command in an
+    autostart file runs after kanshi and wins; a kanshi started with its own config file ignores
+    ~/.config/kanshi/config. Either leaves the screen turned whatever the profile."""
+    rep.section("Screen rotation outside kanshi  (autostart files)")
+    found = False
+    for pattern in AUTOSTART_FILES:
+        pattern = os.path.join(home, pattern[2:]) if pattern.startswith("~/") else SysPath(pattern)
+        for path in sorted(glob.glob(pattern)):
+            for number, line in enumerate((ReadText(path, system=False) or "").splitlines(), 1):
+                s = line.strip()
+                if s.startswith("#"):
+                    continue
+                if re.search(r"\bwlr-randr\b.*--transform", s):
+                    rep.warn(path + " line " + str(number) + " rotates the screen at login: " + s
+                             + "  (remove it, so the orientation comes from kanshi)")
+                    found = True
+                elif re.search(r"\bkanshi\b.*\s(-c|--config)\b", s):
+                    rep.warn(path + " line " + str(number) + " starts kanshi with its own config file, so "
+                             "~/.config/kanshi/config isn't used: " + s)
+                    found = True
+    if not found:
+        rep.ok("no wlr-randr rotation, and kanshi uses ~/.config/kanshi/config")
 
 
 def CheckClockAndSudo(rep, user):
@@ -761,7 +791,8 @@ def CheckSplash(prof, rep):
             rep.warn("plymouth-set-default-theme not available; splash not activated")
             return
     if current.strip() == "flic":
-        rep.ok("default theme is flic")
+        if not PREFIX:
+            rep.ok("default theme is flic")
     else:
         rep.change("fixed", "default theme flic  (was " + (current.strip() or "?") + ")")
         changed = True
@@ -776,7 +807,8 @@ def CheckSplash(prof, rep):
         return
     stale = StaleBootImages()
     for image in stale:
-        rep.change("fixed", image + " (" + BOOT_IMAGES[image] + " boot image) has an older splash")
+        rep.change("fixed", "splash in " + image + " (the " + BOOT_IMAGES[image] + " boot image): "
+                   "it was built before splash.png changed")
     if stale:
         rep.rebuild = True
     else:
@@ -800,7 +832,7 @@ def RebuildBootImages(rep):
     if not rep.rebuild:
         return
     rep.section("Boot images  (" + ", ".join(FIRMWARE_DIR + "/" + name for name in BOOT_IMAGES) + ")")
-    rep.line("would rebuild" if rep.check else "rebuilding", "every kernel's (update-initramfs -u -k all, about a minute each)")
+    rep.line("would rebuild" if rep.check else "rebuilding", "all of them (update-initramfs -u -k all, about a minute each)")
     rep.reboot = True
     if rep.check:
         return
@@ -810,7 +842,8 @@ def RebuildBootImages(rep):
         return
     if not PREFIX:
         for image in StaleBootImages():
-            rep.warn(image + " wasn't rebuilt: is the " + BOOT_IMAGES[image] + " kernel installed? (dpkg -l 'linux-image-*')")
+            rep.warn(image + " is still older than splash.png: is the " + BOOT_IMAGES[image]
+                     + " kernel installed (dpkg -l 'linux-image-*'), and is the clock right?")
 
 
 # ---------------------------------------------------------------- main
@@ -858,6 +891,7 @@ def main():
     CheckDesktop(rep, home, user)
     CheckKeybinds(rep, home, user)
     CheckOrientation(prof, rep, home, user)
+    CheckOtherRotation(rep, home)
     CheckClockAndSudo(rep, user)
     CheckSplash(prof, rep)
     RebuildBootImages(rep)
