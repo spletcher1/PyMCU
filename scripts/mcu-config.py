@@ -13,7 +13,8 @@ Every setting from the guide is reported as ok, fixed, added or disabled; --chec
 changing anything. Covered: config.txt and cmdline.txt, /etc/modules, the serial console and
 Bluetooth services, the user's groups, the uv environment, labwc autostart (app and screen
 blanking), pcmanfm USB and desktop settings, the taskbar, labwc keyboard shortcuts, screen
-orientation (kanshi), hwclock and sudoers, and the Plymouth boot splash. Not covered, do by hand:
+orientation (kanshi), hwclock and sudoers, and the Plymouth boot splash, in the boot images of
+both the Pi 4 and the Pi 5 kernels so the card can move between them. Not covered, do by hand:
 flashing the OS, desktop auto-login, timezone and hostname (raspi-config), installing uv and gh,
 SSH key-only login, the user's password.
 
@@ -49,6 +50,10 @@ MODEL_FILE = "/proc/device-tree/model"
 SUDOERS_FILE = "/etc/sudoers.d/pymcu"
 HWCLOCK = "/usr/sbin/hwclock"
 PLYMOUTH_THEMES = "/usr/share/plymouth/themes"
+FIRMWARE_DIR = "/boot/firmware"
+# The boot image of each 64-bit kernel and the Pi that boots it. A card holds both, so it can
+# move between a Pi 4 and a Pi 5, and the splash must be in both.
+BOOT_IMAGES = {"initramfs8": "Pi 4", "initramfs_2712": "Pi 5"}
 DRM_DIR = "/sys/class/drm"
 XDG_PCMANFM = "/etc/xdg/pcmanfm/default"
 
@@ -102,6 +107,7 @@ class Report:
         self.warnings = 0
         self.failures = 0
         self.reboot = False
+        self.rebuild = False   # the boot images need rebuilding (RebuildBootImages)
 
     VERBS = {"added": "add", "fixed": "fix", "removed": "remove", "disabled": "disable", "installed": "install"}
 
@@ -586,6 +592,12 @@ def CheckKeybinds(rep, home, user):
         WriteUser(path, text, user)
 
 
+def OutputName(line):
+    """The display a kanshi output line is for: DSI-1 in 'output DSI-1 enable transform 90'."""
+    m = re.match(r'\s*output\s+(?:"([^"]*)"|(\S+))', line)
+    return (m.group(1) or m.group(2)) if m else ""
+
+
 def ConnectedDsiOutputs():
     names = []
     for status in sorted(glob.glob(SysPath(DRM_DIR) + "/card*-DSI-*/status")):
@@ -614,7 +626,19 @@ def CheckOrientation(prof, rep, home, user):
         return
     lines = text.splitlines()
     output_lines = [i for i, l in enumerate(lines) if re.match(r"\s*output\s", l)]
-    dsi_lines = [i for i in output_lines if "dsi" in lines[i].lower()] or (output_lines if len(output_lines) == 1 else [])
+    if outputs:
+        # A Pi 4 and a Pi 5 can name their display differently. A line for a display that isn't
+        # connected is the other model's: kanshi skips it here, and it is kept for when the card
+        # goes back.
+        dsi_lines = [i for i in output_lines if OutputName(lines[i]) in outputs]
+        for i in output_lines:
+            name = OutputName(lines[i])
+            if i not in dsi_lines and "dsi" in name.lower():
+                rep.ok(lines[i].strip() + "  (" + name + " isn't connected: kept for the Pi it belongs to)")
+    else:
+        dsi_lines = [i for i in output_lines if "dsi" in lines[i].lower()]
+    if not dsi_lines and len(output_lines) == 1 and "dsi" not in OutputName(lines[output_lines[0]]).lower():
+        dsi_lines = output_lines   # the display named another way, such as output *
     changed = False
     for i in dsi_lines:
         m = re.search(r"\btransform\s+(\S+)", lines[i])
@@ -630,7 +654,7 @@ def CheckOrientation(prof, rep, home, user):
         changed = True
     if not dsi_lines:
         if want == "normal":
-            rep.ok("no DSI output in the kanshi config")
+            rep.ok("no profile for " + (outputs[0] if outputs else "a DSI display") + ", so kanshi doesn't rotate it")
         else:
             name = outputs[0] if outputs else "DSI-2"
             rep.change("added", "profile with output " + name + " transform " + want)
@@ -730,20 +754,63 @@ def CheckSplash(prof, rep):
                 Run(["cp", image, splash], root=True)
     if PREFIX:
         rep.ok("default theme not checked in test mode")
-        return
-    code, current, err = Run(["plymouth-set-default-theme"])
-    if code != 0:
-        rep.warn("plymouth-set-default-theme not available; splash not activated")
-        return
-    if current.strip() == "flic" and not changed:
-        rep.ok("default theme is flic")
-        return
-    rep.change("fixed", "default theme flic (rebuilds the initramfs, about a minute)")
-    rep.reboot = True
-    if not rep.check:
-        code, out, err = Run(["plymouth-set-default-theme", "-R", "flic"], root=True)
+        current = "flic"
+    else:
+        code, current, err = Run(["plymouth-set-default-theme"])
         if code != 0:
-            rep.fail("plymouth-set-default-theme -R flic: " + (out + err).strip()[-300:])
+            rep.warn("plymouth-set-default-theme not available; splash not activated")
+            return
+    if current.strip() == "flic":
+        rep.ok("default theme is flic")
+    else:
+        rep.change("fixed", "default theme flic  (was " + (current.strip() or "?") + ")")
+        changed = True
+        if not rep.check:
+            # Without -R, which would rebuild one kernel's boot image only: RebuildBootImages does all.
+            code, out, err = Run(["plymouth-set-default-theme", "flic"], root=True)
+            if code != 0:
+                rep.fail("plymouth-set-default-theme flic: " + (out + err).strip()[-300:])
+                return
+    if changed:
+        rep.rebuild = True
+        return
+    stale = StaleBootImages()
+    for image in stale:
+        rep.change("fixed", image + " (" + BOOT_IMAGES[image] + " boot image) has an older splash")
+    if stale:
+        rep.rebuild = True
+    else:
+        rep.ok("the boot images have this splash")
+
+
+def StaleBootImages():
+    """The boot images built before splash.png last changed, which still show an older splash."""
+    splash = SysPath(PLYMOUTH_THEMES + "/flic/splash.png")
+    if not os.path.exists(splash):
+        return []
+    images = [(name, SysPath(FIRMWARE_DIR + "/" + name)) for name in BOOT_IMAGES]
+    return [name for name, path in images
+            if os.path.exists(path) and os.path.getmtime(path) < os.path.getmtime(splash)]
+
+
+def RebuildBootImages(rep):
+    """Rebuilds every kernel's boot image once, for the changes found above. plymouth-set-default-
+    theme -R and a plain update-initramfs -u rebuild only the highest-numbered kernel's, which
+    leaves the other Pi model's image with the old splash."""
+    if not rep.rebuild:
+        return
+    rep.section("Boot images  (" + ", ".join(FIRMWARE_DIR + "/" + name for name in BOOT_IMAGES) + ")")
+    rep.line("would rebuild" if rep.check else "rebuilding", "every kernel's (update-initramfs -u -k all, about a minute each)")
+    rep.reboot = True
+    if rep.check:
+        return
+    code, out, err = Run(["update-initramfs", "-u", "-k", "all"], root=True)
+    if code != 0:
+        rep.fail("update-initramfs -u -k all: " + (out + err).strip()[-300:])
+        return
+    if not PREFIX:
+        for image in StaleBootImages():
+            rep.warn(image + " wasn't rebuilt: is the " + BOOT_IMAGES[image] + " kernel installed? (dpkg -l 'linux-image-*')")
 
 
 # ---------------------------------------------------------------- main
@@ -793,6 +860,7 @@ def main():
     CheckOrientation(prof, rep, home, user)
     CheckClockAndSudo(rep, user)
     CheckSplash(prof, rep)
+    RebuildBootImages(rep)
     print("\nSummary: {} ok, {} {}, {} warnings, {} failed".format(
         rep.oks, rep.changes, "would change" if args.check else "changed", rep.warnings, rep.failures))
     if rep.reboot:

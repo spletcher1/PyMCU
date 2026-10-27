@@ -16,6 +16,7 @@ It is written for the people who run experiments. The details are in other docum
 | Exact meanings of the terms | [../CONTEXT.md](../CONTEXT.md) |
 | DFM firmware, ID dials, flashing | `README.md` and `ID_DIALS.md` in the DFMV3_V2 repository |
 | Analysis | pyflic's built-in help (F1, or `pyflic help`) and its `docs/GETTING_STARTED.md` |
+| An MCU still on PyMCU 1.0.7 to 3.5.2 | [pre-4.0/UserGuide.md](pre-4.0/UserGuide.md) |
 
 Questions and suggestions: Scott Pletcher (spletch@umich.edu).
 
