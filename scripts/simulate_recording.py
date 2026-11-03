@@ -19,8 +19,14 @@ Activations; the B wells are Off. Two hours, firmware 4.0.0.
 Beside the recording, a _truth folder lists every simulated bout and Activation and a summary
 per Well, to check an analysis against.
 
+With --adaptive the Program has Baseline: Adaptive (docs/adaptive-baseline-plan.md, stage S4), and
+DFM 1's signals get three things to adapt to: a slow drift on Well 1A, a 60-minute plateau (a fly
+standing on the food) on Well 2A and a yeast-style step on Well 3B. The simulated DFM uses the
+Baseline in force that PyMCU's own tracker gives, applied from the read after each update, and the
+script stops if PyMCU's Baseline columns differ from that. The truth folder adds Baselines.csv.
+
 Run from the PyMCU folder:
-    .venv/bin/python scripts/simulate_recording.py [--out DIR] [--seed N] [--start "MM/DD/YYYY HH:MM:SS"]
+    .venv/bin/python scripts/simulate_recording.py [--out DIR] [--seed N] [--start "MM/DD/YYYY HH:MM:SS"] [--adaptive]
 """
 import argparse
 import csv
@@ -33,6 +39,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import BaselineTracker  # noqa: E402
 import DFM            # noqa: E402
 import DFMGroup       # noqa: E402
 import Enums          # noqa: E402
@@ -72,7 +79,7 @@ PROGRAM = """# Simulated recording: two hours of progressive ratio after 10 Accl
 StartTime: {start}
 ExpDurationMin: {minutes}
 Linkage: 1,1,2,2,3,3,4,4,5,5,6,6
-Baseline: Yes
+{baseline}
 
 [Paradigm PR5]
 Type: ProgressiveRatio
@@ -90,6 +97,17 @@ Interval: PR5, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, {minutes}
 ID: 2
 Interval: PR5, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, {minutes}
 """
+
+# --adaptive: faster than the default 5 counts an hour, so two hours show several updates and a cap.
+ADAPTIVE_GENERAL = "Baseline: Adaptive\nBaselineRatePerHour: 30\nBaselineCapCounts: 40"
+# What DFM 1's signals do under --adaptive, by Well (from 0): (kind, start minute, end minute, counts).
+# A drift rises by `counts` an hour from its start; a plateau and a step add `counts` while they last.
+ADAPTIVE_FEATURES = {
+    0: ("drift", 10, None, 20),
+    2: ("plateau", 30, 90, 150),
+    5: ("step", 20, None, 120),
+}
+ADAPTIVE_DFM = 1
 
 # Fly kinds: A-well bouts per minute when just rewarded, how fast that urge fades without reward
 # (minutes), what is left of it, B-well bouts per minute.
@@ -172,13 +190,26 @@ def SimulateChamber(rng, fly, totalMs):
 
 
 #region The DFM
-def WellSignal(rng, resting, bouts, amplitude, totalMs):
+def AddFeature(raw, feature):
+    """Adds an --adaptive feature (ADAPTIVE_FEATURES) to a Well's ms readings."""
+    kind, startMin, endMin, counts = feature
+    start = startMin * 60000
+    end = len(raw) if endMin is None else min(len(raw), endMin * 60000)
+    if kind == "drift":
+        raw[start:] += (np.arange(len(raw) - start, dtype=np.float32) * (counts / 3600000.0)).astype(np.float32)
+    else:
+        raw[start:end] += counts
+
+
+def WellSignal(rng, resting, bouts, amplitude, totalMs, feature=None):
     """Each ms's reading and the 128-scan average the DFM works from."""
     raw = np.full(totalMs, resting, dtype=np.float32)
     raw += rng.normal(0, 6, totalMs).astype(np.float32)
     for bout in bouts:
         for start, length, scale in bout["licks"]:
             raw[start:start + length] += amplitude * scale
+    if feature is not None:
+        AddFeature(raw, feature)
     np.clip(raw, 0, 1023, out=raw)
     sums = np.cumsum(raw, dtype=np.float64)
     average = np.empty(totalMs, dtype=np.float32)
@@ -266,6 +297,27 @@ def RunParadigm(contact, applyMs):
     return lit, changes, activations
 
 
+def BaselinesInForce(wells, baselines, rate, cap):
+    """Baseline: Adaptive as PyMCU runs it (DFM._TrackBaseline): the tracker gets records 10 on, and
+    an update found when a minute's first record arrives is sent at once, so the DFM runs it from
+    the next read. Returns each record's Baselines in force and the updates (first record, minute,
+    Baselines)."""
+    totalRecords = len(wells)
+    tracker = BaselineTracker.BaselineTracker(baselines, rate, cap)
+    inForce = list(baselines)
+    updates = []
+    for i in range(9, totalRecords):
+        for minute in tracker.AddRecord(i + 1, [int(v) for v in wells[i]]):
+            if minute.isCheck and tracker.NeedsUpdate(inForce):
+                inForce = tracker.Rounded()
+                nextRead = (i // READ_RECORDS + 1) * READ_RECORDS + 1
+                updates.append((nextRead, minute.number, list(inForce)))
+    perRecord = np.tile(np.array(baselines, dtype=np.int64), (totalRecords, 1))
+    for first, _, values in updates:
+        perRecord[first - 1:] = values
+    return perRecord, updates
+
+
 def AtRecordEnds(changes, ends):
     """Each record's (phase, activations, requirement, progress) from the state changes."""
     times = np.array([c[0] for c in changes])
@@ -274,7 +326,8 @@ def AtRecordEnds(changes, ends):
 #endregion
 
 
-def SimulateDFM(rng, dfmID, totalRecords):
+def SimulateDFM(rng, dfmID, totalRecords, adaptive=None):
+    """adaptive: (BaselineRatePerHour, BaselineCapCounts) for Baseline: Adaptive, or None."""
     totalMs = totalRecords * RECORD_MS
     applyMs = (APPLY_RECORD - 1) * RECORD_MS
     ends = np.arange(1, totalRecords + 1) * RECORD_MS - 1
@@ -285,7 +338,11 @@ def SimulateDFM(rng, dfmID, totalRecords):
     snapshot = np.zeros((totalRecords, 12), dtype=bool)
     state = [None] * 12
     baselines = [0] * 12
-    truth = dict(flies=[], bouts=[], activations=[], summary=[])
+    truth = dict(flies=[], bouts=[], activations=[], summary=[], baselines=[])
+    features = ADAPTIVE_FEATURES if adaptive is not None and dfmID == ADAPTIVE_DFM else {}
+    # Each chamber's fly and bouts, and its A well's signal (Baseline: Adaptive) or contact (fixed),
+    # for the second pass, which runs the Paradigm once the Baselines in force are known.
+    chambers = []
     for chamber in range(6):
         a, b = 2 * chamber, 2 * chamber + 1
         fly = MakeFly(rng, kinds[chamber])
@@ -300,38 +357,64 @@ def SimulateDFM(rng, dfmID, totalRecords):
                                        StartMs=bout["start"], DurationMs=bout["end"] - bout["start"], Licks=len(bout["licks"])))
         for well, resting, amplitude in ((a, rng.uniform(12, 40), fly["ampA"]), (b, rng.uniform(4, 25), fly["ampB"])):
             mine = [x for x in bouts if x["well"] == ("A" if well == a else "B")]
-            average = WellSignal(rng, resting, mine, amplitude, totalMs)
+            average = WellSignal(rng, resting, mine, amplitude, totalMs, features.get(well))
             wells[:, well] = np.clip(np.rint(average[ends]), 0, 1023)
             baselines[well] = Baseline(wells[:, well])
             if well != a:
                 continue
-            # Only the A well triggers: its contact is above the Threshold measured from PyMCU's baseline.
-            contact = average > baselines[well] + THRESHOLD
-            contact[:applyMs] = False
+            if adaptive is None:
+                # Only the A well triggers: its contact is above the Threshold measured from PyMCU's baseline.
+                contact = average > baselines[well] + THRESHOLD
+                contact[:applyMs] = False
+                chambers.append((chamber, fly, bouts, contact))
+            else:
+                chambers.append((chamber, fly, bouts, average))
             del average
-            lit, changes, activations = RunParadigm(contact, applyMs)
-            perRecord = lit.reshape(totalRecords, RECORD_MS).sum(axis=1)
-            # Linkage: the chamber's B LED lights with its A LED.
-            for w in (a, b):
-                onMs[:, w] = perRecord
-                snapshot[:, w] = lit[ends]
-            state[a] = AtRecordEnds(changes, ends)
-            for act in activations:
-                truth["activations"].append(dict(DFM=dfmID, Well=a + 1, WellName=WELL_NAMES[a], Kind=act["kind"],
-                                                 Number=act["number"], StartMs=act["start"], LitMs=act["end"] - act["start"],
-                                                 RequirementMet=act["met"]))
-            final = changes[-1]
-            accl = [x for x in activations if x["kind"] == "Acclimation"]
-            mains = [x for x in activations if x["kind"] == "Main"]
-            truth["summary"].append(dict(
-                DFM=dfmID, Chamber=chamber + 1, Well=a + 1, WellName=WELL_NAMES[a], Kind=fly["kind"],
-                BoutsA=sum(1 for x in bouts if x["well"] == "A"), BoutsB=sum(1 for x in bouts if x["well"] == "B"),
-                Activations=final[2], AcclimationActivations=len(accl),
-                AcclimationEndMs=accl[-1]["end"] if len(accl) == ACCLIMATION else "",
-                MainActivations=len(mains), Breakpoint=mains[-1]["met"] if mains else "",
-                NextRequirement=final[3], ProgressAtEnd=final[4], LitMs=int(lit.sum())))
-            del contact, lit
-    return wells, onMs, snapshot, state, baselines, truth
+
+    inForce = None
+    if adaptive is not None:
+        inForce, updates = BaselinesInForce(wells, baselines, *adaptive)
+        for first, minute, values in updates:
+            truth["baselines"].append(dict(DFM=dfmID, FromRecord=first, CheckMinute=minute,
+                                           **{"Baseline{}".format(w + 1): v for w, v in enumerate(values)}))
+    for chamber, fly, bouts, signal in chambers:
+        a, b = 2 * chamber, 2 * chamber + 1
+        if adaptive is None:
+            contact = signal
+        else:
+            # The Threshold the DFM ran each ms: the Baseline in force for that ms's record plus 20.
+            contact = signal > np.repeat(inForce[:, a], RECORD_MS) + THRESHOLD
+            contact[:applyMs] = False
+            feature = features.get(a)
+            if feature is not None and feature[0] == "plateau":
+                start, end = feature[1] * 60000, feature[2] * 60000
+                truth["baselines"].append(dict(DFM=dfmID, FromRecord="", CheckMinute="",
+                                               Note="Well {} plateau, minutes {}-{}: in contact {:.4f} of it".format(
+                                                   WELL_NAMES[a], feature[1], feature[2], float(contact[start:end].mean()))))
+        del signal
+        lit, changes, activations = RunParadigm(contact, applyMs)
+        perRecord = lit.reshape(totalRecords, RECORD_MS).sum(axis=1)
+        # Linkage: the chamber's B LED lights with its A LED.
+        for w in (a, b):
+            onMs[:, w] = perRecord
+            snapshot[:, w] = lit[ends]
+        state[a] = AtRecordEnds(changes, ends)
+        for act in activations:
+            truth["activations"].append(dict(DFM=dfmID, Well=a + 1, WellName=WELL_NAMES[a], Kind=act["kind"],
+                                             Number=act["number"], StartMs=act["start"], LitMs=act["end"] - act["start"],
+                                             RequirementMet=act["met"]))
+        final = changes[-1]
+        accl = [x for x in activations if x["kind"] == "Acclimation"]
+        mains = [x for x in activations if x["kind"] == "Main"]
+        truth["summary"].append(dict(
+            DFM=dfmID, Chamber=chamber + 1, Well=a + 1, WellName=WELL_NAMES[a], Kind=fly["kind"],
+            BoutsA=sum(1 for x in bouts if x["well"] == "A"), BoutsB=sum(1 for x in bouts if x["well"] == "B"),
+            Activations=final[2], AcclimationActivations=len(accl),
+            AcclimationEndMs=accl[-1]["end"] if len(accl) == ACCLIMATION else "",
+            MainActivations=len(mains), Breakpoint=mains[-1]["met"] if mains else "",
+            NextRequirement=final[3], ProgressAtEnd=final[4], LitMs=int(lit.sum())))
+        del contact, lit
+    return wells, onMs, snapshot, state, baselines, truth, inForce
 
 
 def Records(dfmID, wells, onMs, snapshot, state, number, first, last):
@@ -361,8 +444,10 @@ def Records(dfmID, wells, onMs, snapshot, state, number, first, last):
 def WriteCSV(path, rows):
     if not rows:
         return
+    # Every row's columns, in the order they first appear.
+    fieldnames = list(dict.fromkeys(k for row in rows for k in row))
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(f, fieldnames=fieldnames, restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -372,6 +457,8 @@ def main():
     parser.add_argument("--out", default=os.path.expanduser("~/SimulatedFLICData"))
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--start", default="10/17/2026 13:00:00")
+    parser.add_argument("--adaptive", action="store_true",
+                        help="Baseline: Adaptive, with a drift, a plateau and a step on DFM {}".format(ADAPTIVE_DFM))
     args = parser.parse_args()
     rng = np.random.default_rng(args.seed)
     programStart = datetime.datetime.strptime(args.start, "%m/%d/%Y %H:%M:%S")
@@ -387,9 +474,11 @@ def main():
         dfms[ID] = d
     program = Program.MCUProgram()
     text = PROGRAM.format(start=args.start, minutes=MINUTES, activation=ACTIVATION_MS, first=FIRST_REQUIREMENT,
-                          step=STEP, acclimation=ACCLIMATION)
+                          step=STEP, acclimation=ACCLIMATION,
+                          baseline=ADAPTIVE_GENERAL if args.adaptive else "Baseline: Yes")
     if not program.LoadProgram(text.splitlines(True), dfms):
         sys.exit("Program didn't load: " + program.loadError)
+    adaptive = program.AdaptiveSettings()
 
     # As on the MCU: the recording's clock starts just after the Program's start time.
     startTime = programStart + datetime.timedelta(milliseconds=572)
@@ -401,17 +490,17 @@ def main():
         f.write(str(program))
     messages.AddMessage(Message.Message(0, programStart + datetime.timedelta(milliseconds=1070), 0, "Recording started",
                                         Enums.MESSAGETYPE.ANNOTATION, -99))
-    truth = dict(flies=[], bouts=[], activations=[], summary=[])
+    truth = dict(flies=[], bouts=[], activations=[], summary=[], baselines=[])
     lastTime = startTime
     for ID, d in dfms.items():
         print("DFM {}: simulating flies and the DFM...".format(ID))
-        wells, onMs, snapshot, state, baselines, dfmTruth = SimulateDFM(rng, ID, totalRecords)
+        wells, onMs, snapshot, state, baselines, dfmTruth, inForce = SimulateDFM(rng, ID, totalRecords, adaptive)
         for key in truth:
             truth[key] += dfmTruth[key]
         print("DFM {}: writing records through PyMCU...".format(ID))
         d.status = Enums.CURRENTSTATUS.RECORDING
         d.SetLinkage(program.GetLinkage(ID))
-        d.BaselineDFM()
+        d.BaselineDFM(adaptive)
         instruction = program.theInstructionSets[ID].instructions[0]
         path = os.path.join(folder, d.outputFile)
         with open(path, "w") as f:
@@ -431,6 +520,12 @@ def main():
                     sp.secondsSinceReset = last * RECORD_MS / 1000 + 0.05
                     packets.append(sp)
                 d.ProcessPackets(packets, True)
+                if inForce is not None and first >= APPLY_RECORD:
+                    # PyMCU's Baseline columns must be the Baselines the simulated DFM ran.
+                    for sp in packets:
+                        if list(sp.baseline) != list(inForce[sp.recordIndex - 1]):
+                            sys.exit("Record {}: PyMCU's baseline {} differs from the simulation's {}".format(
+                                sp.recordIndex, list(sp.baseline), list(inForce[sp.recordIndex - 1])))
                 lastTime = max(lastTime, packets[-1].packetTime)
                 if d.theData.ActualSize() >= 1000:
                     lines, count = d.theData.PeekRecordsAsString()
@@ -451,13 +546,23 @@ def main():
     WriteCSV(os.path.join(truthFolder, "Bouts.csv"), truth["bouts"])
     WriteCSV(os.path.join(truthFolder, "Activations.csv"), truth["activations"])
     WriteCSV(os.path.join(truthFolder, "Summary.csv"), truth["summary"])
+    if args.adaptive:
+        WriteCSV(os.path.join(truthFolder, "Baselines.csv"), truth["baselines"])
     with open(os.path.join(truthFolder, "README.txt"), "w") as f:
-        f.write("Simulated with scripts/simulate_recording.py --seed {} --start \"{}\".\n"
+        f.write("Simulated with scripts/simulate_recording.py --seed {} --start \"{}\"{}.\n"
                 "Times in ms count from record 1's start ({}); record n covers ms (n-1)*200 to n*200.\n"
                 "Flies.csv: each chamber's simulated fly. Bouts.csv: every feeding bout (lick train).\n"
                 "Activations.csv: every Activation the DFM rules gave. Summary.csv: per triggering Well.\n"
                 "Progress is taken to return to 0 when an Activation starts.\n".format(
-                    args.seed, args.start, (startTime).strftime("%m/%d/%Y %H:%M:%S.%f")[:-3]))
+                    args.seed, args.start, " --adaptive" if args.adaptive else "",
+                    (startTime).strftime("%m/%d/%Y %H:%M:%S.%f")[:-3]))
+        if args.adaptive:
+            f.write("Baselines.csv: each adaptive-baseline update (the first record that ran it, the check minute that\n"
+                    "sent it, the 12 Baselines), and how much of the plateau stayed in contact. DFM {} has: {}.\n".format(
+                        ADAPTIVE_DFM, "; ".join("Well {} {} from minute {}{}, {} counts{}".format(
+                            WELL_NAMES[w], kind, start, "" if end is None else " to {}".format(end), counts,
+                            " an hour" if kind == "drift" else "")
+                            for w, (kind, start, end, counts) in sorted(ADAPTIVE_FEATURES.items()))))
     print("Recording: " + folder)
     print("Truth:     " + truthFolder)
 

@@ -575,5 +575,156 @@ class Compatibility(unittest.TestCase):
         self.assertEqual(self.ProblemsWithProbedDFMs(MakeProbedDFM(b"4.0.0", ID=2)), [])
 
 
+def AdaptiveInterval():
+    """ClosedLoop, Wells 1-11 at 20 above their Baseline, Well 12 Off."""
+    instruct = Instruction.DFMInstruction(Enums.DARKSTATE.OFF, ClosedLoop().paradigm)
+    instruct.SetOptoValues([20] * 11 + [Instruction.OFF])
+    return instruct
+
+
+class AdaptiveBaseline(unittest.TestCase):
+    """Baseline: Adaptive in DFM.py (docs/adaptive-baseline-plan.md, rules 1 and 7-11)."""
+    FAST = (60.0, 50)   # 1 count a minute, so a test reaches D in 10 minutes
+
+    def setUp(self):
+        MESSAGES.clear()
+        self.index = 0
+
+    def Feed(self, d, count, wells, isV4=True, number=None):
+        """count records of the given Well values (one value for all 12, or 12), in reads of 20 as
+        the reader hands them over. A 4.0.0 record carries the number of the instruction just
+        sent, as a DFM that applied it at once."""
+        values = [wells] * 12 if isinstance(wells, int) else list(wells)
+        while count > 0:
+            packets = []
+            for _ in range(min(20, count)):
+                self.index += 1
+                sp = StatusPacket.StatusPacket(0, 5, Enums.DFMTYPE.PLETCHERV3)
+                if isV4:
+                    sp.ProcessStatusPacket(Record(index=self.index, number=d.instructionNumber if number is None else number,
+                                                  wells=values), datetime.datetime(2026, 1, 1), 0, StatusPacket.V4_PACKET_SIZE)
+                else:
+                    sp.ProcessStatusPacket(Record56(index=self.index, wells=values), datetime.datetime(2026, 1, 1))
+                packets.append(sp)
+            count -= len(packets)
+            d.ProcessPackets(packets, True)
+
+    def Started(self, version="4.0.0", adaptive=FAST, resting=10):
+        """A DFM that has its Starting baseline and the first Interval, sent."""
+        d = MakeDFM(version)
+        d.BaselineDFM(adaptive)
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.OFF), False)   # idle, Interval 0
+        self.Feed(d, 10, resting, isV4=COMM.UsesParadigmFirmware(version))
+        d.UpdateInstruction(AdaptiveInterval(), True, 0, 1)
+        d.CheckStatusV3()
+        return d
+
+    def Thresholds(self, d):
+        return list(d.currentInstruction.adjustedThresholds)
+
+    def test_update_after_drift(self):
+        d = self.Started()
+        first = d.instructionNumber
+        self.assertEqual(self.Thresholds(d)[:2], [30, 30])
+        self.assertEqual(self.Thresholds(d)[11], Instruction.OFF)
+        # The resting signal moves to 40; the tracked baseline follows at 1 count a minute and
+        # reaches D (10) at the 10-minute check.
+        self.Feed(d, 3000 - 10, 40)
+        self.assertEqual(d.instructionNumber, first)
+        self.Feed(d, 1, 40)
+        self.assertEqual(d.instructionNumber, first + 1)
+        self.assertEqual(d.instructionInfo[d.instructionNumber].baseline, (20,) * 12)
+        self.assertEqual((d.currentPosition, self.Thresholds(d)[:2]), ((0, 1), [40, 40]))
+        sent = Sent(d)[-1]
+        self.assertEqual((sent[3], sent[4]), (first + 1, True))   # new number, keeping the Paradigm state
+        notices = [m for m in MESSAGES if "baseline updated" in m.message]
+        self.assertEqual(len(notices), 1)
+        self.assertEqual(notices[0].messageType, Enums.MESSAGETYPE.NOTICE)
+        self.assertIn("1A +10 (10 to 20)", notices[0].message)
+        # Each record takes the Baselines of the instruction it says it ran.
+        self.Feed(d, 1, 40, number=first)
+        self.assertEqual(d.theData.GetLastDataPoint().baseline, (10,) * 12)
+        self.Feed(d, 1, 40)
+        line = d.theData.GetLastDataPoint().GetDataBufferPrintPacket().rstrip("\n").split(",")
+        self.assertEqual(line[-12:], ["20"] * 12)
+        # The live plot subtracts the Baseline in force.
+        self.assertEqual(list(d.GetLastAnalogData(True)), [20] * 12)
+
+    def test_resend_of_the_same_number_keeps_its_thresholds(self):
+        d = self.Started()
+        self.Feed(d, 3000, 40)
+        number, thresholds = d.instructionNumber, self.Thresholds(d)
+        # Five more minutes move the tracked baseline 5, under D: nothing is sent.
+        self.Feed(d, 1500, 40)
+        self.assertEqual(d.tracker.Rounded()[0], 25)
+        # A restart sends the same number again, with the Thresholds it was first sent with.
+        d.isInstructionUpdateNeeded = True
+        d.CheckStatusV3()
+        self.assertEqual((Sent(d)[-1][3], self.Thresholds(d)), (number, thresholds))
+
+    def test_new_interval_takes_the_tracked_baseline(self):
+        d = self.Started()
+        self.Feed(d, 1500, 40)   # 5 minutes: tracked 15, under D
+        self.assertEqual(d.instructionInfo[d.instructionNumber].baseline, (10,) * 12)
+        d.UpdateInstruction(AdaptiveInterval(), True, 1, 1)
+        self.assertEqual(d.instructionInfo[d.instructionNumber].baseline, (15,) * 12)
+        self.assertEqual(self.Thresholds(d)[0], 35)
+
+    def test_nothing_sent_outside_the_program(self):
+        d = self.Started()
+        d.SetIdleStatus()
+        d.CheckStatusV3()
+        number = d.instructionNumber
+        self.Feed(d, 6000, 40)
+        self.assertEqual(d.instructionNumber, number)
+        self.assertIsNone(d.theData.GetLastDataPoint().baseline)
+
+    def test_older_firmware_only_at_interval_changes(self):
+        d = self.Started("3.5.2")
+        sends = len(Sent(d))   # the idle instruction, then Interval 1
+        self.assertEqual(Sent(d)[-1][0], "SendInstructionDFMV2_0")
+        self.assertEqual([m.message for m in MESSAGES if "only at Interval" in m.message],
+                         ["DFM 5 (firmware 3.5.2) gets its adaptive baseline only at Interval and Cycle changes."])
+        self.Feed(d, 6000, 40, isV4=False)
+        # 20 minutes of drift, but a 3.5.2 board would reset its light rules: nothing is sent.
+        self.assertEqual(len(Sent(d)), sends)
+        self.assertEqual(d.theData.GetLastDataPoint().baseline, (10,) * 12)
+        d.UpdateInstruction(AdaptiveInterval(), True, 1, 1)
+        d.CheckStatusV3()
+        self.assertEqual(len(Sent(d)), sends + 1)
+        self.Feed(d, 1, 40, isV4=False)
+        self.assertEqual(d.theData.GetLastDataPoint().baseline, (30,) * 12)
+        self.assertEqual(len([m for m in MESSAGES if "only at Interval" in m.message]), 1)
+
+    def test_fixed_and_no_baseline_columns(self):
+        d = self.Started(adaptive=None)   # Baseline: Yes
+        self.assertIsNone(d.tracker)
+        self.Feed(d, 3010, 40)
+        self.assertEqual(d.theData.GetLastDataPoint().baseline, (10,) * 12)
+        lines = list(d.theData.theData)
+        self.assertEqual(lines[0].rstrip("\n").split(",")[-12:], ["NA"] * 12)   # Interval 0
+        self.assertEqual(len(lines[0].split(",")), 102)
+        d = MakeDFM()
+        d.ResetBaseline()   # Baseline: No
+        d.UpdateInstruction(AdaptiveInterval(), False, 0, 1)
+        self.Feed(d, 1, 40)
+        self.assertIsNone(d.theData.GetLastDataPoint().baseline)
+
+    def test_cap_reported_once_per_well(self):
+        d = self.Started(adaptive=(600.0, 10))
+        self.Feed(d, 1500, [100] + [10] * 11)
+        caps = [m for m in MESSAGES if "held there" in m.message]
+        self.assertEqual([m.message for m in caps],
+                         ["DFM 5 Well 1A: baseline moved +10 from its start (10 to 20) and is held there. Check the Well."])
+        self.assertEqual(caps[0].messageType, Enums.MESSAGETYPE.ERROR)
+        self.assertEqual(d.tracker.Rounded()[:2], [20, 10])
+
+    def test_header_has_the_baseline_columns(self):
+        header = DFMGroup.DATA_FILE_HEADER.rstrip("\n").split(",")
+        self.assertEqual(len(header), 102)
+        self.assertEqual(header[-12:], ["Baseline{}".format(w) for w in range(1, 13)])
+        self.assertEqual(len(DFMGroup.ENVMON_FILE_HEADER.split(",")), 27)
+
+
 if __name__ == "__main__":
     unittest.main()

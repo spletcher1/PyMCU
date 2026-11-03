@@ -4,6 +4,7 @@ import datetime
 import random
 import time
 
+import BaselineTracker
 import COMM
 import DataBuffer
 import DFMErrors
@@ -38,8 +39,10 @@ READ_FAILURES = {
 }
 
 # What an instruction number stood for: the Interval index (from 0) and Cycle, or None for
-# instructions outside the Program (idle, outputs on).
-InstructionInfo = collections.namedtuple("InstructionInfo", "index cycle instruction")
+# instructions outside the Program (idle, outputs on), and the 12 Baselines its Thresholds were
+# built on, or None. The Baselines are a copy: the Program's instruction objects are reused in
+# every Cycle and get new Baselines (docs/adaptive-baseline-plan.md, rule 11).
+InstructionInfo = collections.namedtuple("InstructionInfo", "index cycle instruction baseline")
 # Instruction numbers remembered, for records that arrive after later instructions were sent.
 INSTRUCTION_HISTORY = 256
 # Records held after a restart before they are stored anyway (a DFM holds 780).
@@ -75,6 +78,14 @@ class DFM:
         self.currentLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
         self.baselineSamples=0
         self.isCalculatingBaseline=False
+        # Baseline: Adaptive (docs/adaptive-baseline-plan.md): (rate per hour, cap) or None, and the
+        # tracker, made once the Starting baseline is complete.
+        self.adaptiveSettings=None
+        self.tracker=None
+        # Firmware before 4.0.0 doesn't report which instruction it runs, so its records take the
+        # Baselines of the last instruction it acknowledged.
+        self.ackedBaseline=None
+        self.isOlderFirmwareNoticeGiven=False
         self.currentInstruction = Instruction.DFMInstruction()
         self.currentPosition = (None, None)
         # Firmware 4.0.0 repeats the number of the instruction in use in every record. Starting
@@ -161,9 +172,12 @@ class DFM:
             return None
         if(adjustForBaseline == False):
             return tmp.analogValues
+        # The Baseline in force, which the DFM's Thresholds are built on; the Starting baseline
+        # (or its part measured so far) before the first Interval.
+        baseline = tmp.baseline if tmp.baseline is not None else self.signalBaselines
         resultArray=array.array("i",(0 for i in range(0,12)))
         for i in range(0,12):
-            resultArray[i]=max(tmp.analogValues[i]-self.signalBaselines[i],0)
+            resultArray[i]=max(tmp.analogValues[i]-baseline[i],0)
         return resultArray
 
     def SetIdleStatus(self):
@@ -192,6 +206,10 @@ class DFM:
             self.signalBaselines[i]=0
         self.baselineSamples=0
         self.isCalculatingBaseline = False
+        self.adaptiveSettings = None
+        self.tracker = None
+        self.ackedBaseline = None
+        self.isOlderFirmwareNoticeGiven = False
     def UpdateBaseline(self):
         last = self.GetLastAnalogData(False)
         if last is None:
@@ -202,9 +220,51 @@ class DFM:
         self.baselineSamples = self.baselineSamples+1
         if (self.baselineSamples>=10):
             self.isCalculatingBaseline=False
-    def BaselineDFM(self):
+            if(self.adaptiveSettings is not None):
+                rate, cap = self.adaptiveSettings
+                self.tracker = BaselineTracker.BaselineTracker(self.signalBaselines, rate, cap)
+    def BaselineDFM(self,adaptive=None):
+        """Measures the Starting baseline from the next 10 records. adaptive: (rate per hour, cap)
+        to track it from then on (Baseline: Adaptive), or None to keep it (Baseline: Yes)."""
         self.ResetBaseline()
+        self.adaptiveSettings = adaptive
         self.isCalculatingBaseline = True
+
+    def _TrackBaseline(self,sp):
+        """Baseline: Adaptive (docs/adaptive-baseline-plan.md, rules 2-7): the record goes to the
+        tracker; a Well reaching the cap is reported, and at each check the Tracked baselines are
+        sent if one is D or more from the Baseline in force."""
+        for minute in self.tracker.AddRecord(sp.recordIndex, sp.analogValues):
+            for well, direction in minute.newlyCapped:
+                start = self.tracker.start[well]
+                self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,
+                                "DFM {} Well {}: baseline moved {:+d} from its start ({} to {}) and is held there. Check the Well.".format(
+                                    self.ID,BaselineTracker.WELL_NAMES[well],direction*self.tracker.cap,start,
+                                    start+direction*self.tracker.cap),
+                                Enums.MESSAGETYPE.ERROR)
+            if(minute.isCheck):
+                self._SendTrackedBaseline(sp)
+
+    def _SendTrackedBaseline(self,sp):
+        """Rule 7: the running Interval's instruction again, with Thresholds on the Tracked baselines,
+        under a new number and keeping the Wells' Paradigm state. Only firmware 4.0.0 and later,
+        whose records say which instruction they ran; older firmware would reset its light rules."""
+        index, cycle = self.currentPosition
+        info = self.instructionInfo.get(self.instructionNumber)
+        if(index is None or self.isOutputsOn or info is None or info.baseline is None
+                or self.isVersionGetNeeded or not COMM.UsesParadigmFirmware(self.firmwareVersion)):
+            return
+        if not self.tracker.NeedsUpdate(info.baseline):
+            return
+        values = self.tracker.Rounded()
+        moved = ["{} {:+d} ({} to {})".format(BaselineTracker.WELL_NAMES[w],values[w]-info.baseline[w],info.baseline[w],values[w])
+                 for w in range(0,12) if abs(values[w]-info.baseline[w]) >= BaselineTracker.UPDATE_STEP]
+        # The Baselines change only here and in UpdateInstruction, just before a new number, so a
+        # resend of an earlier number carries the Thresholds it was first sent with (rule 9).
+        self.currentInstruction.SetBaseline(values)
+        self._SetInstruction(self.currentInstruction,index,cycle,values)
+        self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,
+                        "DFM {}: baseline updated, {}.".format(self.ID,", ".join(moved)),Enums.MESSAGETYPE.NOTICE)
     #endregion
 
     #region Packet processing, reading, writing, file methods.
@@ -421,10 +481,14 @@ class DFM:
 
     def _AddParadigmState(self,sp):
         """Adds what the record's instruction number stands for (Interval, Cycle, Paradigm, light
-        settings) and the Activation totals, carried past the DFM's 16-bit count."""
+        settings) and the Activation totals, carried past the DFM's 16-bit count, and the Baselines
+        of the Thresholds in force."""
         if not sp.isV4:
+            # No instruction number: the last instruction acknowledged, to within one read.
+            sp.baseline = self.ackedBaseline
             return
         info = self.instructionInfo.get(sp.instructionNumber)
+        sp.baseline = None if info is None else info.baseline
         if info is not None:
             sp.interval = info.index
             sp.cycle = info.cycle
@@ -474,6 +538,8 @@ class DFM:
                 self.SetStatus(Enums.CURRENTSTATUS.READING)
         if(self.isCalculatingBaseline):
             self.UpdateBaseline()
+        if(self.tracker is not None and saveDataToQueue):
+            self._TrackBaseline(sp)
 
     def ResetOutputFileStuff(self):
         self.outputFileIncrementor=0
@@ -491,16 +557,23 @@ class DFM:
         # There is no instruction before a program starts; keep the current one.
         if(instruct is None or (instruct is self.currentInstruction and (index,cycle) == self.currentPosition)):
             return
+        baseline = None
         if(useBaseline):
-            instruct.SetBaseline(self.signalBaselines)
-        self._SetInstruction(instruct,index,cycle)
+            # With Baseline: Adaptive a new Interval or Cycle takes the Tracked baselines as they
+            # are, with no D check (docs/adaptive-baseline-plan.md, rule 8).
+            baseline = self.tracker.Rounded() if self.tracker is not None else list(self.signalBaselines)
+            instruct.SetBaseline(baseline)
+        self._SetInstruction(instruct,index,cycle,baseline)
 
-    def _SetInstruction(self,instruct,index=None,cycle=None):
+    def _SetInstruction(self,instruct,index=None,cycle=None,baseline=None):
+        """Makes instruct the one to send, under a new number. baseline: the 12 Baselines its
+        Thresholds were just built on, or None if they don't depend on one."""
         self.isOutputsOn = False
         self.currentInstruction = instruct
         self.currentPosition = (index,cycle)
         self.instructionNumber = self.instructionNumber % 0xFFFF + 1
-        self.instructionInfo[self.instructionNumber] = InstructionInfo(index,cycle,instruct)
+        self.instructionInfo[self.instructionNumber] = InstructionInfo(
+            index,cycle,instruct,None if baseline is None else tuple(int(v) for v in baseline))
         while len(self.instructionInfo) > INSTRUCTION_HISTORY:
             self.instructionInfo.popitem(last=False)
         self.isInstructionUpdateNeeded=True
@@ -623,10 +696,13 @@ class DFM:
                 if(reason is not None):
                     self.NewMessage(self.ID,datetime.datetime.today(),0,"DFM {} (firmware {}) can't run this Interval: {}".format(self.ID,self.firmwareVersion,reason),Enums.MESSAGETYPE.ERROR)
                     isSent = True   # nothing to retry
-                elif(self.DFMSubType == Enums.DFMSUBTYPE.V2):
-                    isSent = self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)
                 else:
-                    isSent = self.MP.SendInstructionDFMV1_0_5(self.ID, self.currentInstruction)
+                    if(self.DFMSubType == Enums.DFMSUBTYPE.V2):
+                        isSent = self.MP.SendInstructionDFMV2_0(self.ID, self.currentInstruction)
+                    else:
+                        isSent = self.MP.SendInstructionDFMV1_0_5(self.ID, self.currentInstruction)
+                    if isSent:
+                        self._OlderFirmwareInstructionAcked(number)
             if isSent:
                 self.lastSentParadigmName = paradigm.name
                 self._CommandSucceeded("instruction")
@@ -648,6 +724,19 @@ class DFM:
                 isFailed = True
         if(isFailed):
             self.retryTime = time.monotonic() + COMMAND_RETRY_INTERVAL
+
+    def _OlderFirmwareInstructionAcked(self,number):
+        """Records from firmware before 4.0.0 don't say which instruction they ran, so they take the
+        Baselines of the last one acknowledged. Such a board resets its light rules on every
+        instruction, so under Baseline: Adaptive it gets the Tracked baselines only with each new
+        Interval or Cycle (docs/adaptive-baseline-plan.md, rule 10); that is said once."""
+        info = self.instructionInfo.get(number)
+        self.ackedBaseline = None if info is None else info.baseline
+        if(self.tracker is not None and self.ackedBaseline is not None and not self.isOlderFirmwareNoticeGiven):
+            self.isOlderFirmwareNoticeGiven = True
+            self.NewMessage(self.ID,datetime.datetime.today(),0,
+                            "DFM {} (firmware {}) gets its adaptive baseline only at Interval and Cycle changes.".format(
+                                self.ID,self.firmwareVersion),Enums.MESSAGETYPE.NOTICE)
 
     def _PendingCommandNames(self):
         names = []

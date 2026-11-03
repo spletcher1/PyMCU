@@ -186,7 +186,9 @@ class Records(unittest.TestCase):
         self.assertEqual(sp.analogValues[0], 500)
 
     def test_data_line_matches_header(self):
-        columns = len((StatusPacket.DATA_COLUMNS + "," + StatusPacket.PARADIGM_COLUMNS).split(","))
+        columns = len((StatusPacket.DATA_COLUMNS + "," + StatusPacket.PARADIGM_COLUMNS + ","
+                       + StatusPacket.BASELINE_COLUMNS).split(","))
+        self.assertEqual(columns, 102)
         v4 = self.Parse(Record())
         v4.interval, v4.cycle, v4.paradigmName, v4.activationTotals = 0, 2, "PR10", [5] * 12
         line = v4.GetDataBufferPrintPacket().rstrip("\n").split(",")
@@ -194,6 +196,9 @@ class Records(unittest.TestCase):
         tail = line[len(StatusPacket.DATA_COLUMNS.split(",")):]
         self.assertEqual(tail[:4], ["1", "2", "PR10", "A"])
         self.assertEqual(tail[3 + 12 + 12], "10")
+        self.assertEqual(set(line[-12:]), {"NA"})
+        v4.baseline = tuple(range(20, 32))
+        self.assertEqual(v4.GetDataBufferPrintPacket().rstrip("\n").split(",")[-12:], [str(v) for v in range(20, 32)])
         old = StatusPacket.StatusPacket(1, 5, Enums.DFMTYPE.PLETCHERV3)
         oldLine = old.GetDataBufferPrintPacket().rstrip("\n").split(",")
         self.assertEqual(len(oldLine), columns)

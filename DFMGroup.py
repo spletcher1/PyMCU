@@ -16,8 +16,9 @@ import MessagesList
 import Program
 import StatusPacket
 
-# DFM data files add the Paradigm columns; the Environmental Monitor's keep the old ones.
-DATA_FILE_HEADER = StatusPacket.DATA_COLUMNS + "," + StatusPacket.PARADIGM_COLUMNS + "\n"
+# DFM data files add the Paradigm and Baseline columns; the Environmental Monitor's keep the old ones.
+DATA_FILE_HEADER = (StatusPacket.DATA_COLUMNS + "," + StatusPacket.PARADIGM_COLUMNS + ","
+                    + StatusPacket.BASELINE_COLUMNS + "\n")
 ENVMON_FILE_HEADER = StatusPacket.DATA_COLUMNS + "\n"
 # A new data file is started every 12 hours.
 DATA_FILE_SECONDS = 43200
@@ -129,9 +130,10 @@ class DFMGroup:
             i.SetLinkage(self.currentProgram.GetLinkage(i.ID))
             i.currentDFMErrors.ClearErrors()
             # Baselines come from the first readings of the recording, taken after the buffer
-            # reset, never from before the start time.
+            # reset, never from before the start time. With Baseline: Adaptive they are then
+            # tracked for the rest of the recording (docs/adaptive-baseline-plan.md).
             if(self.currentProgram.autoBaseline):
-                i.BaselineDFM()
+                i.BaselineDFM(self.currentProgram.AdaptiveSettings())
             else:
                 i.ResetBaseline()
 

@@ -123,3 +123,21 @@ _Avoid_: Fine packet, big record
 **Fine mode**:
 A DFM state that PyMCU sets for one DFM per bus for the length of a recording, in which the DFM reports Fine blocks instead of Status records. The Program file asks for it with `FineData`.
 _Avoid_: High-rate mode, streaming, debug mode
+
+**Baseline**:
+The resting signal a Well's Threshold is measured from. PyMCU adds it to the Program's Threshold before sending an instruction; the DFM never sees it. With `Baseline: Yes` it is the Starting baseline for the whole recording, with `Baseline: Adaptive` it follows the Tracked baseline, and with `Baseline: No` it is 0.
+_Avoid_: Offset, zero, resting level (pyflic's per-minute median)
+
+**Starting baseline**:
+The mean of a Well's first 10 Status records after the buffer reset that starts a recording.
+
+**Floor**:
+The 10th percentile of a Well's Status records in one minute of a recording. It ignores licks and feeding bouts unless contact fills more than 90% of the minute.
+_Avoid_: Minimum, resting level
+
+**Tracked baseline**:
+PyMCU's running estimate of a Well's Baseline under `Baseline: Adaptive`. Each minute it moves towards that minute's Floor by at most the Program's rate, up or down, and stays within its cap of the Starting baseline.
+_Avoid_: Adaptive threshold, drift correction
+
+**Baseline in force**:
+The Baseline behind the Thresholds of the instruction a DFM is running. It changes only when PyMCU sends an instruction. The data file's `Baseline` columns and the live plot show it.

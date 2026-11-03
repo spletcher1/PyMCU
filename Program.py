@@ -2,6 +2,7 @@ import array
 import copy
 import datetime
 
+import BaselineTracker
 import Enums
 import Event
 import Instruction
@@ -12,7 +13,9 @@ import Paradigm
 ENVMON_ID = 99
 # Settings each section takes (lower case).
 _GENERAL_KEYS = {"starttime", "expdurationmin", "programtype", "optofrequency", "optopw", "optodecay",
-                 "optodelay", "maxtimeon", "linkage", "baseline"}
+                 "optodelay", "maxtimeon", "linkage", "baseline", "baselinerateperhour", "baselinecapcounts"}
+# Settings that only Baseline: Adaptive takes, by their lower-case key.
+_ADAPTIVE_KEYS = {"baselinerateperhour": "BaselineRatePerHour", "baselinecapcounts": "BaselineCapCounts"}
 _DFM_KEYS = {"id", "programtype", "linkage", "optofrequency", "optopw", "optodecay", "optodelay",
              "maxtimeon", "interval"}
 _ENVMON_KEYS = {"id", "programtype", "interval"}
@@ -86,7 +89,12 @@ class MCUProgram():
         self.maxTimeOn = 0
         self.globalLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
         self.globalPType = Enums.INSTRUCTIONSETTYPE.LINEAR
+        # Baseline: Yes and Adaptive both measure a Starting baseline (autoBaseline); Adaptive also
+        # tracks it through the recording (docs/adaptive-baseline-plan.md).
         self.autoBaseline = True
+        self.adaptiveBaseline = False
+        self.baselineRatePerHour = BaselineTracker.DEFAULT_RATE_PER_HOUR
+        self.baselineCapCounts = BaselineTracker.DEFAULT_CAP
         self.isActive = False
         self.isProgramLoaded = False
         self.loadError = ""
@@ -96,6 +104,16 @@ class MCUProgram():
         MCUProgram.Program_message.notify(tmp)
     def GetEndTime(self):
         return self.startTime + self.experimentDuration
+
+    def AdaptiveSettings(self):
+        """(BaselineRatePerHour, BaselineCapCounts) with Baseline: Adaptive, otherwise None."""
+        return (self.baselineRatePerHour, self.baselineCapCounts) if self.adaptiveBaseline else None
+
+    def _BaselineDescription(self):
+        if(self.adaptiveBaseline):
+            return "Baseline: Adaptive\nBaselineRatePerHour: {:g}\nBaselineCapCounts: {:d}\n".format(
+                self.baselineRatePerHour, self.baselineCapCounts)
+        return "Baseline: " + ("Yes" if self.autoBaseline else "No") + "\n"
 
     def IsDuringExperiment(self):
         t = datetime.datetime.today()
@@ -114,7 +132,7 @@ class MCUProgram():
             s+="End Time: " + self.GetEndTime().strftime("%m/%d/%Y %H:%M:%S")+"\n"
             s+="Duration: " +  "{:g}".format(self.experimentDuration.total_seconds()/60) + " min\n"
             s+="Linkage: " + ",".join(str(i) for i in self.globalLinkage) + "\n"
-            s+="Baseline: " + ("Yes" if self.autoBaseline else "No") + "\n"
+            s+=self._BaselineDescription()
             s+=str(next(iter(self.theInstructionSets.values())))
             return s
         s="Start Time: " + self.startTime.strftime("%m/%d/%Y %H:%M:%S")+"\n"
@@ -122,7 +140,7 @@ class MCUProgram():
         s+="Duration: " +  "{:g}".format(self.experimentDuration.total_seconds()/60) + " min\n"
         s+="Default Linkage: " + ",".join(str(i) for i in self.globalLinkage) + "\n"
         s+="Default Program Type: " + InstructionSet.PROGRAM_TYPE_NAMES[self.globalPType] + "\n"
-        s+="Baseline: " + ("Yes" if self.autoBaseline else "No") + "\n"
+        s+=self._BaselineDescription()
         paradigms = {}
         for key, value in self.theInstructionSets.items():
             if key != ENVMON_ID:
@@ -206,6 +224,11 @@ class MCUProgram():
             if kind == "general":
                 for key, value, lineNumber in items:
                     self._GeneralSetting(key, value, lineNumber)
+                # Checked once the whole section is read, as these may come before Baseline.
+                if not self.adaptiveBaseline:
+                    for key, value, lineNumber in items:
+                        if key.lower() in _ADAPTIVE_KEYS:
+                            raise ProgramError("{} needs Baseline: Adaptive".format(_ADAPTIVE_KEYS[key.lower()]), lineNumber)
         for kind, name, lineNumber, items in kinds:
             if kind == "paradigm":
                 if name.lower() in self.theParadigms:
@@ -261,9 +284,24 @@ class MCUProgram():
             elif k == "linkage":
                 self.globalLinkage = InstructionSet.LinkageFromString(value)
             elif k == "baseline":
-                if value.lower() not in ("yes", "no"):
-                    raise ValueError("Baseline must be Yes or No")
-                self.autoBaseline = value.lower() == "yes"
+                if value.lower() not in ("yes", "no", "adaptive"):
+                    raise ValueError("Baseline must be Yes, No or Adaptive")
+                self.autoBaseline = value.lower() != "no"
+                self.adaptiveBaseline = value.lower() == "adaptive"
+            elif k == "baselinerateperhour":
+                try:
+                    rate = float(value)
+                except ValueError:
+                    rate = None
+                if rate is None or not rate > 0 or rate == float("inf"):
+                    raise ValueError("BaselineRatePerHour must be a number of counts above 0, not '{}'".format(value))
+                self.baselineRatePerHour = rate
+            elif k == "baselinecapcounts":
+                cap = _ParseInt(value, key)
+                if cap < BaselineTracker.MIN_CAP:
+                    raise ValueError("BaselineCapCounts must be at least {}, the smallest change PyMCU sends, not {}".format(
+                        BaselineTracker.MIN_CAP, cap))
+                self.baselineCapCounts = cap
             else:
                 setattr(self, _OLD_OPTO_KEYS[k], _ParseInt(value, key))
         except ValueError as e:

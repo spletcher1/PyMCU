@@ -5,10 +5,12 @@ import datetime
 import os
 import types
 import unittest
+from unittest import mock
 
 import DFMGroup
 import Enums
 import Instruction
+import MessagesList
 import Paradigm
 import Program
 from test_dfm import FakeMP, MakeDFM
@@ -292,6 +294,71 @@ class StagedProgram(unittest.TestCase):
         group.UpdateDFMInstructions()
         self.assertTrue(group.theDFMs[2].isInstructionUpdateNeeded)
         self.assertFalse(group.theDFMs[3].isInstructionUpdateNeeded)
+
+
+ADAPTIVE = """
+[General]
+{}
+[Paradigm A]
+Type: ClosedLoop
+[DFM]
+ID: 1
+Interval: A, Lit, {}, 10
+"""
+
+
+class AdaptiveBaselineSettings(unittest.TestCase):
+    """Baseline: Adaptive and its settings (docs/adaptive-baseline-plan.md, Program file)."""
+    def LoadGeneral(self, *lines):
+        return Load(ADAPTIVE.format("\n".join(lines), WELLS))
+
+    def test_adaptive_with_settings(self):
+        # The settings may come before Baseline.
+        program, ok = self.LoadGeneral("BaselineRatePerHour: 2.5", "BaselineCapCounts: 30", "Baseline: Adaptive")
+        self.assertTrue(ok, program.loadError)
+        self.assertTrue(program.autoBaseline)
+        self.assertEqual(program.AdaptiveSettings(), (2.5, 30))
+        self.assertIn("Baseline: Adaptive\nBaselineRatePerHour: 2.5\nBaselineCapCounts: 30\n", program.GetProgramDescription())
+
+    def test_adaptive_defaults_are_written(self):
+        program, ok = self.LoadGeneral("Baseline: adaptive")
+        self.assertTrue(ok, program.loadError)
+        self.assertEqual(program.AdaptiveSettings(), (5.0, 50))
+        self.assertIn("Baseline: Adaptive\nBaselineRatePerHour: 5\nBaselineCapCounts: 50\n", program.GetProgramDescription())
+
+    def test_yes_and_no_are_not_adaptive(self):
+        for value, auto in (("Yes", True), ("No", False)):
+            program, ok = self.LoadGeneral("Baseline: " + value)
+            self.assertTrue(ok, program.loadError)
+            self.assertEqual((program.autoBaseline, program.AdaptiveSettings()), (auto, None))
+            self.assertIn("Baseline: {}\n".format(value), program.GetProgramDescription())
+            self.assertNotIn("BaselineRatePerHour", program.GetProgramDescription())
+
+    def test_refused(self):
+        cases = [
+            (("Baseline: Yes", "BaselineCapCounts: 40"), "Line 3: BaselineCapCounts needs Baseline: Adaptive"),
+            (("BaselineRatePerHour: 5",), "Line 2: BaselineRatePerHour needs Baseline: Adaptive"),
+            (("Baseline: Adaptive", "BaselineCapCounts: 5"), "Line 3: BaselineCapCounts must be at least 10"),
+            (("Baseline: Adaptive", "BaselineCapCounts: 12.5"), "Line 3: BaselineCapCounts must be a whole number"),
+            (("Baseline: Adaptive", "BaselineRatePerHour: 0"), "Line 3: BaselineRatePerHour must be a number of counts above 0"),
+            (("Baseline: Adaptive", "BaselineRatePerHour: fast"), "Line 3: BaselineRatePerHour must be a number"),
+            (("Baseline: Sometimes",), "Line 2: Baseline must be Yes, No or Adaptive"),
+        ]
+        for lines, error in cases:
+            program, ok = self.LoadGeneral(*lines)
+            self.assertFalse(ok, lines)
+            self.assertTrue(program.loadError.startswith(error), (lines, program.loadError))
+
+    def test_recording_start_passes_the_settings(self):
+        program, ok = self.LoadGeneral("Baseline: Adaptive", "BaselineRatePerHour: 3")
+        group = StagedProgram().Group()
+        group.currentProgram = program
+        group.theMessageList = MessagesList.MessageList()
+        group.NewMessage = group.WriteStarter = group.SetNormalProgramReadInterval = lambda *a: None
+        with mock.patch.object(DFMGroup.time, "sleep"):
+            group.StartRecording()
+        self.assertEqual([d.adaptiveSettings for d in group.theDFMs.values()], [(3.0, 50)] * 2)
+        self.assertTrue(all(d.isCalculatingBaseline for d in group.theDFMs.values()))
 
 
 if __name__ == "__main__":

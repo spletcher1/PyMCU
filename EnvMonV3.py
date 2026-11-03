@@ -150,7 +150,7 @@ class EnvironmentalMonitorV3:
         pass
     def UpdateBaseline(self):
         pass
-    def BaselineDFM(self):
+    def BaselineDFM(self,adaptive=None):
         pass
     def SetLinkage(self,links):
         pass

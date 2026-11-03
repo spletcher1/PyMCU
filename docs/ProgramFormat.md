@@ -84,9 +84,30 @@ The MCU also checks that every DFM it has found can run the Program. If one can'
 | `ExpDurationMin` | How long recording lasts, in minutes. Always set it. | 1 |
 | `ProgramType` | How each DFM steps through its Intervals: `Linear`, `Repeating`, `Circadian` or `Constant`. A `[DFM]` section can override it. See [Program types](#program-types). | `Linear` |
 | `Linkage` | 12 numbers, one per Well. Wells with the same number light together. A `[DFM]` section can override it. See [Linkage](#linkage). | `1,2,3,4,5,6,7,8,9,10,11,12` (no linkage) |
-| `Baseline` | `Yes` measures each Well's resting signal over its first 10 readings after recording starts (a few seconds), and thresholds are then measured from it. A DFM starts its first Interval only once that is done, so its LEDs stay off for those seconds, even in an OpenLoop Interval. `No` uses the raw signal. | `Yes` |
+| `Baseline` | `Yes` measures each Well's resting signal over its first 10 readings after recording starts (a few seconds), and thresholds are then measured from it. A DFM starts its first Interval only once that is done, so its LEDs stay off for those seconds, even in an OpenLoop Interval. `Adaptive` does the same, then keeps each baseline up to date for the rest of the recording (see [Adaptive baseline](#adaptive-baseline)). `No` uses the raw signal. | `Yes` |
+| `BaselineRatePerHour` | With `Baseline: Adaptive` only: the most a Well's baseline may move in an hour, up or down, in signal counts. A number above 0. | `5` |
+| `BaselineCapCounts` | With `Baseline: Adaptive` only: how far a Well's baseline may move from where it started, in signal counts. A whole number, at least 10. | `50` |
 
 `[General]` also accepts the old `OptoFrequency`, `OptoPW`, `OptoDecay`, `OptoDelay` and `MaxTimeOn` settings, but only for old-style Interval lines. New Programs set these in Paradigms instead.
+
+### Adaptive baseline
+
+A Well's resting signal can drift slowly during a long experiment. With `Baseline: Yes` its thresholds stay where they were set in the first seconds, so a threshold of 20 can come to mean 10 or 30 above where the Well actually rests. `Baseline: Adaptive` keeps it meaning 20.
+
+```
+[General]
+Baseline: Adaptive
+BaselineRatePerHour: 5
+BaselineCapCounts: 50
+```
+
+- The MCU starts from the same baseline as `Yes`, the first 10 readings, so **make sure no fly is on the food while the recording starts**. A baseline taken during contact is too high and comes down only at `BaselineRatePerHour`.
+- Every minute the MCU takes each Well's resting level for that minute (the 10th percentile of its readings, which ignores licks and feeding bouts) and moves the Well's baseline towards it, by at most `BaselineRatePerHour` per hour. A fly that stays on the food for an hour therefore moves its Well's baseline by only about 5 counts, and its light keeps following its feeding.
+- Every 10 minutes, if any Well's baseline has moved 10 counts or more from the one its thresholds were built on, the MCU sends the running Interval again with new thresholds. The DFM keeps every Well's Paradigm state (Acclimation, Activations, Requirement and Progress). A Well whose LED is pulsing at that moment has one pulse cycle cut short.
+- A baseline stops `BaselineCapCounts` from where it started. The first time a Well reaches that limit, the Messages page says so; check the Well.
+- Each new Interval or Cycle also takes the current baselines.
+- DFMs with firmware older than 4.0.0 reset their light rules whenever they get an instruction, so they get new baselines only when a new Interval or Cycle starts. Messages.csv notes this once per DFM.
+- The data file's `Baseline1`–`Baseline12` columns give the baseline behind every record's thresholds (see [What the data file records](#what-the-data-file-records)).
 
 ## Paradigms
 
@@ -411,8 +432,9 @@ These columns follow them:
 | `Requirement1`–`Requirement12` | Ratio types only: Events needed for the next Activation |
 | `Progress1`–`Progress12` | Ratio types only: Events counted towards it so far |
 | `OnMs1`–`OnMs12` | How many ms the Well's LED was active (pulsing) in that 200 ms record, whether its Paradigm, `On` or linkage lit it |
+| `Baseline1`–`Baseline12` | The baseline each Well's threshold was measured from for that record, with `Baseline: Yes` or `Adaptive`. A numeric threshold in force was this plus the Interval's threshold |
 
-Each row covers 200 ms. A value that doesn't apply is written `NA`, which pandas and R read as missing: Requirement and Progress for other types, Cycle and Paradigm before the first Interval, Interval and Cycle for an instruction outside the Program (such as all LEDs off after it ends), and all these columns with firmware older than 4.0.0.
+Each row covers 200 ms. A value that doesn't apply is written `NA`, which pandas and R read as missing: Requirement and Progress for other types, Cycle and Paradigm before the first Interval, Interval and Cycle for an instruction outside the Program (such as all LEDs off after it ends), and all these columns except the Baselines with firmware older than 4.0.0. The Baselines are `NA` before the first Interval, outside the Program and with `Baseline: No`.
 
 For the full description of every column, for writing analysis software, see [DataFileColumns.md](DataFileColumns.md).
 

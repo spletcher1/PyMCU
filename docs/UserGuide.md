@@ -95,7 +95,7 @@ These words have exact meanings, shared by Program files, the MCU, the DFM firmw
 | **Well** | One feeding site. The twelve Wells are named 1A, 1B, 2A, 2B … 6A, 6B and numbered 1 to 12 in that order, so Well 1 is 1A and Well 2 is 1B. |
 | **Chamber** | One row of a DFM: Wells nA and nB. In a choice (two-well) experiment one fly has both Wells; in a single-well experiment each Well has its own fly. |
 | **Signal** | A Well's reading, 0 to 1023. It rises when a fly touches the food. |
-| **Baseline** | A Well's resting signal, measured in the first seconds of a recording. With `Baseline: Yes`, Thresholds are measured from it. |
+| **Baseline** | A Well's resting signal, measured in the first seconds of a recording. With `Baseline: Yes`, Thresholds are measured from it. With `Baseline: Adaptive`, the MCU also keeps it up to date as the signal drifts. |
 | **Threshold** | The signal level above the baseline at which a Well counts as in contact with the food. Instead of a Threshold, a Well can be set `On` (lit for the whole Interval) or `Off` (never lit by its own feeding). |
 | **Event** | One feeding bout. It ends once the signal has stayed below the Threshold for the Event gap (100 ms unless set), so a fly dipping in and out counts once. |
 | **Activation** | One period during which a Paradigm lights a Well's LED. |
@@ -210,7 +210,7 @@ The plot has one column per chamber, Row 1 to Row 6. The blue dot is the chamber
 
 - At rest a Well sits low and steady. When a fly feeds, or you touch the food, its dot jumps up, and falls back when contact ends.
 - The scale runs from 0 to 1000. Tick **Zoom Plot** to show 0 to 100, for checking small resting levels.
-- During a recording with `Baseline: Yes`, the plot shows the signal above each Well's baseline, which is what the Thresholds are compared with.
+- During a recording with `Baseline: Yes` or `Adaptive`, the plot shows the signal above the baseline the DFM's Thresholds are built on, so a trace crossing a Threshold is what the light responds to.
 
 ### The panels on the right
 
@@ -373,7 +373,8 @@ The first line of the Program description always shows the start time that will 
     - sends each DFM its Linkage;
     - creates the recording folder, `FLICData/<MCU name>_<MM_DD_YYYY_HH_MM>`, writes `Program.txt` into it and opens one data file per board;
     - turns each board's button green (Rec) and starts reading every board, not just the one on screen.
-4. **The baseline is measured** (with `Baseline: Yes`): each Well's first 10 records, 2 seconds of signal, are averaged. Each DFM's Thresholds are then set that far above its own Wells' resting levels, so a Threshold of 20 means "20 above where this Well rests". Until a DFM has its first instruction, its LEDs stay off, so every recording starts with about 5 seconds of dark, even under open loop. These records are marked Interval 0 in the data file.
+4. **The baseline is measured** (with `Baseline: Yes` or `Adaptive`): each Well's first 10 records, 2 seconds of signal, are averaged. Each DFM's Thresholds are then set that far above its own Wells' resting levels, so a Threshold of 20 means "20 above where this Well rests". Make sure no fly is on the food at this moment. Until a DFM has its first instruction, its LEDs stay off, so every recording starts with about 5 seconds of dark, even under open loop. These records are marked Interval 0 in the data file.
+   - With `Baseline: Adaptive` the MCU then follows each Well's resting level for the rest of the recording, slowly enough that a fly feeding for an hour doesn't move it. When a Well's baseline has moved 10 counts, the MCU sends the DFM its Interval again with new Thresholds, keeping every Well's Paradigm state. Messages.csv lists each update. How it works, and its two settings, are in [ProgramFormat.md](ProgramFormat.md#adaptive-baseline).
 5. **Each DFM is sent its first Interval:** the Paradigm, its settings, the Thresholds and Dark or Lit. From then on the DFM runs the light rule by itself, every millisecond. When an Interval ends, the MCU sends the next one. Each instruction is acknowledged by the DFM; if it isn't, the MCU tries again, and says so on the Messages page if it keeps failing.
 6. **Records are collected.** Every 4 seconds the MCU asks each board for the records it has made since the last time, up to 27 records (5.4 seconds) per reply, and acknowledges the ones that arrived intact. The DFM deletes records only once they are acknowledged, and sends any others again. A board that has more waiting is asked again at once.
 7. **Records are written.** Every 10 seconds each board's records are added to its data file, and `Messages.csv` is updated. After 12 hours a new data file is started (`DFM1_1.csv`, then `DFM1_2.csv` …).
@@ -453,7 +454,7 @@ Each DFM row has 90 columns:
 - **27 original columns,** the same as in PyMCU 3.x: the date and time, a sample number, the twelve Well signals `W1` to `W12`, temperature, humidity, light, supply voltage, the Dark setting and light frequency and pulse width in force, which LEDs were on at that instant, the error flags, and `Index`, the DFM's record counter, which shows any lost records as a gap.
 - **63 Paradigm columns,** filled by firmware 4.0.0 boards: `Interval`, `Cycle` and `Paradigm`, then for each Well its `Phase`, `Activations`, `Requirement`, `Progress` and `OnMs` (how many of the 200 ms its LED was lit).
 
-A value that doesn't apply is written `NA`: Requirement and Progress outside the ratio Paradigms, and all 63 columns for boards with older firmware. The baseline records at the start have Interval 0. Every column is described in [DataFileColumns.md](DataFileColumns.md).
+A value that doesn't apply is written `NA`: Requirement and Progress outside the ratio Paradigms, and all 63 Paradigm columns for boards with older firmware. The baseline records at the start have Interval 0. The last 12 columns, `Baseline1`–`Baseline12`, give the baseline each record's Thresholds were measured from. Every column is described in [DataFileColumns.md](DataFileColumns.md).
 
 ## 12. Step 8: Analyse the data in pyflic
 
@@ -553,6 +554,7 @@ DFM firmware is updated by lab staff with MPLAB X and an MPLAB ICD 5 programmer 
 | The Compatibility Check lists a DFM | Its firmware can't run part of the Program | Update the board, unplug it, or change the Program ([FirmwareCompatibility.md](FirmwareCompatibility.md)) |
 | LEDs don't come on | The first few seconds are always dark (baseline); the Threshold is too high; the Wells are `Off`; the OptoLid is unplugged | Wait 5 to 10 seconds, check the Program description, test with **Outputs** |
 | LEDs are on all the time | `On` Wells, OpenLoop or NonFeeding, a Threshold too low, or `Baseline: No` with high resting signals | Check the Program description and the plot |
+| "Well 2A: baseline moved +50 from its start … and is held there" (or −50) | With `Baseline: Adaptive`, a Well's resting signal moved further than `BaselineCapCounts`: a wet or blocked Well, a step in the sensor, or a fly on the food when the recording started | Check the Well; its Thresholds stay at the cap |
 | No Ack ticked now and then | A reply or acknowledgement was missed and resent | Normal; nothing lost |
 | Overflow ticked, or "Lost N records" | The board wasn't read for more than about 2.6 minutes | Check the bus cable and connectors |
 | "No USB with a FLICData folder found." | The stick has no `FLICData` folder | Create it at the top level of the stick |

@@ -17,9 +17,13 @@ DATA_COLUMNS = ("Date,Time,MSec,Sample,W1,W2,W3,W4,W5,W6,W7,W8,W9,W10,W11,W12,Te
 # Added after DATA_COLUMNS in DFM data files. Phase is A (Acclimation) or M (Main).
 PARADIGM_COLUMNS = "Interval,Cycle,Paradigm," + ",".join(
     "{}{}".format(name, w) for name in ("Phase", "Activations", "Requirement", "Progress", "OnMs") for w in range(1, 13))
+# Added after PARADIGM_COLUMNS in DFM data files: the Baseline behind the Thresholds in force for the
+# record, written by PyMCU (docs/adaptive-baseline-plan.md); nothing is sent by the DFM.
+BASELINE_COLUMNS = ",".join("Baseline{}".format(w) for w in range(1, 13))
 # Written where a value doesn't apply; pandas and R read it as missing.
 MISSING = "NA"
 _MISSING_PARADIGM_COLUMNS = ",".join([MISSING] * len(PARADIGM_COLUMNS.split(",")))
+_MISSING_BASELINE_COLUMNS = ",".join([MISSING] * 12)
 
 
 def Checksum32(data):
@@ -79,6 +83,9 @@ class StatusPacket:
         self.paradigmName = ""
         # True for a 4.0.0 record from before the first Program Interval of the recording.
         self.isBeforeProgram = False
+        # The 12 Baselines behind the Thresholds in force for this record, or None where no Baseline
+        # applies (Interval 0, Baseline: No, instructions outside the Program). Set by DFM.py.
+        self.baseline = None
 
     def ProcessStatusPacket(self,bytesData,startTime,index=0,recordSize=V3_PACKET_SIZE):
         if(self.DFMType==DFMTYPE.SABLEV2):
@@ -270,4 +277,5 @@ class StatusPacket:
         # The Environmental Monitor's data file keeps its old columns.
         if self.DFMType != DFMTYPE.ENVMONV3:
             ss += "," + self._ParadigmColumns()
+            ss += "," + (_MISSING_BASELINE_COLUMNS if self.baseline is None else ",".join(str(v) for v in self.baseline))
         return ss + "\n"
