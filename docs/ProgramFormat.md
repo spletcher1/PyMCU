@@ -275,11 +275,12 @@ The fly has to feed in more and more separate bouts (Events) to earn each Activa
 | Setting | Meaning | Default |
 |---|---|---|
 | `ActivationMs` | How long each Activation lasts | required |
+| `Counter` | What the Requirement counts: `Events`, or `Contact`, milliseconds of contact (firmware 4.1.0; see [Counting contact instead of Events](#counting-contact-instead-of-events)) | `Events` |
 | `Series` | How the Requirement grows: `Arithmetic` or `Exponential` | `Arithmetic` |
-| `FirstRequirement` | Arithmetic only: Events needed for the first Activation | 1 |
+| `FirstRequirement` | Arithmetic only: Events (or ms of contact) needed for the first Activation | 1 (10 ms with `Contact`) |
 | `Step` | Arithmetic only: how much the Requirement grows after each Activation | required for Arithmetic |
 | `Scale`, `Rate` | Exponential only: see below. Decimals are allowed. | 5 and 0.2 |
-| `Cap` | The largest Requirement, at most 65535 | 65535 |
+| `Cap` | The largest Requirement, at most 65535 (655350 ms with `Contact`) | 65535 (655350 ms) |
 | `EventGapMs` | See [Events](#contact-events-and-activations) | 100 |
 | `Acclimation` | See [Acclimation](#acclimation) | 0 |
 
@@ -307,6 +308,30 @@ Each fly first gets 10 closed-loop Activations. Its next feeding bout earns half
 
 For a time-based start instead, run a ClosedLoop Paradigm for the first Interval and the ProgressiveRatio Paradigm after it, as in [A first Program](#a-first-program).
 
+#### Counting contact instead of Events
+
+With `Counter: Contact` (firmware 4.1.0), ProgressiveRatio and FixedRatio count time in contact instead of Events, as progressive ratio did before firmware 4.0.0:
+
+- `FirstRequirement`, `Step`, `Cap`, `Scale` and FixedRatio's `Ratio` are milliseconds of contact, in multiples of 10, up to 655350.
+- Contact adds up across visits, with no timeout. Contact during the Well's own Activation doesn't count, but contact that carries on after the Activation ends does.
+- The Activation starts the moment the contact adds up to the Requirement.
+- The DFM counts in steps of 10 ms. The data file's Requirement and Progress are in ms.
+- `EventGapMs` makes no difference to the count. Acclimation works as with Events.
+
+```
+[Paradigm PRContact]
+Type: ProgressiveRatio
+Counter: Contact
+ActivationMs: 500
+FirstRequirement: 1000
+Step: 1000
+Acclimation: 10
+```
+
+Each fly first gets 10 closed-loop Activations. Then 1 s of contact earns half a second of light, 2 s more the next, then 3 s, and so on: the progressive ratio of firmware 3.5.2.
+
+Counting Events rewards coming back to the food; counting contact rewards staying on it. A fly that feeds in long bouts gets further under `Contact`, and one that makes many short visits gets further under `Events`.
+
 ### FixedRatio
 
 Every `Ratio`-th Event starts an Activation of exactly `ActivationMs`. The first comes at Event number `Ratio`.
@@ -314,7 +339,8 @@ Every `Ratio`-th Event starts an Activation of exactly `ActivationMs`. The first
 | Setting | Meaning | Default |
 |---|---|---|
 | `ActivationMs` | How long each Activation lasts | required |
-| `Ratio` | Events per Activation | required |
+| `Counter` | `Events`, or `Contact` (see [Counting contact instead of Events](#counting-contact-instead-of-events)) | `Events` |
+| `Ratio` | Events (or ms of contact) per Activation | required |
 | `EventGapMs` | See [Events](#contact-events-and-activations) | 100 |
 | `Acclimation` | See [Acclimation](#acclimation) | 0 |
 
@@ -407,13 +433,13 @@ In this example, Relay 1 and Outputs 1 and 2 are on for the first 2 hours. Then 
 
 ## Which DFMs can run what
 
-| Needs DFM firmware 4.0.0 or later | Runs on firmware 2.0.0 and later, and on V2 DFMs | Also runs on firmware 1.0.5 |
-|---|---|---|
-| ProgressiveRatio, FixedRatio, and any Paradigm with Acclimation | NonFeeding | OpenLoop, ClosedLoop and FixedInterval |
+| Needs DFM firmware 4.1.0 | Needs DFM firmware 4.0.0 or later | Runs on firmware 2.0.0 and later, and on V2 DFMs | Also runs on firmware 1.0.5 |
+|---|---|---|---|
+| `Counter: Contact` | ProgressiveRatio, FixedRatio, and any Paradigm with Acclimation | NonFeeding | OpenLoop, ClosedLoop and FixedInterval |
 
 - When a Program is loaded, the MCU warns about any DFM that can't run it, naming the DFM and the feature. Run Program then refuses to start until the DFM is updated or the Program changed.
 - Firmware 1.0.5 (the DFMs from 2021, which show `1.0.5` on their page) also can't take a time above 65535 ms (about 65 seconds), and would run NonFeeding as fixed interval without any warning, so the MCU refuses both for such a DFM.
-- Older firmware runs its own version of the rules it supports, so details can differ. It doesn't use `EventGapMs`, for example. Use firmware 4.0.0 for new experiments.
+- Older firmware runs its own version of the rules it supports, so details can differ. It doesn't use `EventGapMs`, for example. Use firmware 4.1.0 for new experiments. Firmware 4.0.0 doesn't know `Counter: Contact` and would count Events instead, so the MCU refuses it there.
 - The DFM's firmware version is on its page in the MCU (Firmware).
 
 ## What the data file records
@@ -429,8 +455,8 @@ These columns follow them:
 | `Paradigm` | The Paradigm's name |
 | `Phase1`–`Phase12` | `A` for Acclimation or `M` for Main, per Well |
 | `Activations1`–`Activations12` | Activations per Well since recording started |
-| `Requirement1`–`Requirement12` | Ratio types only: Events needed for the next Activation |
-| `Progress1`–`Progress12` | Ratio types only: Events counted towards it so far |
+| `Requirement1`–`Requirement12` | Ratio types only: Events needed for the next Activation, or ms of contact with `Counter: Contact` |
+| `Progress1`–`Progress12` | Ratio types only: Events (or ms of contact, to 10 ms) counted towards it so far |
 | `OnMs1`–`OnMs12` | How many ms the Well's LED was active (pulsing) in that 200 ms record, whether its Paradigm, `On` or linkage lit it |
 | `Baseline1`–`Baseline12` | The baseline each Well's threshold was measured from for that record, with `Baseline: Yes` or `Adaptive`. A numeric threshold in force was this plus the Interval's threshold |
 
@@ -463,7 +489,11 @@ Intervals with identical old settings become the same Paradigm, so a Well's prog
 
 ### Rewriting progressive ratio
 
-The old progressive ratio counted milliseconds of contact. The DFM checks every millisecond, so a 1-second bout counted as 1000 "licks". The new ProgressiveRatio counts Events (feeding bouts), so the numbers mean something quite different and can't be converted automatically. Choose a new `Step` (or Series) in Events.
+The old progressive ratio counted milliseconds of contact. The DFM checks every millisecond, so a 1-second bout counted as 1000 "licks". An old Program that uses it is refused, and there are two ways to rewrite it.
+
+**Keep the old rule (firmware 4.1.0).** `Counter: Contact` counts milliseconds of contact as the old firmware did (see [Counting contact instead of Events](#counting-contact-instead-of-events)). For a Program that ran on firmware 3.5.2, `FirstRequirement` and `Step` are both the old `OptoDelay`, and `Cap` is the old `MaxTimeOn`, at most 655350. Firmware 2.0.0 to 3.5.1 gave one acclimation activation fewer than asked and then a free first activation; for those, use `Acclimation` N − 1, `FirstRequirement: 10` and `Step` = `OptoDelay`.
+
+**Count feeding bouts instead.** The new ProgressiveRatio counts Events by default, so the numbers mean something quite different. Choose a new `Step` (or Series) in Events.
 
 The old `OptoDelay` is how many more milliseconds of contact each Activation needed. To come close to it, divide it by the contact time of a typical Event and round to a whole number, at least 1. In a firmware 4.0.0 recording of flies feeding on sucrose, an Event was about 2 seconds of contact, so the usual old setting of 1000 becomes `Step: 1`, which adds about 2 seconds for each Activation.
 
@@ -481,7 +511,7 @@ Interval: 0,20,-1,20,-1,20,-1,20,-1,20,-1,20,-1,40,8,500,0,0,30
 Interval: 0,20,-1,20,-1,20,-1,20,-1,20,-1,20,-1,40,8,500,1000,1000000000,330
 ```
 
-New: 30 minutes of closed loop with a 500 ms hold, then progressive ratio with half-second Activations. The old `OptoDelay` of 1000 becomes `Step: 1`:
+New: 30 minutes of closed loop with a 500 ms hold, then progressive ratio with half-second Activations. To keep the old rule, the old `OptoDelay` of 1000 becomes `Counter: Contact` with `FirstRequirement` and `Step` 1000; to count bouts instead, leave out those three lines and write `Step: 1`:
 
 ```
 [Paradigm Closed]
@@ -491,7 +521,9 @@ HoldMs: 500
 [Paradigm PR]
 Type: ProgressiveRatio
 ActivationMs: 500
-Step: 1
+Counter: Contact
+FirstRequirement: 1000
+Step: 1000
 
 [DFM]
 ID: 1
@@ -502,7 +534,7 @@ Interval: PR, Lit, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 330
 
 ### Rewriting event-based acclimation
 
-The old way packed the number of acclimation events into the high bits of `OptoFrequency`, so 10 events at 40 Hz was written 5160. Now it is a setting. The old method also gave one fewer than asked, so the new Program gives exactly 10. To match data recorded with the old program, write `Acclimation: 9`.
+The old way packed the number of acclimation events into the high bits of `OptoFrequency`, so 10 events at 40 Hz was written 5160. Now it is a setting. Firmware 2.0.0 to 3.5.1 gave one fewer than asked, and 3.5.2 exactly N; the new Program gives exactly 10. To match data recorded on 2.0.0 to 3.5.1, write `Acclimation: 9`.
 
 Old:
 
@@ -510,7 +542,7 @@ Old:
 Interval: 0,20,-1,20,-1,20,-1,20,-1,20,-1,20,-1,5160,8,500,1000,1000000000,360
 ```
 
-New: the progressive ratio is rewritten as in [Rewriting progressive ratio](#rewriting-progressive-ratio), so `OptoDelay` 1000 becomes `Step: 1`:
+New: the progressive ratio is rewritten as in [Rewriting progressive ratio](#rewriting-progressive-ratio). Here it keeps the old rule of firmware 3.5.2:
 
 ```
 [Paradigm PR]
@@ -518,7 +550,9 @@ Type: ProgressiveRatio
 Frequency: 40
 PulseWidth: 8
 ActivationMs: 500
-Step: 1
+Counter: Contact
+FirstRequirement: 1000
+Step: 1000
 Acclimation: 10
 
 [DFM]

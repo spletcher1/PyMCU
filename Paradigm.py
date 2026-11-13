@@ -34,8 +34,24 @@ class Series(IntEnum):
 
 SERIES_NAMES = {Series.ARITHMETIC: "Arithmetic", Series.EXPONENTIAL: "Exponential"}
 
+
+class Counter(IntEnum):
+    """What a ratio Paradigm's Requirement counts: Events, or milliseconds of Contact."""
+    EVENTS = 0
+    CONTACT = 1
+
+
+COUNTER_NAMES = {Counter.EVENTS: "Events", Counter.CONTACT: "Contact"}
+
 MAX_MS = 0xFFFFFFFF
 MAX_COUNT = 0xFFFF
+# With Counter: Contact the DFM counts contact in steps of this many ms (CONTACT_UNIT_MS in
+# DFMV3_V2 src/LEDControl.h), so the Requirement settings are ms in multiples of it.
+CONTACT_UNIT_MS = 10
+MAX_CONTACT_MS = MAX_COUNT * CONTACT_UNIT_MS
+CONTACT_COUNTER_FIRMWARE = (4, 1, 0)
+# The Paradigm instruction's flag that makes the ratio types count Contact (LEDControl.h).
+INSTRUCTION_COUNT_CONTACT = 0x02
 # Firmware 1.0.5 (DFMV3 before 2.0.0) has 2-byte decay, delay and max time on.
 MAX_MS_1_0_5 = 0xFFFF
 DEFAULT_EVENT_GAP_MS = 100
@@ -46,23 +62,27 @@ REQUIRED = object()
 _LIGHT = [("Frequency", "frequency", 40), ("PulseWidth", "pulsewidth", 8)]
 _EVENTS = [("EventGapMs", "gap", DEFAULT_EVENT_GAP_MS)]
 _ACCLIMATION = [("Acclimation", "count", 0)]
-# The settings each type takes, in display order: (name, kind, default).
+_COUNTER = [("Counter", "counter", Counter.EVENTS)]
+# The settings each type takes, in display order: (name, kind, default). A "requirement" or
+# "requirement1" (at least 1) setting is in Events, or in ms of contact with Counter: Contact.
 _SETTINGS = {
     ParadigmType.OPENLOOP: [],
     ParadigmType.CLOSEDLOOP: [("HoldMs", "ms", 0), ("MaxOnMs", "ms", 0)] + _EVENTS,
     ParadigmType.FIXEDINTERVAL: [("ActivationMs", "ms", REQUIRED), ("LockoutMs", "ms", REQUIRED)]
                                 + _EVENTS + _ACCLIMATION,
     ParadigmType.NONFEEDING: [("OnDelayMs", "ms", 0), ("MaxOnMs", "ms", 0)],
-    ParadigmType.PROGRESSIVERATIO: [("ActivationMs", "ms", REQUIRED), ("Series", "series", Series.ARITHMETIC),
-                                    ("FirstRequirement", "count1", 1), ("Step", "count", REQUIRED),
-                                    ("Scale", "decimal", 5.0), ("Rate", "decimal", 0.2), ("Cap", "count1", MAX_COUNT)]
+    ParadigmType.PROGRESSIVERATIO: [("ActivationMs", "ms", REQUIRED)] + _COUNTER
+                                   + [("Series", "series", Series.ARITHMETIC),
+                                      ("FirstRequirement", "requirement1", 1), ("Step", "requirement", REQUIRED),
+                                      ("Scale", "decimal", 5.0), ("Rate", "decimal", 0.2), ("Cap", "requirement1", MAX_COUNT)]
                                    + _EVENTS + _ACCLIMATION,
-    ParadigmType.FIXEDRATIO: [("ActivationMs", "ms", REQUIRED), ("Ratio", "count1", REQUIRED)]
+    ParadigmType.FIXEDRATIO: [("ActivationMs", "ms", REQUIRED)] + _COUNTER + [("Ratio", "requirement1", REQUIRED)]
                              + _EVENTS + _ACCLIMATION,
 }
 _SERIES_SETTINGS = {Series.ARITHMETIC: {"FirstRequirement", "Step"}, Series.EXPONENTIAL: {"Scale", "Rate"}}
 _ALL_SETTINGS = {name.lower() for settings in _SETTINGS.values() for name, _, _ in settings} | {"frequency", "pulsewidth"}
 _UNITS = {"ms": " ms", "gap": " ms", "frequency": " Hz", "pulsewidth": " ms"}
+_REQUIREMENT_KINDS = ("requirement", "requirement1")
 RESERVED_NAMES = {"dark", "lit", "on", "off"}
 
 
@@ -80,16 +100,38 @@ def _ParseValue(kind, name, raw, lineNumber):
             if raw.lower() == seriesName.lower():
                 return series
         raise ParadigmError("Series must be Arithmetic or Exponential, not '{}'".format(raw), lineNumber)
+    if kind == "counter":
+        for counter, counterName in COUNTER_NAMES.items():
+            if raw.lower() == counterName.lower():
+                return counter
+        raise ParadigmError("Counter must be Events or Contact, not '{}'".format(raw), lineNumber)
     try:
         value = float(raw) if kind == "decimal" else int(raw)
     except ValueError:
         raise ParadigmError("{} must be a {}, not '{}'".format(name, "number" if kind == "decimal" else "whole number", raw),
                             lineNumber) from None
+    # A Requirement setting's range depends on the Counter, checked once it is known (_CheckRequirement).
     low, high = {"ms": (0, MAX_MS), "gap": (0, MAX_COUNT), "count": (0, MAX_COUNT), "count1": (1, MAX_COUNT),
+                 "requirement": (0, MAX_CONTACT_MS), "requirement1": (1, MAX_CONTACT_MS),
                  "frequency": (1, 500), "pulsewidth": (1, 1000), "decimal": (0.001, 1000000)}[kind]
     if not low <= value <= high:
         raise ParadigmError("{} must be from {} to {}, not {}".format(name, low, high, raw), lineNumber)
     return value
+
+
+def _CheckRequirement(kind, name, value, counter, lineNumber):
+    """A Requirement setting is a number of Events, or ms of contact that the DFM counts in steps of
+    CONTACT_UNIT_MS."""
+    if counter == Counter.CONTACT:
+        low = 0 if kind == "requirement" else CONTACT_UNIT_MS
+        if value % CONTACT_UNIT_MS:
+            raise ParadigmError("With Counter: Contact, {} is in ms of contact and must be a multiple of {}, not {}".format(
+                name, CONTACT_UNIT_MS, value), lineNumber)
+        if not low <= value <= MAX_CONTACT_MS:
+            raise ParadigmError("{} must be from {} to {} ms, not {}".format(name, low, MAX_CONTACT_MS, value), lineNumber)
+    elif value > MAX_COUNT:
+        raise ParadigmError("{} must be from {} to {}, not {}".format(name, 0 if kind == "requirement" else 1, MAX_COUNT, value),
+                            lineNumber)
 
 
 class Paradigm:
@@ -99,7 +141,13 @@ class Paradigm:
         self.type = paradigmType
         self.settings = {}
         settings = settings or {}
+        isContact = settings.get("Counter", Counter.EVENTS) == Counter.CONTACT
         for settingName, _, default in _LIGHT + _SETTINGS[paradigmType]:
+            # With Counter: Contact the defaults are the smallest and largest ms the DFM counts.
+            if settingName == "Cap" and isContact:
+                default = MAX_CONTACT_MS
+            elif settingName == "FirstRequirement" and isContact:
+                default = CONTACT_UNIT_MS
             value = settings.get(settingName, default)
             self.settings[settingName] = 0 if value is REQUIRED else value
 
@@ -128,6 +176,11 @@ class Paradigm:
 
     def IsRatioType(self):
         return self.type in (ParadigmType.PROGRESSIVERATIO, ParadigmType.FIXEDRATIO)
+
+    @property
+    def countsContact(self):
+        """A ratio Paradigm whose Requirement is ms of contact rather than Events (firmware 4.1.0)."""
+        return self.settings.get("Counter", Counter.EVENTS) == Counter.CONTACT
 
     #region Building
     @classmethod
@@ -162,6 +215,10 @@ class Paradigm:
             values[settingName] = _ParseValue(kind, settingName, raw, lineNumber)
             lines[settingName] = lineNumber
 
+        counter = values.get("Counter", Counter.EVENTS)
+        for settingName, kind, _ in _SETTINGS[paradigmType]:
+            if kind in _REQUIREMENT_KINDS and settingName in values:
+                _CheckRequirement(kind, settingName, values[settingName], counter, lines[settingName])
         series = values.get("Series", Series.ARITHMETIC)
         if paradigmType == ParadigmType.PROGRESSIVERATIO:
             for other, seriesSettings in _SERIES_SETTINGS.items():
@@ -213,7 +270,8 @@ class Paradigm:
         else:
             raise ParadigmError("Old progressive ratio settings (OptoDelay and MaxTimeOn both above 0) counted "
                                 "milliseconds of contact, not feeding bouts. Rewrite the program with a "
-                                "[Paradigm] section of Type ProgressiveRatio (see docs/ProgramFormat.md).")
+                                "[Paradigm] section of Type ProgressiveRatio; Counter: Contact counts contact as "
+                                "they did (see docs/ProgramFormat.md).")
         # e.g. ClosedLoop-40Hz-8ms-Hold500-MaxOn0. Equal old settings give equal names, and so the
         # same Paradigm.
         name = "{}-{}Hz-{}ms".format(TYPE_NAMES[paradigmType], settings["Frequency"], settings["PulseWidth"]) + "".join(
@@ -229,8 +287,12 @@ class Paradigm:
 
     #region Sending to the DFM
     def SettingsWords(self):
-        """The 5 type-dependent numbers of the 4.0.0 instruction (LEDControl.h)."""
+        """The 5 type-dependent numbers of the 4.0.0 instruction (LEDControl.h). With Counter:
+        Contact the Requirement settings go in the DFM's units of CONTACT_UNIT_MS."""
         g = self.Get
+        unit = CONTACT_UNIT_MS if self.countsContact else 1
+        def Requirement(name):
+            return g(name) // unit
         if self.type == ParadigmType.CLOSEDLOOP:
             words = [g("HoldMs"), g("MaxOnMs")]
         elif self.type == ParadigmType.FIXEDINTERVAL:
@@ -239,25 +301,35 @@ class Paradigm:
             words = [g("OnDelayMs"), g("MaxOnMs")]
         elif self.type == ParadigmType.PROGRESSIVERATIO:
             if g("Series") == Series.EXPONENTIAL:
-                words = [g("ActivationMs"), Series.EXPONENTIAL, round(g("Scale") * 1000), round(g("Rate") * 1000), g("Cap")]
+                words = [g("ActivationMs"), Series.EXPONENTIAL, round(g("Scale") * 1000 / unit), round(g("Rate") * 1000),
+                         Requirement("Cap")]
             else:
-                words = [g("ActivationMs"), Series.ARITHMETIC, g("FirstRequirement"), g("Step"), g("Cap")]
+                words = [g("ActivationMs"), Series.ARITHMETIC, Requirement("FirstRequirement"), Requirement("Step"),
+                         Requirement("Cap")]
         elif self.type == ParadigmType.FIXEDRATIO:
-            words = [g("ActivationMs"), g("Ratio")]
+            words = [g("ActivationMs"), Requirement("Ratio")]
         else:
             words = []
         return [int(w) for w in words] + [0] * (5 - len(words))
 
+    def InstructionFlags(self):
+        """The flag bits of the 4.0.0 instruction that come from the Paradigm (LEDControl.h)."""
+        return INSTRUCTION_COUNT_CONTACT if self.countsContact else 0
+
     def FirmwareNeeded(self, version=None):
         """Why DFM firmware with this version (a tuple such as (1, 0, 5), as COMM.FirmwareVersionTuple
         gives it) can't run this Paradigm, naming the firmware it needs, or None if it can. Ratio
-        types and Acclimation need 4.0.0. Firmware 1.0.5, the only one below 2.0.0, also doesn't
-        know the NonFeeding type (it would run fixed interval instead, with no warning) and its
-        2-byte times stop at 65535 ms. Without a version, only what needs 4.0.0 is reported."""
-        if self.IsRatioType():
-            return "the {} Paradigm type needs firmware 4.0.0".format(self.typeName)
-        if self.acclimation > 0:
-            return "Acclimation needs firmware 4.0.0"
+        types and Acclimation need 4.0.0, and Counter: Contact 4.1.0: 4.0.0 would ignore it and count
+        Events. Firmware 1.0.5, the only one below 2.0.0, also doesn't know the NonFeeding type (it
+        would run fixed interval instead, with no warning) and its 2-byte times stop at 65535 ms.
+        Without a version (a V2 DFM), only what needs 4.0.0 or later is reported."""
+        if self.countsContact and (version is None or version < CONTACT_COUNTER_FIRMWARE):
+            return "Counter: Contact needs firmware {}.{}.{}".format(*CONTACT_COUNTER_FIRMWARE)
+        if version is None or version < (4, 0, 0):
+            if self.IsRatioType():
+                return "the {} Paradigm type needs firmware 4.0.0".format(self.typeName)
+            if self.acclimation > 0:
+                return "Acclimation needs firmware 4.0.0"
         if version is not None and version < (2, 0, 0):
             if self.type == ParadigmType.NONFEEDING:
                 return "the NonFeeding Paradigm type needs firmware 2.0.0"
@@ -286,12 +358,20 @@ class Paradigm:
                 other = Series.EXPONENTIAL if self.Get("Series") == Series.ARITHMETIC else Series.ARITHMETIC
                 if settingName in _SERIES_SETTINGS[other]:
                     continue
+            # Counter is shown only for Contact, so an Events Paradigm reads as it did before 4.1.0.
+            if kind == "counter" and not self.countsContact:
+                continue
             value = self.settings[settingName]
+            unit = _UNITS.get(kind, "")
+            if self.countsContact and (kind in _REQUIREMENT_KINDS or settingName == "Scale"):
+                unit = " ms"
             if kind == "series":
                 value = SERIES_NAMES[value]
+            elif kind == "counter":
+                value = COUNTER_NAMES[value]
             elif kind == "decimal":
                 value = "{:g}".format(value)
-            parts.append("{} {}{}".format(settingName, value, _UNITS.get(kind, "")))
+            parts.append("{} {}{}".format(settingName, value, unit))
         return "{} ({}): {}".format(self.name, self.typeName, ", ".join(parts))
 
     def __str__(self):

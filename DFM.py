@@ -13,6 +13,7 @@ import Event
 import Instruction
 import Message
 import OptoLid
+import Paradigm
 import StatusPacket
 
 # Seconds to wait before retrying commands that a DFM did not acknowledge.
@@ -496,6 +497,10 @@ class DFM:
             sp.optoFrequency = info.instruction.paradigm.frequency
             sp.optoPulseWidth = info.instruction.paradigm.pulseWidth
             sp.darkStatus = info.instruction.theDarkState.value
+            if info.instruction.paradigm.countsContact:
+                # The DFM counts contact in steps of CONTACT_UNIT_MS; the data file and the screen show ms.
+                sp.requirement = [v * Paradigm.CONTACT_UNIT_MS for v in sp.requirement]
+                sp.progress = [v * Paradigm.CONTACT_UNIT_MS for v in sp.progress]
         if info is not None and info.index is not None:
             self.programRecordSeen = True
         sp.isBeforeProgram = not self.programRecordSeen
@@ -679,15 +684,23 @@ class DFM:
             paradigm = self.currentInstruction.paradigm
             number = self.instructionNumber
             if(COMM.UsesParadigmFirmware(self.firmwareVersion)):
-                # The Wells keep their Paradigm state while the Paradigm stays the same.
-                keepState = paradigm.name == self.lastSentParadigmName
-                isSent = self.MP.SendParadigmInstruction(self.ID, self.currentInstruction, number, keepState)
-                if isSent:
-                    # Records show the number of the instruction the DFM runs (_CheckRunningInstruction).
-                    if(number != self.ackedInstructionNumber):
-                        self.instructionResends = 0
-                    self.ackedInstructionNumber = number
-                    self.ackedInstructionTime = time.monotonic()
+                # 4.0.0 would ignore the Contact counter and count Events. The Program check refuses
+                # that before a start; this catches a board swapped since then. Nothing is sent, so
+                # the DFM keeps its last instruction, and its records still show that one's number.
+                reason = paradigm.FirmwareNeeded(COMM.FirmwareVersionTuple(self.firmwareVersion))
+                if(reason is not None):
+                    self.NewMessage(self.ID,datetime.datetime.today(),0,"DFM {} (firmware {}) can't run this Interval: {}".format(self.ID,self.firmwareVersion,reason),Enums.MESSAGETYPE.ERROR)
+                    isSent = True   # nothing to retry
+                else:
+                    # The Wells keep their Paradigm state while the Paradigm stays the same.
+                    keepState = paradigm.name == self.lastSentParadigmName
+                    isSent = self.MP.SendParadigmInstruction(self.ID, self.currentInstruction, number, keepState)
+                    if isSent:
+                        # Records show the number of the instruction the DFM runs (_CheckRunningInstruction).
+                        if(number != self.ackedInstructionNumber):
+                            self.instructionResends = 0
+                        self.ackedInstructionNumber = number
+                        self.ackedInstructionTime = time.monotonic()
             else:
                 # Older firmware misreads what it doesn't know and runs a different rule. The Program
                 # check refuses that before a start; this catches a board swapped since then. Nothing

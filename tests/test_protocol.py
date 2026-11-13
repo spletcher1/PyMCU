@@ -34,6 +34,13 @@ def PR10():
     return Paradigm.Paradigm.FromSettings("PR10", items, 1)
 
 
+def Contact():
+    """The 3.5.2 progressive ratio: 1 s more contact for each Activation, after 10 Acclimation Activations."""
+    items = [("Type", "ProgressiveRatio", 2), ("Counter", "Contact", 3), ("ActivationMs", "500", 4),
+             ("FirstRequirement", "1000", 5), ("Step", "1000", 6), ("Acclimation", "10", 7)]
+    return Paradigm.Paradigm.FromSettings("Contact", items, 1)
+
+
 def ClosedLoop():
     paradigm = Paradigm.Paradigm("CL", Paradigm.ParadigmType.CLOSEDLOOP, {"HoldMs": 1000, "MaxOnMs": 2000})
     instruct = Instruction.DFMInstruction(Enums.DARKSTATE.ON, paradigm)
@@ -114,6 +121,25 @@ class Instructions(unittest.TestCase):
         self.assertEqual(hold70.FirmwareNeeded((1, 0, 5)), "times above 65535 ms need firmware 2.0.0")
         for version in (None, (1, 0, 5), (3, 5, 0)):
             self.assertEqual(PR10().FirmwareNeeded(version), "the ProgressiveRatio Paradigm type needs firmware 4.0.0")
+        for version in ((4, 0, 0), (4, 1, 0)):
+            self.assertIsNone(PR10().FirmwareNeeded(version))
+
+    def test_contact_counter_needs_4_1_0(self):
+        # 4.0.0 would ignore the flag and count Events.
+        for version in (None, (3, 5, 2), (4, 0, 0)):
+            self.assertEqual(Contact().FirmwareNeeded(version), "Counter: Contact needs firmware 4.1.0")
+        self.assertIsNone(Contact().FirmwareNeeded((4, 1, 0)))
+
+    def test_contact_counter_flag_and_units(self):
+        instruct = Instruction.DFMInstruction(Enums.DARKSTATE.OFF, Contact())
+        instruct.SetOptoValues([20] + [Instruction.OFF] * 11)
+        for keepState, flags in ((False, 0x02), (True, 0x03)):
+            payload = COMM.ParadigmInstructionPayload(instruct, 1, keepState)
+            self.assertEqual(payload[3], flags)
+        # FirstRequirement, Step and Cap in the DFM's 10 ms units.
+        self.assertEqual(struct.unpack(">5I", payload[13:33]), (500, 0, 100, 100, 65535))
+        events = Instruction.DFMInstruction(Enums.DARKSTATE.OFF, PR10())
+        self.assertEqual(COMM.ParadigmInstructionPayload(events, 1, False)[3], 0)
 
 
 class Versions(unittest.TestCase):

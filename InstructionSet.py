@@ -156,7 +156,7 @@ class InstructionSet:
     def FirmwareNeeded(self, version=None):
         """Why DFM firmware with this version tuple can't run these Intervals, one reason per
         Paradigm in order and without repeats, or empty. Without a version, only what needs
-        4.0.0 is reported (see Paradigm.FirmwareNeeded)."""
+        4.0.0 or later is reported (see Paradigm.FirmwareNeeded)."""
         reasons = []
         for p in self.Paradigms():
             reason = p.FirmwareNeeded(version)

@@ -58,6 +58,9 @@ MAX_STATUS_PACKETS_V4 = 27
 # Paradigm instruction thresholds that set a Well On or Off.
 THRESHOLD_ON = 0xFFFE
 THRESHOLD_OFF = 0xFFFF
+# Paradigm instruction flag: keep the Wells' Paradigm state. The Paradigm adds its own flags
+# (Paradigm.InstructionFlags).
+INSTRUCTION_KEEP_STATE = 0x01
 
 ENVMON_ID = 99
 
@@ -131,10 +134,11 @@ def InstructionPayload(instruction, timingSize):
 def ParadigmInstructionPayload(instruction, number, keepState):
     """Paradigm instruction body for firmware 4.0.0 and later. The layout is ParseParadigmInstruction()
     in DFMV3_V2 src/LEDControl.c: instruction number, Paradigm type, flags (bit 0: keep the Wells'
-    Paradigm state), dark, frequency, pulse width, Event gap, Acclimation, the type's 5 settings and
-    the 12 thresholds (0xFFFE On, 0xFFFF Off)."""
+    Paradigm state; bit 1, firmware 4.1.0: the ratio types count Contact), dark, frequency, pulse
+    width, Event gap, Acclimation, the type's 5 settings and the 12 thresholds (0xFFFE On, 0xFFFF Off)."""
     paradigm = instruction.paradigm
-    payload = struct.pack(">HBBBHHHH", number & 0xFFFF, int(paradigm.type), 1 if keepState else 0,
+    flags = (INSTRUCTION_KEEP_STATE if keepState else 0) | paradigm.InstructionFlags()
+    payload = struct.pack(">HBBBHHHH", number & 0xFFFF, int(paradigm.type), flags,
                           1 if instruction.theDarkState == Enums.DARKSTATE.ON else 0,
                           paradigm.frequency, paradigm.pulseWidth, paradigm.eventGapMs, paradigm.acclimation)
     payload += struct.pack(">5I", *paradigm.SettingsWords())

@@ -71,6 +71,65 @@ Interval: A, Lit, {}, 10
         self.assertEqual(a.SettingsWords(), [500, 0, 1, 10, 65535])
         self.assertEqual(b.SettingsWords(), [500, 1, 5000, 200, 65535])
 
+    def test_contact_counter(self):
+        program, ok = Load("""
+[Paradigm C]
+Type: ProgressiveRatio
+Counter: Contact
+ActivationMs: 500
+FirstRequirement: 1000
+Step: 1000
+[Paradigm D]
+Type: ProgressiveRatio
+Counter: contact
+ActivationMs: 500
+Step: 20
+[Paradigm X]
+Type: ProgressiveRatio
+Counter: Contact
+ActivationMs: 500
+Series: Exponential
+Scale: 5000
+[Paradigm F]
+Type: FixedRatio
+Counter: Contact
+ActivationMs: 500
+Ratio: 2000
+[Paradigm E]
+Type: ProgressiveRatio
+Counter: Events
+ActivationMs: 500
+Step: 5
+[DFM]
+ID: 1
+Interval: C, Lit, {}, 10
+""".format(WELLS))
+        self.assertTrue(ok, program.loadError)
+        p = program.theParadigms
+        self.assertTrue(p["c"].countsContact)
+        # The DFM gets the ms of contact in its 10 ms units.
+        self.assertEqual(p["c"].SettingsWords(), [500, 0, 100, 100, 65535])
+        # Defaults: FirstRequirement 10 ms, Cap 655350 ms.
+        self.assertEqual((p["d"].Get("FirstRequirement"), p["d"].Get("Cap")), (10, 655350))
+        self.assertEqual(p["d"].SettingsWords(), [500, 0, 1, 2, 65535])
+        self.assertEqual(p["x"].SettingsWords(), [500, 1, 500000, 200, 65535])
+        self.assertEqual(p["f"].SettingsWords(), [500, 200, 0, 0, 0])
+        self.assertEqual((p["e"].countsContact, p["e"].SettingsWords()), (False, [500, 0, 1, 5, 65535]))
+        self.assertIn("ActivationMs 500 ms, Counter Contact, Series Arithmetic, FirstRequirement 1000 ms, "
+                      "Step 1000 ms, Cap 655350 ms", p["c"].Describe())
+        # An Events Paradigm is described as it was before Counter existed.
+        self.assertNotIn("Counter", p["e"].Describe())
+
+    def test_contact_counter_errors(self):
+        pr = "[Paradigm A]\nType: ProgressiveRatio\nActivationMs: 5\n"
+        self.ExpectError("[Paradigm A]\nType: ClosedLoop\nCounter: Contact", 3, "ClosedLoop Paradigms don't use Counter")
+        self.ExpectError(pr + "Counter: Licks\nStep: 10", 4, "Counter must be Events or Contact")
+        self.ExpectError(pr + "Counter: Contact\nStep: 1005", 5, "must be a multiple of 10")
+        self.ExpectError(pr + "Counter: Contact\nStep: 700000", 5, "655350")
+        self.ExpectError(pr + "Step: 70000", 4, "Step must be from 0 to 65535, not 70000")
+        self.ExpectError("[Paradigm A]\nType: FixedRatio\nActivationMs: 5\nCounter: Contact\nRatio: 5", 5,
+                         "must be a multiple of 10")
+
     def ExpectError(self, text, line, fragment):
         program, ok = Load(text)
         self.assertFalse(ok)

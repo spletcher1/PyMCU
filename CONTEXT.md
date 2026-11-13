@@ -77,7 +77,10 @@ Under FixedInterval, the time from the start of an Activation during which no ne
 _Avoid_: Delay, interval (Interval means a Program step)
 
 **Requirement**:
-The number of Events a Well must produce for its next Activation under progressive ratio or fixed ratio.
+The number of Events a Well must produce for its next Activation under progressive ratio or fixed ratio, or, with the Contact Counter, the milliseconds of Contact.
+
+**Counter**:
+What a ratio Paradigm's Requirement counts: Events (the default), or Contact, the milliseconds of Contact outside the Well's own Activations, added up across bouts (DFM firmware 4.1.0; the rule of progressive ratio before 4.0.0).
 _Avoid_: Lick threshold, ratio threshold
 
 **Series**:

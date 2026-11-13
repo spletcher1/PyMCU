@@ -414,7 +414,7 @@ class MCUProgram():
 
     def FirmwareNeeded(self,dfmid,version=None):
         """Why DFM firmware with this version tuple can't run this DFM's Intervals (empty if it
-        can). Without a version, only what needs 4.0.0 is reported."""
+        can). Without a version, only what needs 4.0.0 or later is reported."""
         iset=self.theInstructionSets.get(dfmid)
         return iset.FirmwareNeeded(version) if iset is not None else []
 

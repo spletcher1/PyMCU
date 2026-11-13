@@ -155,7 +155,7 @@ The running total of Activations at the Well since recording started. An Activat
 
 ### Requirement1–Requirement12
 
-Ratio Paradigms only (ProgressiveRatio and FixedRatio): the number of Events the Well must produce to earn its next Activation.
+Ratio Paradigms only (ProgressiveRatio and FixedRatio): the number of Events the Well must produce to earn its next Activation. With `Counter: Contact` (firmware 4.1.0) it is milliseconds of contact instead: the DFM counts in steps of 10 ms and PyMCU writes ms, so every value is a multiple of 10. The Paradigms block of `Program.txt` shows `Counter Contact` for such a Paradigm, and its Requirement settings in ms.
 
 - FixedRatio: always the Paradigm's `Ratio`.
 - ProgressiveRatio: the k-th Main-phase Activation needs, with Arithmetic Series, `FirstRequirement + Step × (k − 1)`, or with Exponential Series, `round(Scale × e^(Rate × k) − Scale)`, capped at `Cap`. Acclimation Activations don't advance k.
@@ -166,6 +166,8 @@ Ratio Paradigms only (ProgressiveRatio and FixedRatio): the number of Events the
 ### Progress1–Progress12
 
 Ratio Paradigms only: how many Events the Well has produced towards the current Requirement. When Progress reaches Requirement, an Activation starts and Progress returns to 0 at that moment, not when the Activation ends, so Events can count towards the next Requirement only once the Activation is over (DFM firmware `src/LEDControl.c`, 4.0.0). Missing exactly where `Requirement` is.
+
+With `Counter: Contact`, Progress is the ms of contact outside Activations so far, to 10 ms, added up across bouts; contact that carries on after an Activation ends counts.
 
 Events are feeding bouts, not milliseconds of contact or licks. An Event starts when the signal rises above the Well's Threshold, unless an Activation is in progress, and ends when the signal has stayed below the Threshold for `EventGapMs` (default 100 ms). So contact during an Activation doesn't count towards Progress.
 

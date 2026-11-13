@@ -1,18 +1,21 @@
 # DFM firmware and what PyMCU can run on it
 
-Last updated: 2026-10-18 (PyMCU 4.0.0)
+Last updated: 2026-11-13 (PyMCU 4.0.0, DFM firmware 4.1.0)
 
-PyMCU 4.0.0 drives every DFM firmware in the field: the 1.0.5 boards from 2021, both 2.0.0 builds, 2.0.1, 3.5.0 to 3.5.2 and 4.0.0. The DFM page shows each board's firmware. What a board can run depends on that firmware, so PyMCU checks a Program against every connected board when the file loads and again when Run Program is pressed, and names anything a board can't run. The Program file itself is described in [ProgramFormat.md](ProgramFormat.md); the protocol detail is in the `DFMV3_V2` firmware repo: `README.md` for 4.0.0, and `FIRMWARE_VERSIONS.md` for how the older generations differ. For using the MCU from start to finish, see [UserGuide.md](UserGuide.md).
+PyMCU 4.0.0 drives every DFM firmware in the field: the 1.0.5 boards from 2021, both 2.0.0 builds, 2.0.1, 3.5.0 to 3.5.2, 4.0.0 and 4.1.0. The DFM page shows each board's firmware. What a board can run depends on that firmware, so PyMCU checks a Program against every connected board when the file loads and again when Run Program is pressed, and names anything a board can't run. The Program file itself is described in [ProgramFormat.md](ProgramFormat.md); the protocol detail is in the `DFMV3_V2` firmware repo: `README.md` for 4.0.0, and `FIRMWARE_VERSIONS.md` for how the older generations differ. For using the MCU from start to finish, see [UserGuide.md](UserGuide.md).
 
 ## Which firmware runs what
 
-| Paradigm type or setting | 1.0.5 | 2.0.0, 2.0.1 | 3.5.0 to 3.5.2 | 4.0.0 |
-| --- | --- | --- | --- | --- |
-| OpenLoop, ClosedLoop, FixedInterval | Runs | Runs | Runs | Runs |
-| NonFeeding | **Refused** | Runs | Runs | Runs |
-| ProgressiveRatio, FixedRatio, Acclimation | **Refused** | **Refused** | **Refused** | Runs |
-| Times above 65,535 ms | **Refused** | Runs | Runs | Runs |
-| EventGapMs | Ignored | Ignored | Ignored | Used |
+| Paradigm type or setting | 1.0.5 | 2.0.0, 2.0.1 | 3.5.0 to 3.5.2 | 4.0.0 | 4.1.0 |
+| --- | --- | --- | --- | --- | --- |
+| OpenLoop, ClosedLoop, FixedInterval | Runs | Runs | Runs | Runs | Runs |
+| NonFeeding | **Refused** | Runs | Runs | Runs | Runs |
+| ProgressiveRatio, FixedRatio, Acclimation | **Refused** | **Refused** | **Refused** | Runs | Runs |
+| `Counter: Contact` | **Refused** | **Refused** | **Refused** | **Refused** | Runs |
+| Times above 65,535 ms | **Refused** | Runs | Runs | Runs | Runs |
+| EventGapMs | Ignored | Ignored | Ignored | Used | Used |
+
+4.0.0 would ignore the Contact counter's flag and count Events, so PyMCU refuses `Counter: Contact` there, both in the Compatibility Check and, for a board swapped since, when the Interval comes; the board then keeps its last instruction. 4.1.0 NACKs any instruction flag it doesn't know.
 
 A 4.0.0 board sends at most 27 records per reply, so that older boards on the same bus, which hear every reply, aren't overrun. Development 4.0.0 builds made before 2026-10-17 report the same version but send up to 28; reflash any such board before putting it on a bus with older boards.
 

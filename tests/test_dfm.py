@@ -19,7 +19,7 @@ import Message
 import MessagesList
 import Paradigm
 import Program
-from test_protocol import PR10, Record, Record56, ClosedLoop
+from test_protocol import PR10, Contact, Record, Record56, ClosedLoop
 
 import StatusPacket
 
@@ -117,6 +117,20 @@ class Instructions(unittest.TestCase):
         self.assertEqual(len(Refusals(5)), 1)
         self.assertIn("4.0.0", Refusals(5)[0].message)
 
+    def test_contact_counter_not_sent_to_4_0_0(self):
+        # 4.0.0 would ignore the Contact counter and count Events, so nothing is sent.
+        MESSAGES.clear()
+        d = MakeDFM("4.0.0")
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, Contact()), False, 0, 1)
+        d.CheckStatusV3()
+        self.assertEqual(Sent(d), [])
+        self.assertEqual(len(Refusals(5)), 1)
+        self.assertIn("Counter: Contact needs firmware 4.1.0", Refusals(5)[0].message)
+        d = MakeDFM("4.1.0")
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, Contact()), False, 0, 1)
+        d.CheckStatusV3()
+        self.assertEqual([c[0] for c in Sent(d)], ["SendParadigmInstruction"])
+
 
 class Generations(unittest.TestCase):
     def test_1_0_5_board(self):
@@ -202,6 +216,20 @@ class Records(unittest.TestCase):
         # A buffer reset starts the totals again.
         d.ProcessPackets(self.Packets(d, 1, [2] * 12, resetCount=1), True)
         self.assertEqual(d.theData.GetLastDataPoint().activationTotals[0], 2)
+
+    def test_contact_counts_written_in_ms(self):
+        d = MakeDFM("4.1.0")
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, Contact()), False, 0, 1)
+        sp = StatusPacket.StatusPacket(0, 5, Enums.DFMTYPE.PLETCHERV3)
+        sp.ProcessStatusPacket(Record(index=1, number=d.instructionNumber, requirement=[100] * 12, progress=[37] * 12),
+                               datetime.datetime(2026, 1, 1), 0, StatusPacket.V4_PACKET_SIZE)
+        d.ProcessPackets([sp], True)
+        last = d.theData.GetLastDataPoint()
+        self.assertEqual((last.requirement[0], last.progress[0]), (1000, 370))
+        line = last.GetDataBufferPrintPacket().rstrip("\n").split(",")
+        tail = line[len(StatusPacket.DATA_COLUMNS.split(",")):]
+        # Interval, Cycle and Paradigm, then Phase and Activations for 12 Wells, then Requirement and Progress.
+        self.assertEqual((tail[3 + 24], tail[3 + 36]), ("1000", "370"))
 
     def Columns(self, d):
         line = d.theData.GetLastDataPoint().GetDataBufferPrintPacket().rstrip("\n").split(",")
@@ -573,6 +601,22 @@ class Compatibility(unittest.TestCase):
             self.assertIn(words, problems[0])
         self.assertEqual(self.ProblemsWithProbedDFMs(MakeProbedDFM(b"2.0.1", ID=2), MakeProbedDFM(COMM.LEGACY_VERSION, ID=3)), [])
         self.assertEqual(self.ProblemsWithProbedDFMs(MakeProbedDFM(b"4.0.0", ID=2)), [])
+
+    def test_contact_counter_needs_4_1_0(self):
+        group = object.__new__(DFMGroup.DFMGroup)
+        group.theDFMs = {2: MakeDFM("4.0.0")}
+        group.theDFMs[2].ID = 2
+        group.currentProgram = Program.MCUProgram()
+        text = ("[Paradigm C]\nType: ProgressiveRatio\nCounter: Contact\nActivationMs: 500\nStep: 1000\n"
+                "[DFM]\nID: 2\nInterval: C, Lit, {}, 10\n").format(WELLS)
+        self.assertTrue(group.currentProgram.LoadProgram(text.splitlines(keepends=True), group.theDFMs),
+                        group.currentProgram.loadError)
+        problems = group.CheckProgramCompatibility()
+        self.assertEqual(len(problems), 1)
+        for words in ("DFM 2", "4.0.0", "Counter: Contact needs firmware 4.1.0"):
+            self.assertIn(words, problems[0])
+        group.theDFMs[2].firmwareVersion = "4.1.0"
+        self.assertEqual(group.CheckProgramCompatibility(), [])
 
 
 def AdaptiveInterval():

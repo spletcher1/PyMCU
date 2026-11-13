@@ -455,8 +455,9 @@ class DFMGroup:
     def CheckProgramCompatibility(self):
         """Why the loaded Program can't run on the DFMs present: one line per DFM, or an empty
         list. Each DFM is checked against its own firmware (read at connection): ratio types and
-        Acclimation need 4.0.0, and a 1.0.5 board also can't take the NonFeeding type or times
-        above 65535 ms. A V2 (I2C) DFM runs the old settings, so only what needs 4.0.0 counts."""
+        Acclimation need 4.0.0, Counter: Contact needs 4.1.0, and a 1.0.5 board also can't take the
+        NonFeeding type or times above 65535 ms. A V2 (I2C) DFM runs the old settings, so only what
+        needs 4.0.0 or later counts."""
         problems = []
         for ID, d in sorted(self.theDFMs.items()):
             if(d.DFMType==Enums.DFMTYPE.ENVMONV3):
@@ -465,8 +466,6 @@ class DFMGroup:
                 needed = self.currentProgram.FirmwareNeeded(ID)
                 if(needed):
                     problems.append("DFM {} is a V2 DFM, which can't run: {}".format(ID, "; ".join(needed)))
-                continue
-            if(COMM.UsesParadigmFirmware(d.firmwareVersion)):
                 continue
             needed = self.currentProgram.FirmwareNeeded(ID, COMM.FirmwareVersionTuple(d.firmwareVersion))
             if(needed):
