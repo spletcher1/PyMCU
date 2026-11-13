@@ -1,0 +1,79 @@
+# Training 10: 24-hour progressive-ratio breakpoint,
+# DFMs 1-8. Needs DFM firmware 4.0.0 on every DFM.
+#
+# Each fly gets 10 closed-loop Activations (Acclimation),
+# then must make 1, 2, 3, 4 ... separate feeding bouts
+# to earn each 0.5 s of light. Bouts made while the LED
+# is on don't count. One Well in each linkage group of
+# four triggers; the other three get the same light
+# (yoked).
+#
+# Converted from the old 5160,8,500,1000,... program,
+# which counted ms of contact (1000 ms more per light).
+# A bout is about 2 s of contact, so Step 1 is the
+# closest; Step 5 is about 10 times the old program.
+# The old program gave 9 Acclimation Activations.
+
+[General]
+ExpDurationMin: 1440
+# Remove the # to fix the start (HH:MM or HH:MM:SS).
+#StartTime: 01:00:13
+ProgramType: Repeating
+Linkage: 1,1,1,1,2,2,2,2,3,3,3,3
+# Thresholds are measured from each Well's first 10
+# readings, so no fly should be on the food at the start.
+Baseline: Yes
+
+[Paradigm BreakPt]
+Type: ProgressiveRatio
+Frequency: 40
+PulseWidth: 8
+ActivationMs: 500
+# Bouts for light k: FirstRequirement + Step x (k - 1).
+Series: Arithmetic
+FirstRequirement: 1
+Step: 1
+Cap: 65535
+# A bout ends after 100 ms below the threshold.
+EventGapMs: 100
+Acclimation: 10
+
+# Interval: Paradigm, Lit, 12 thresholds (1A,1B ... 6B,
+# in linkage groups of four), minutes. 20 means contact
+# is 20 above baseline; Off never triggers.
+
+# DFMs 1 and 5: 1A, 3A and 5A trigger.
+[DFM]
+ID: 1
+Interval: BreakPt, Lit, 20,Off,Off,Off, 20,Off,Off,Off, 20,Off,Off,Off, 1440
+
+# DFMs 2 and 6: 2A, 4A and 6A trigger.
+[DFM]
+ID: 2
+Interval: BreakPt, Lit, Off,Off,20,Off, Off,Off,20,Off, Off,Off,20,Off, 1440
+
+# DFMs 3 and 7: 1B, 3B and 5B trigger.
+[DFM]
+ID: 3
+Interval: BreakPt, Lit, Off,20,Off,Off, Off,20,Off,Off, Off,20,Off,Off, 1440
+
+# DFMs 4 and 8: 2B, 4B and 6B trigger.
+[DFM]
+ID: 4
+Interval: BreakPt, Lit, Off,Off,Off,20, Off,Off,Off,20, Off,Off,Off,20, 1440
+
+[DFM]
+ID: 5
+Interval: BreakPt, Lit, 20,Off,Off,Off, 20,Off,Off,Off, 20,Off,Off,Off, 1440
+
+[DFM]
+ID: 6
+Interval: BreakPt, Lit, Off,Off,20,Off, Off,Off,20,Off, Off,Off,20,Off, 1440
+
+[DFM]
+ID: 7
+Interval: BreakPt, Lit, Off,20,Off,Off, Off,20,Off,Off, Off,20,Off,Off, 1440
+
+[DFM]
+ID: 8
+Interval: BreakPt, Lit, Off,Off,Off,20, Off,Off,Off,20, Off,Off,Off,20, 1440

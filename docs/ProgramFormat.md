@@ -465,6 +465,12 @@ Intervals with identical old settings become the same Paradigm, so a Well's prog
 
 The old progressive ratio counted milliseconds of contact. The DFM checks every millisecond, so a 1-second bout counted as 1000 "licks". The new ProgressiveRatio counts Events (feeding bouts), so the numbers mean something quite different and can't be converted automatically. Choose a new `Step` (or Series) in Events.
 
+The old `OptoDelay` is how many more milliseconds of contact each Activation needed. To come close to it, divide it by the contact time of a typical Event and round to a whole number, at least 1. In a firmware 4.0.0 recording of flies feeding on sucrose, an Event was about 2 seconds of contact, so the usual old setting of 1000 becomes `Step: 1`, which adds about 2 seconds for each Activation.
+
+Don't make the Step larger to be safe. The extra contact adds up over every Activation, so a larger Step makes the work rise much faster. `Step: 5` adds about 10 seconds for each Activation, ten times the old 1000. In that recording, flies on `Step: 5` stopped after a median of 4 to 7 Activations, where flies on the old program had reached 10 to 45.
+
+Bout length depends on the flies and the food, so check it in a pilot recording: divide the time a Well's signal spends above its Threshold by the Events its Progress column counted.
+
 Old:
 
 ```
@@ -475,7 +481,7 @@ Interval: 0,20,-1,20,-1,20,-1,20,-1,20,-1,20,-1,40,8,500,0,0,30
 Interval: 0,20,-1,20,-1,20,-1,20,-1,20,-1,20,-1,40,8,500,1000,1000000000,330
 ```
 
-New: 30 minutes of closed loop with a 500 ms hold, then progressive ratio with half-second Activations:
+New: 30 minutes of closed loop with a 500 ms hold, then progressive ratio with half-second Activations. The old `OptoDelay` of 1000 becomes `Step: 1`:
 
 ```
 [Paradigm Closed]
@@ -485,7 +491,7 @@ HoldMs: 500
 [Paradigm PR]
 Type: ProgressiveRatio
 ActivationMs: 500
-Step: 5
+Step: 1
 
 [DFM]
 ID: 1
@@ -496,7 +502,7 @@ Interval: PR, Lit, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 330
 
 ### Rewriting event-based acclimation
 
-The old way packed the number of acclimation events into the high bits of `OptoFrequency`, so 10 events at 40 Hz was written 5160. Now it is a setting. The old method also gave one fewer than asked, so the new Program gives exactly 10.
+The old way packed the number of acclimation events into the high bits of `OptoFrequency`, so 10 events at 40 Hz was written 5160. Now it is a setting. The old method also gave one fewer than asked, so the new Program gives exactly 10. To match data recorded with the old program, write `Acclimation: 9`.
 
 Old:
 
@@ -504,7 +510,7 @@ Old:
 Interval: 0,20,-1,20,-1,20,-1,20,-1,20,-1,20,-1,5160,8,500,1000,1000000000,360
 ```
 
-New:
+New: the progressive ratio is rewritten as in [Rewriting progressive ratio](#rewriting-progressive-ratio), so `OptoDelay` 1000 becomes `Step: 1`:
 
 ```
 [Paradigm PR]
@@ -512,7 +518,7 @@ Type: ProgressiveRatio
 Frequency: 40
 PulseWidth: 8
 ActivationMs: 500
-Step: 5
+Step: 1
 Acclimation: 10
 
 [DFM]

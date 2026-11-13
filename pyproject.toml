@@ -14,10 +14,12 @@ dependencies = [
     "smbus2",
     # GPIO (lgpio is the pin factory gpiozero uses on the Pi 4 and Pi 5 under Trixie)
     "gpiozero",
-    "adafruit-lgpio",
+    # adafruit-lgpio only ships an aarch64 wheel; anywhere else it builds from source and needs swig
+    # and the lgpio C library, so the Pi-only packages are limited to the Pi (64-bit Linux on ARM).
+    "adafruit-lgpio; sys_platform == 'linux' and platform_machine == 'aarch64'",
     # RPi.GPIO for adafruit-blinka on the Pi 4, whose pins it drives through RPi.GPIO (on the Pi 5 it
     # uses lgpio). rpi-lgpio provides RPi.GPIO on top of lgpio; see override-dependencies below.
-    "rpi-lgpio",
+    "rpi-lgpio; sys_platform == 'linux' and platform_machine == 'aarch64'",
     # Environmental sensors (board/busio come from adafruit-blinka)
     "adafruit-blinka",
     "adafruit-circuitpython-tsl2591",
