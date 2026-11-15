@@ -1,0 +1,75 @@
+# Program types, Adaptive baseline and the Environmental Monitor, over 3 days, for PyMCU 4.0.1
+# and DFM firmware 4.0.1. Copy a section as a template.
+#
+# DFM 1, Repeating: open loop, 3 minutes on and 12 off, over and over. Cycle counts the passes.
+# DFM 2, Circadian: closed loop from 07:00 to 19:00 every day and no light at night, whatever
+#   time the recording starts. The Intervals must add up to 1440 minutes, the first starting at
+#   midnight; Cycle counts the days.
+# DFM 3, Constant: only the first Interval runs, for the whole recording.
+# DFM 4, Linear: progressive ratio with thresholds of 20 for a day, then 30 for the rest. The
+#   same Paradigm name keeps each Well's Acclimation, Requirement and Progress, so the ratio
+#   carries on instead of starting again.
+# Environmental Monitor: Relay 1 on from 07:00 to 19:00, to switch an incubator's lights, say.
+#
+# Baseline: Adaptive keeps each Well's baseline following slow drift for the 3 days, by at most
+# BaselineRatePerHour counts an hour and BaselineCapCounts in all. It starts from the first 10
+# readings, as Baseline: Yes does, so start with no fly on the food. Baselines.csv records each
+# set of baselines the MCU sends.
+#
+# Frequency and PulseWidth are left out, so they take their defaults, 40 Hz and 8 ms.
+#
+# DFMs 1 to 3 run on any firmware; boards older than 4.0.0 get new Adaptive baselines only when
+# an Interval or Cycle starts. DFM 4 counts contact and needs firmware 4.0.1.
+
+[General]
+ExpDurationMin: 4320
+Linkage: 1,1,2,2,3,3,4,4,5,5,6,6
+Baseline: Adaptive
+BaselineRatePerHour: 5
+BaselineCapCounts: 50
+
+[Paradigm Open]
+Type: OpenLoop
+
+[Paradigm Closed]
+Type: ClosedLoop
+HoldMs: 500
+
+[Paradigm PR]
+Type: ProgressiveRatio
+ActivationMs: 500
+FirstRequirement: 1000
+Step: 1000
+Acclimation: 10
+
+[DFM]
+ID: 1
+ProgramType: Repeating
+Interval: Open, Dark, On,On,On,On,On,On,On,On,On,On,On,On, 3
+Interval: Open, Dark, Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off, 12
+
+[DFM]
+ID: 2
+ProgramType: Circadian
+# 00:00 to 07:00, 07:00 to 19:00, 19:00 to midnight.
+Interval: Closed, Dark, Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off, 420
+Interval: Closed, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 720
+Interval: Closed, Dark, Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off,Off, 300
+
+[DFM]
+ID: 3
+ProgramType: Constant
+Interval: Closed, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 4320
+
+[DFM]
+ID: 4
+ProgramType: Linear
+Interval: PR, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 1440
+Interval: PR, Dark, 30,Off,30,Off,30,Off,30,Off,30,Off,30,Off, 2880
+
+# Environmental Monitor: dark, Relay 1, Relay 2, Outputs 1 to 4, six ignored numbers, minutes.
+[ENVMON]
+ProgramType: Circadian
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,420
+Interval: 0,1,0,0,0,0,0,0,0,0,0,0,0,720
+Interval: 0,0,0,0,0,0,0,0,0,0,0,0,0,300

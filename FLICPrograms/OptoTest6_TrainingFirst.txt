@@ -11,12 +11,12 @@
 # Settings: Acclimation N gives N closed-loop Activations before the main rule. With Counter:
 # Events, Ratio is the Events per Activation; 5 would light every 5th bout. Without it a ratio
 # Paradigm counts ms of contact (Counter: Contact, the default), and Ratio is that many ms. The
-# same Acclimation setting works on
-# FixedInterval and ProgressiveRatio Paradigms. The old way of asking for training, a frequency
-# above 512, is refused when a program loads; write Acclimation instead.
+# same Acclimation setting works on FixedInterval and ProgressiveRatio Paradigms. The old way
+# of asking for training, a frequency above 512, is refused when a program loads; write
+# Acclimation instead.
 #
-# Needs DFM firmware 4.0.0 (Acclimation and the ratio rules). PyMCU refuses it for older
-# boards. ID: All makes every connected DFM run it.
+# Needs DFM firmware 4.0.0 or later (Acclimation and the ratio rules). PyMCU refuses it for
+# older boards. ID: All makes every connected DFM run it.
 
 [General]
 ExpDurationMin: 10

@@ -8,14 +8,18 @@
 # count. One Well in each linkage group of four
 # triggers; the other three get the same light (yoked).
 #
-# The old 5160,8,500,1000,... program, which counted ms
-# of contact (OptoDelay 1000 ms more per light), as DFM
-# firmware 3.5.2 ran it: 10 Acclimation Activations,
-# then 1000 ms for the first light. Firmware 2.0.0 to
-# 3.5.1 gave 9 and a free first light; to match data
-# from those, use Acclimation: 9 and FirstRequirement: 10.
-# To count feeding bouts instead, add Counter: Events and
-# give FirstRequirement, Step and Cap in bouts.
+# Translated from the old Interval line
+#   0,<thresholds>,5160,8,500,1000,1000000000000,1440
+# as DFM firmware 3.5.2 ran it:
+#   5160 = 10 x 512 + 40: 10 training Activations, 40 Hz
+#   8: pulse width (ms); 500: light per Activation (ms)
+#   1000: ms of contact added for each light, starting
+#     at 1000 for the first light after training
+#   1000000000000: the cap on the requirement; 655350 ms
+#     is the most firmware 4.0.1 takes, which would be
+#     reached only at the 655th light.
+# Acclimation is 10. Firmware 2.0.0 to 3.5.1 gave only 9
+# and then a free first light; that is not reproduced.
 
 [General]
 ExpDurationMin: 1440
@@ -32,9 +36,8 @@ Type: ProgressiveRatio
 Frequency: 40
 PulseWidth: 8
 ActivationMs: 500
-# Counter: Contact is the default for ratio Paradigms.
-# ms of contact for light k: FirstRequirement + Step x (k - 1),
-# in multiples of 10, up to Cap (the old MaxTimeOn).
+# ms of contact for light k: FirstRequirement + Step x (k - 1).
+Counter: Contact
 Series: Arithmetic
 FirstRequirement: 1000
 Step: 1000

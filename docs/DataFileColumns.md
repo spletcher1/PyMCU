@@ -292,4 +292,4 @@ Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) w
 ## Test data
 
 - **Simulated recordings:** `scripts/simulate_recording.py` writes a two-hour recording from two DFMs running a ProgressiveRatio Paradigm with Acclimation, through PyMCU's own record parser and file writer, so the files are what an MCU would write. Beside it, a `_truth` folder lists every simulated bout and Activation and a summary per Well, to check an analysis against. Run it from the PyMCU folder: `.venv/bin/python scripts/simulate_recording.py [--out DIR] [--seed N]`.
-- **Bench recordings:** `FLICPrograms/OptoTest1_OpenLoop.txt`, `OptoTest5_ProgressiveRatio.txt` and `OptoTest6_TrainingFirst.txt` exercise OpenLoop, ratio Paradigms and Acclimation on a real 4.0.0 board in 10 minutes each.
+- **Bench recordings:** `FLICPrograms/OptoTest1_OpenLoop.txt`, `OptoTest5_ProgressiveRatio.txt` and `OptoTest6_TrainingFirst.txt` exercise OpenLoop, ratio Paradigms counting Events and Acclimation on a real 4.0.0 board, and `OptoTest7_ContactRatio.txt` a ratio Paradigm counting contact on a 4.0.1 board, in 10 minutes each.

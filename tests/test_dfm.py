@@ -588,11 +588,13 @@ class Compatibility(unittest.TestCase):
         return group.CheckProgramCompatibility()
 
     def test_old_firmware_refused(self):
-        problems = self.Problems("3.5.0")
-        self.assertEqual(len(problems), 1)
-        self.assertIn("DFM 5", problems[0])
-        self.assertIn("4.0.0", problems[0])
-        self.assertEqual(self.Problems("4.0.0"), [])
+        # ParadigmExamples' DFM 5 runs progressive ratio counting contact (4.0.1); DFM 2 closed loop.
+        for version in ("3.5.0", "4.0.0"):
+            problems = self.Problems(version)
+            self.assertEqual(len(problems), 1, version)
+            self.assertIn("DFM 5", problems[0])
+            self.assertIn("needs firmware 4.0.1", problems[0])
+        self.assertEqual(self.Problems("4.0.1"), [])
 
     def test_1_0_5_board_listed_with_each_reason(self):
         problems = self.ProblemsWithProbedDFMs(MakeProbedDFM(COMM.LEGACY_VERSION, ID=2), MakeProbedDFM(COMM.LEGACY_VERSION, ID=3))

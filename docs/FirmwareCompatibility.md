@@ -41,9 +41,10 @@ Each `OptoTest` program in `FLICPrograms` runs one Paradigm type on every connec
 | `OptoTest4_NonFeeding` | NonFeeding, OnDelayMs 10000, MaxOnMs 2000 | Untouched Wells: 2 s on, 10 s off, repeating. A touched Well stays dark and lights 10 s after the touch ends | 2.0.0 or later |
 | `OptoTest5_ProgressiveRatio` | ProgressiveRatio, Counter Events, ActivationMs 1000, Step 2, Cap 20 | Separate bouts: 1 s of light after the 1st, then after 3 more, 5 more, 7 more... | 4.0.0 |
 | `OptoTest6_TrainingFirst` | FixedRatio 1, Counter Events, with Acclimation 3, ActivationMs 1000 | The first 3 bouts light while touched and 1 s after; from the 4th, 1 s per bout | 4.0.0 |
+| `OptoTest7_ContactRatio` | ProgressiveRatio, Counter Contact, ActivationMs 1000, FirstRequirement and Step 1000, Cap 10000 | Hold a Well: 1 s of light after 1 s of contact, then after 2 s more, 3 s more ... up to 10 s; contact while lit doesn't count | 4.0.1 |
 | `OptoLidOutputTest` | OpenLoop, one Well On per Interval | Each LED alone for 1.2 s in Well order, then all off, then all on, repeating | Any |
 
-The 3.x versions of programs 1 to 4 were checked on the bench with DFM firmware 3.5.1 on 2026-10-16; these Paradigm-format versions, and 5 and 6 on a 4.0.0 board, have not yet been. The DFM's own record of its LEDs is in the data file's `OptoCol1` (Wells 1 to 12 as bits 0 to 11) and `OptoCol2`. Records are 200 ms snapshots, so an on-period shorter than that may not show.
+The 3.x versions of programs 1 to 4 were checked on the bench with DFM firmware 3.5.1 on 2026-10-16; these Paradigm-format versions, 5 and 6 on a 4.0.0 board and 7 on a 4.0.1 board have not yet been. OptoTest 7's timing was checked against the firmware's own code (`LEDControl.c`) on a PC. The DFM's own record of its LEDs is in the data file's `OptoCol1` (Wells 1 to 12 as bits 0 to 11) and `OptoCol2`. Records are 200 ms snapshots, so an on-period shorter than that may not show.
 
 ## What the DFM page shows for each firmware
 

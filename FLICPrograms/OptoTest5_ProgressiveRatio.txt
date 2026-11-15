@@ -14,10 +14,10 @@
 #
 # Counter: Events makes it count bouts. Ratio Paradigms count ms of contact unless they say
 # so (Counter: Contact is the default); this test counts bouts because they are easy to make
-# by hand, one touch each.
+# by hand, one touch each. OptoTest 7 tests counting contact.
 #
-# Needs DFM firmware 4.0.0, which runs the ratio rules itself. PyMCU refuses it for older
-# boards. ID: All makes every connected DFM run it.
+# Needs DFM firmware 4.0.0 or later, which runs the ratio rules itself. PyMCU refuses it for
+# older boards. ID: All makes every connected DFM run it.
 
 [General]
 ExpDurationMin: 10

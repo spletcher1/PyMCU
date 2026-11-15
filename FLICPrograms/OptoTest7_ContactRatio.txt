@@ -1,0 +1,38 @@
+# OptoTest 7: Progressive ratio counting time in contact, the default for ratio Paradigms
+# from PyMCU 4.0.1. Each Activation needs more milliseconds of contact than the last. Once the
+# Requirement is met, the LED lights for exactly ActivationMs.
+#
+# What to expect: hold a Well. After 1 s of contact its LED lights for 1 s (FirstRequirement
+# 1000, ActivationMs 1000); holding while it is lit doesn't count. Keep holding: the next light
+# comes after 2 s more contact, then 3 s, 4 s and so on, up to 10 s each (Cap 10000). Contact
+# adds up across touches with no timeout, so two half-second touches earn the first light as
+# one 1-second touch does. The data file shows each Well's Requirement and Progress in ms.
+#
+# Settings: with Counter: Contact, FirstRequirement, Step and Cap are ms of contact, multiples
+# of 10, up to 655350; the DFM counts in steps of 10 ms. Series Exponential (Scale in ms, and
+# Rate) is the Richardson and Roberts series instead. Counter: Contact is the default and is
+# written out here only to show it; OptoTest 5 counts feeding bouts with Counter: Events.
+#
+# Needs DFM firmware 4.0.1. PyMCU refuses it for older boards, 4.0.0 included, which would
+# count bouts instead. ID: All makes every connected DFM run it.
+
+[General]
+ExpDurationMin: 10
+Linkage: 1,2,3,4,5,6,7,8,9,10,11,12
+Baseline: Yes
+
+[Paradigm PRContact]
+Type: ProgressiveRatio
+Frequency: 40
+PulseWidth: 8
+ActivationMs: 1000
+Counter: Contact
+Series: Arithmetic
+FirstRequirement: 1000
+Step: 1000
+Cap: 10000
+
+[DFM]
+ID: All
+ProgramType: Linear
+Interval: PRContact, Lit, 50,50,50,50,50,50,50,50,50,50,50,50, 10

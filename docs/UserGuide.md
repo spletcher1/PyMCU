@@ -316,9 +316,11 @@ Everything about writing Programs, with a worked example of every type, is in [P
 
 | Program | Use |
 |---|---|
-| `OptoTest1_OpenLoop` … `OptoTest6_TrainingFirst` | Ten minutes of one Paradigm type on every connected DFM, with Thresholds 50 above baseline. Touch a Well to see the rule work; the comment at the top of each file says what to expect. |
+| `OptoTest1_OpenLoop` … `OptoTest7_ContactRatio` | Ten minutes of one Paradigm type on every connected DFM, with Thresholds 50 above baseline. Touch a Well to see the rule work; the comment at the top of each file says what to expect. `OptoTest5` counts feeding bouts and `OptoTest7` time in contact (firmware 4.0.1). |
 | `OptoLidOutputTest` | Lights each LED alone in Well order, then all off, then all on, repeating, to check an OptoLid |
-| `ParadigmExamples` | One DFM per Paradigm type, as a template |
+| `ParadigmExamples` | One DFM per Paradigm type, as a template: the ratio Paradigms counting contact (Arithmetic and Exponential) and, with `Counter: Events`, feeding bouts |
+| `ScheduleExamples` | Three days of each program type (Repeating, Circadian, Constant, Linear), a threshold change that keeps a progressive ratio going, `Baseline: Adaptive` and an Environmental Monitor schedule |
+| `Training10_BreakPt_24hrs` | A 24-hour progressive-ratio breakpoint on 8 DFMs with yoked controls: 10 Acclimation Activations, then 1 s, 2 s, 3 s … of contact per light, the old 3.5.2 Program in the new format |
 
 ## 8. Step 4: Put the Program on the MCU and load it
 
@@ -583,4 +585,4 @@ This order shows every feature in about half an hour, using one or more DFMs wit
 9. **Export Data.** Wait for "USB unmounted, ready to remove" (section 11).
 10. **On the computer,** open the recording folder: the data file in a spreadsheet, `Program.txt` and `Messages.csv`. Then in pyflic, put it in an experiment directory, **Run QC**, open the QC Viewer, **Run analysis** and open the report (section 12).
 
-For the other Paradigm types, repeat steps 5 to 8 with `OptoTest3` to `OptoTest6`; the comment at the top of each says what to show. To demonstrate the analysis of a full progressive-ratio experiment without flies, `scripts/simulate_recording.py` in the PyMCU repository writes a realistic two-hour recording, exactly as an MCU would, together with a record of every simulated bout and Activation to check the analysis against.
+For the other Paradigm types, repeat steps 5 to 8 with `OptoTest3` to `OptoTest7`; the comment at the top of each says what to show. To demonstrate the analysis of a full progressive-ratio experiment without flies, `scripts/simulate_recording.py` in the PyMCU repository writes a realistic two-hour recording, exactly as an MCU would, together with a record of every simulated bout and Activation to check the analysis against.

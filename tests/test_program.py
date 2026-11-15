@@ -37,12 +37,14 @@ class NewFormat(unittest.TestCase):
     def test_example_file(self):
         program, ok = LoadFile("ParadigmExamples.txt")
         self.assertTrue(ok, program.loadError)
-        self.assertEqual(len(program.theParadigms), 7)
+        self.assertEqual(len(program.theParadigms), 9)
         p = program.theParadigms
-        self.assertEqual([p[n].countsContact for n in ("pr10", "fr5", "prcontact")], [False, False, True])
-        self.assertEqual(p["prcontact"].SettingsWords(), [500, 0, 100, 100, 65535])
+        self.assertEqual([p[n].countsContact for n in ("pr", "prexp", "fr5s", "pr10", "fr5")],
+                         [True, True, True, False, False])
+        self.assertEqual(p["pr"].SettingsWords(), [500, 0, 100, 100, 65535])
+        self.assertEqual(p["fr5s"].SettingsWords()[:2], [500, 500])
         dfm5 = program.theInstructionSets[5]
-        self.assertEqual([i.paradigm.name for i in dfm5.instructions], ["Closed", "PR10"])
+        self.assertEqual([i.paradigm.name for i in dfm5.instructions], ["Closed", "PR"])
         self.assertEqual(dfm5.instructions[1].elapsedStart, datetime.timedelta(minutes=30))
         self.assertEqual(list(dfm5.instructions[0].optoValues[:2]), [20, Instruction.OFF])
         self.assertEqual(program.theInstructionSets[1].instructions[0].optoValues[0], Instruction.ON)
@@ -324,15 +326,35 @@ class Timing(unittest.TestCase):
         program, ok = LoadFile("ParadigmExamples.txt")
         self.assertTrue(ok, program.loadError)
         self.assertEqual(program.FirmwareNeeded(2), [])
-        self.assertEqual(program.FirmwareNeeded(5), ["the ProgressiveRatio Paradigm type needs firmware 4.0.0"])
-        self.assertEqual(program.FirmwareNeeded(6), ["the FixedRatio Paradigm type needs firmware 4.0.0"])
-        # DFM 7 counts contact, the default, which needs 4.0.1; Events run on 4.0.0.
-        contact = ["counting contact (Counter: Contact, the ProgressiveRatio default) needs firmware 4.0.1; "
-                   "with 'Counter: Events' it runs on 4.0.0"]
-        self.assertEqual(program.FirmwareNeeded(7), contact)
-        self.assertEqual(program.FirmwareNeeded(7, (4, 0, 0)), contact)
-        self.assertEqual(program.FirmwareNeeded(7, (4, 0, 1)), [])
-        self.assertEqual(program.FirmwareNeeded(5, (4, 0, 0)), [])
+        # DFMs 5 to 7 count contact, the default, which needs 4.0.1; DFM 8 counts Events, which
+        # run on 4.0.0; DFM 6 does both.
+        contact = "counting contact (Counter: Contact, the {} default) needs firmware 4.0.1; with 'Counter: Events' it runs on 4.0.0"
+        pr, fr = contact.format("ProgressiveRatio"), contact.format("FixedRatio")
+        self.assertEqual(program.FirmwareNeeded(5), [pr])
+        self.assertEqual(program.FirmwareNeeded(6), [fr, "the FixedRatio Paradigm type needs firmware 4.0.0"])
+        self.assertEqual(program.FirmwareNeeded(8), ["the ProgressiveRatio Paradigm type needs firmware 4.0.0"])
+        for dfm, reasons in ((5, [pr]), (6, [fr]), (7, [pr]), (8, [])):
+            self.assertEqual(program.FirmwareNeeded(dfm, (4, 0, 0)), reasons, dfm)
+            self.assertEqual(program.FirmwareNeeded(dfm, (4, 0, 1)), [], dfm)
+
+    def test_schedule_examples(self):
+        # Each program type, keep-state across a threshold change, Adaptive and the Environmental Monitor.
+        program, ok = LoadFile("ScheduleExamples.txt")
+        self.assertTrue(ok, program.loadError)
+        types = {d: program.theInstructionSets[d].instructionSetType for d in (1, 2, 3, 4)}
+        self.assertEqual(types, {1: Enums.INSTRUCTIONSETTYPE.REPEATING, 2: Enums.INSTRUCTIONSETTYPE.CIRCADIAN,
+                                 3: Enums.INSTRUCTIONSETTYPE.CONSTANT, 4: Enums.INSTRUCTIONSETTYPE.LINEAR})
+        self.assertEqual(program.AdaptiveSettings(), (5.0, 50))
+        circadian = program.theInstructionSets[2]
+        start = datetime.datetime(2026, 3, 2, 13, 45)
+        self.assertEqual([circadian.GetPosition(datetime.datetime(2026, 3, 3, h), start)[1:] for h in (3, 8, 20)],
+                         [(0, 2), (1, 2), (2, 2)])
+        dfm4 = program.theInstructionSets[4].instructions
+        self.assertEqual([i.paradigm.name for i in dfm4], ["PR", "PR"])
+        self.assertEqual([i.optoValues[0] for i in dfm4], [20, 30])
+        self.assertEqual(program.theInstructionSets[99].instructionSetType, Enums.INSTRUCTIONSETTYPE.CIRCADIAN)
+        self.assertEqual(program.FirmwareNeeded(4, (4, 0, 0))[0][:16], "counting contact")
+        self.assertEqual(program.FirmwareNeeded(1, (1, 0, 5)), [])
         # Firmware 1.0.5 also can't take NonFeeding or times above 65535 ms; 2.0.1 can.
         program, ok = Load("[Paradigm NF]\nType: NonFeeding\nOnDelayMs: 500\n[DFM]\nID: 1\nInterval: NF, Lit, {}, 10".format(WELLS))
         self.assertTrue(ok, program.loadError)
