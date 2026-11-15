@@ -56,7 +56,7 @@ The time a Well's signal spends above its Threshold, measured in milliseconds.
 _Avoid_: Licks (the DFM does not detect individual licks)
 
 **Event**:
-One feeding bout at a Well. It starts when the Well's signal rises above its Threshold, unless an Activation is in progress, and it ends once the signal has stayed below the Threshold for the Event gap. A bout that starts during an Activation is not an Event, even if it carries on after the Activation ends. Progressive ratio and fixed ratio count Events; Acclimation counts Activations.
+One feeding bout at a Well. It starts when the Well's signal rises above its Threshold, unless an Activation is in progress, and it ends once the signal has stayed below the Threshold for the Event gap. A bout that starts during an Activation is not an Event, even if it carries on after the Activation ends. Progressive ratio and fixed ratio count Events when their Counter is Events; Acclimation counts Activations.
 _Avoid_: Lick, interaction, signal
 
 **Event gap**:
@@ -77,11 +77,12 @@ Under FixedInterval, the time from the start of an Activation during which no ne
 _Avoid_: Delay, interval (Interval means a Program step)
 
 **Requirement**:
-The number of Events a Well must produce for its next Activation under progressive ratio or fixed ratio, or, with the Contact Counter, the milliseconds of Contact.
+What a Well must produce for its next Activation under progressive ratio or fixed ratio: milliseconds of Contact, or, with the Events Counter, a number of Events.
+_Avoid_: Lick threshold, ratio threshold
 
 **Counter**:
-What a ratio Paradigm's Requirement counts: Events (the default), or Contact, the milliseconds of Contact outside the Well's own Activations, added up across bouts (DFM firmware 4.1.0; the rule of progressive ratio before 4.0.0).
-_Avoid_: Lick threshold, ratio threshold
+What a ratio Paradigm's Requirement counts: Contact (the default from PyMCU 4.0.1), the milliseconds of Contact outside the Well's own Activations, added up across bouts (DFM firmware 4.0.1; the rule of progressive ratio before 4.0.0); or Events (as in firmware 4.0.0).
+_Avoid_: Licks, lick-based (the DFM does not detect licks; what it counted then was milliseconds of Contact)
 
 **Series**:
 How a progressive ratio's Requirement grows: Arithmetic (a fixed step each time) or Exponential (the Richardson–Roberts series).
@@ -132,7 +133,7 @@ The resting signal a Well's Threshold is measured from. PyMCU adds it to the Pro
 _Avoid_: Offset, zero, resting level (pyflic's per-minute median)
 
 **Starting baseline**:
-The mean of a Well's first 10 Status records after the buffer reset that starts a recording.
+The mean of a Well's first 10 Status records after the buffer reset that starts a recording, rounded to the nearest count.
 
 **Floor**:
 The 10th percentile of a Well's Status records in one minute of a recording. It ignores licks and feeding bouts unless contact fills more than 90% of the minute.
@@ -143,4 +144,8 @@ PyMCU's running estimate of a Well's Baseline under `Baseline: Adaptive`. Each m
 _Avoid_: Adaptive threshold, drift correction
 
 **Baseline in force**:
-The Baseline behind the Thresholds of the instruction a DFM is running. It changes only when PyMCU sends an instruction. The data file's `Baseline` columns and the live plot show it.
+The Baseline behind the Thresholds of the instruction a DFM is running. It changes only when PyMCU sends an instruction. The data file's `BaselineSet` column names it, and the live plot shows it.
+
+**Baseline set**:
+The 12 Baselines of one DFM that PyMCU sent together, numbered from 1 for each DFM and recording: one row of the recording's `Baselines.csv`. A new set is made only when the Baselines change: the Starting baseline, a new Interval or Cycle under `Baseline: Adaptive`, or an adaptive update.
+_Avoid_: Baseline columns, baseline row

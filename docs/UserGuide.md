@@ -1,6 +1,6 @@
 # FLIC User Guide
 
-PyMCU 4.0 with DFM firmware 4.0 and pyflic. Last updated: 2026-10-18.
+PyMCU 4.0.1 with DFM firmware 4.0.1 and pyflic. Last updated: 2026-11-15.
 
 This guide takes you through a FLIC experiment from start to finish: setting up the DFMs, running a Program on the MCU, watching it run, collecting the data and analysing it in pyflic. For each step it says what to do and also what the MCU and the DFMs do in response, so you know what to expect and why.
 
@@ -104,7 +104,7 @@ These words have exact meanings, shared by Program files, the MCU, the DFM firmw
 | **Cycle** | One pass through a repeating Program's Intervals. |
 | **Linkage** | Wells grouped so that their LEDs light together. |
 | **Acclimation** | An optional start to a Paradigm in which each Well gets a set number of simple closed-loop Activations. A Well's **Phase** is Acclimation or Main. |
-| **Requirement, Progress** | For ratio Paradigms: how many Events a Well needs for its next Activation, and how many it has so far. |
+| **Requirement, Progress** | For ratio Paradigms: how much time in contact (or, with `Counter: Events`, how many Events) a Well needs for its next Activation, and how much it has so far. |
 | **Status record** | What a DFM reports for every 200 ms: the twelve signals, the LED state and each Well's Paradigm state. One record is one row of the data file. |
 
 ## 3. Before you start
@@ -250,7 +250,7 @@ Tick **Well details** to replace the plot with a table of the twelve Wells, from
 |---|---|
 | Phase | Acclimation or Main |
 | Activations | The Well's Activations since the recording started |
-| Requirement, Progress | For ratio Paradigms: Events needed for the next Activation, and Events so far |
+| Requirement, Progress | For ratio Paradigms: ms of contact (or Events) needed for the next Activation, and so far |
 | On ms | How many of the last 200 ms the Well's LED was lit, whatever lit it |
 
 ### Testing the LEDs with Outputs
@@ -301,14 +301,16 @@ The six Paradigm types:
 | ClosedLoop | On during contact and for `HoldMs` after it, optionally cut off after `MaxOnMs` | Any |
 | FixedInterval | Contact gives exactly `ActivationMs` of light, then none until `LockoutMs` after it started | Any |
 | NonFeeding | Off during contact; on again `OnDelayMs` after contact ends | 2.0.0 and later |
-| ProgressiveRatio | Each Activation needs more feeding bouts than the last | 4.0.0 |
-| FixedRatio | Every `Ratio`-th feeding bout gives `ActivationMs` of light | 4.0.0 |
+| ProgressiveRatio | Each Activation needs more time in contact than the last (with `Counter: Events`, more feeding bouts) | 4.0.1 (4.0.0 with `Counter: Events`) |
+| FixedRatio | Every `Ratio` ms of contact (with `Counter: Events`, every `Ratio`-th feeding bout) gives `ActivationMs` of light | 4.0.1 (4.0.0 with `Counter: Events`) |
 
 FixedInterval and the two ratio types can start with `Acclimation: N`: each Well's first N Activations are closed loop, so the fly learns that feeding brings light.
 
 A DFM can step through several Intervals, each with its own Paradigm and Thresholds, and a Program can run them once (`Linear`), over and over (`Repeating`), on a 24-hour clock (`Circadian`) or run only the first (`Constant`). A Well keeps its progress (for example its progressive-ratio Requirement) when the next Interval names the same Paradigm, and starts fresh when it names a different one.
 
 Everything about writing Programs, with a worked example of every type, is in [ProgramFormat.md](ProgramFormat.md). Programs written for PyMCU 3.x still load, apart from the old progressive ratio and training count, which have to be rewritten as that guide explains.
+
+**Ratio Paradigms count time in contact by default** (from PyMCU 4.0.1, on DFM firmware 4.0.1), as progressive ratio did before firmware 4.0.0: their `FirstRequirement`, `Step`, `Cap` and `Ratio` are milliseconds of contact. Add `Counter: Events` to count feeding bouts instead; that is also the only way a 4.0.0 board can run them. A Program written for PyMCU 4.0.0 that counted Events needs `Counter: Events` added to each ratio Paradigm: without it, a setting such as `Step: 5` stops the Program loading, and one such as `Step: 10` is read as 10 ms.
 
 **Ready-made Programs** are in the `FLICPrograms` folder of the PyMCU repository:
 
@@ -448,13 +450,14 @@ Each recording is one folder, named after the MCU and the start time, for exampl
 | `EnvMon_0.csv` | The Environmental Monitor's readings, if present |
 | `Messages.csv` | Everything reported on the Messages page during the recording |
 | `Program.txt` | The Program as the MCU understood it: every Paradigm with all its settings, and each DFM's Intervals with their start times |
+| `Baselines.csv` | Each DFM's baselines (with `Baseline: Yes` or `Adaptive`): one row per set, with when and why the MCU sent it. The data files' `BaselineSet` column says which set each record used |
 
 Each DFM row has 90 columns:
 
 - **27 original columns,** the same as in PyMCU 3.x: the date and time, a sample number, the twelve Well signals `W1` to `W12`, temperature, humidity, light, supply voltage, the Dark setting and light frequency and pulse width in force, which LEDs were on at that instant, the error flags, and `Index`, the DFM's record counter, which shows any lost records as a gap.
 - **63 Paradigm columns,** filled by firmware 4.0.0 boards: `Interval`, `Cycle` and `Paradigm`, then for each Well its `Phase`, `Activations`, `Requirement`, `Progress` and `OnMs` (how many of the 200 ms its LED was lit).
 
-A value that doesn't apply is written `NA`: Requirement and Progress outside the ratio Paradigms, and all 63 Paradigm columns for boards with older firmware. The baseline records at the start have Interval 0. The last 12 columns, `Baseline1`–`Baseline12`, give the baseline each record's Thresholds were measured from. Every column is described in [DataFileColumns.md](DataFileColumns.md).
+A value that doesn't apply is written `NA`: Requirement and Progress outside the ratio Paradigms, and all 63 Paradigm columns for boards with older firmware. The baseline records at the start have Interval 0. The last column, `BaselineSet`, names the set of baselines each record's Thresholds were measured from; `Baselines.csv` lists the sets. Every column is described in [DataFileColumns.md](DataFileColumns.md).
 
 ## 12. Step 8: Analyse the data in pyflic
 
@@ -476,9 +479,9 @@ Data from PyMCU 4.0 needs a pyflic with PyMCU 4.0 support. Older pyflic versions
 pyflic works on an **Experiment directory**: a folder with a `flic_config.yaml` file and a `data` folder. Put the recording's files in `data`:
 
 - the `DFM<ID>_<n>.csv` files (pyflic joins the 12-hour files of each DFM in order);
-- `Program.txt` and `Messages.csv`. **pyflic reads these only from `data`.** Without `Program.txt`, it can't tell which Wells were lit by which rule, and its light results are left blank.
+- `Program.txt`, `Messages.csv` and `Baselines.csv`. **pyflic reads these only from `data`.** Without `Program.txt`, it can't tell which Wells were lit by which rule, and its light results are left blank.
 
-Several experiments that belong together (different genotypes, say) form a **Project**: a folder with a `project.yaml` and one subfolder per experiment. The Hub can create both, and **File unfiled recordings** files a PyMCU recording folder that was copied in as it is. After filing, check that `Program.txt` and `Messages.csv` are in `data`, and move them there if not.
+Several experiments that belong together (different genotypes, say) form a **Project**: a folder with a `project.yaml` and one subfolder per experiment. The Hub can create both, and **File unfiled recordings** files a PyMCU recording folder that was copied in as it is. After filing, check that `Program.txt`, `Messages.csv` and `Baselines.csv` are in `data`, and move them there if not.
 
 ### Describe the experiment
 

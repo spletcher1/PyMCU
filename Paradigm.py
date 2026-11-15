@@ -36,12 +36,15 @@ SERIES_NAMES = {Series.ARITHMETIC: "Arithmetic", Series.EXPONENTIAL: "Exponentia
 
 
 class Counter(IntEnum):
-    """What a ratio Paradigm's Requirement counts: Events, or milliseconds of Contact."""
+    """What a ratio Paradigm's Requirement counts: milliseconds of Contact (the default, the
+    progressive ratio of firmware before 4.0.0), or Events (feeding bouts)."""
     EVENTS = 0
     CONTACT = 1
 
 
 COUNTER_NAMES = {Counter.EVENTS: "Events", Counter.CONTACT: "Contact"}
+# A ratio Paradigm without a Counter setting counts Contact (docs/adr/0006).
+DEFAULT_COUNTER = Counter.CONTACT
 
 MAX_MS = 0xFFFFFFFF
 MAX_COUNT = 0xFFFF
@@ -49,7 +52,7 @@ MAX_COUNT = 0xFFFF
 # DFMV3_V2 src/LEDControl.h), so the Requirement settings are ms in multiples of it.
 CONTACT_UNIT_MS = 10
 MAX_CONTACT_MS = MAX_COUNT * CONTACT_UNIT_MS
-CONTACT_COUNTER_FIRMWARE = (4, 1, 0)
+CONTACT_COUNTER_FIRMWARE = (4, 0, 1)
 # The Paradigm instruction's flag that makes the ratio types count Contact (LEDControl.h).
 INSTRUCTION_COUNT_CONTACT = 0x02
 # Firmware 1.0.5 (DFMV3 before 2.0.0) has 2-byte decay, delay and max time on.
@@ -62,9 +65,9 @@ REQUIRED = object()
 _LIGHT = [("Frequency", "frequency", 40), ("PulseWidth", "pulsewidth", 8)]
 _EVENTS = [("EventGapMs", "gap", DEFAULT_EVENT_GAP_MS)]
 _ACCLIMATION = [("Acclimation", "count", 0)]
-_COUNTER = [("Counter", "counter", Counter.EVENTS)]
+_COUNTER = [("Counter", "counter", DEFAULT_COUNTER)]
 # The settings each type takes, in display order: (name, kind, default). A "requirement" or
-# "requirement1" (at least 1) setting is in Events, or in ms of contact with Counter: Contact.
+# "requirement1" (at least 1) setting is in ms of contact, or in Events with Counter: Events.
 _SETTINGS = {
     ParadigmType.OPENLOOP: [],
     ParadigmType.CLOSEDLOOP: [("HoldMs", "ms", 0), ("MaxOnMs", "ms", 0)] + _EVENTS,
@@ -120,13 +123,15 @@ def _ParseValue(kind, name, raw, lineNumber):
 
 
 def _CheckRequirement(kind, name, value, counter, lineNumber):
-    """A Requirement setting is a number of Events, or ms of contact that the DFM counts in steps of
-    CONTACT_UNIT_MS."""
+    """A Requirement setting is ms of contact that the DFM counts in steps of CONTACT_UNIT_MS, or a
+    number of Events."""
     if counter == Counter.CONTACT:
         low = 0 if kind == "requirement" else CONTACT_UNIT_MS
         if value % CONTACT_UNIT_MS:
-            raise ParadigmError("With Counter: Contact, {} is in ms of contact and must be a multiple of {}, not {}".format(
-                name, CONTACT_UNIT_MS, value), lineNumber)
+            # Most likely a Program written for Events, from before Contact was the default.
+            raise ParadigmError("{} is in ms of contact (Counter: Contact, the default) and must be a multiple of {}, "
+                                "not {}. To count feeding bouts instead, add 'Counter: Events'".format(
+                                    name, CONTACT_UNIT_MS, value), lineNumber)
         if not low <= value <= MAX_CONTACT_MS:
             raise ParadigmError("{} must be from {} to {} ms, not {}".format(name, low, MAX_CONTACT_MS, value), lineNumber)
     elif value > MAX_COUNT:
@@ -141,7 +146,7 @@ class Paradigm:
         self.type = paradigmType
         self.settings = {}
         settings = settings or {}
-        isContact = settings.get("Counter", Counter.EVENTS) == Counter.CONTACT
+        isContact = settings.get("Counter", DEFAULT_COUNTER) == Counter.CONTACT
         for settingName, _, default in _LIGHT + _SETTINGS[paradigmType]:
             # With Counter: Contact the defaults are the smallest and largest ms the DFM counts.
             if settingName == "Cap" and isContact:
@@ -179,7 +184,8 @@ class Paradigm:
 
     @property
     def countsContact(self):
-        """A ratio Paradigm whose Requirement is ms of contact rather than Events (firmware 4.1.0)."""
+        """A ratio Paradigm whose Requirement is ms of contact rather than Events (firmware 4.0.1).
+        Ratio Paradigms count Contact unless they say Counter: Events; other types have no Counter."""
         return self.settings.get("Counter", Counter.EVENTS) == Counter.CONTACT
 
     #region Building
@@ -215,7 +221,7 @@ class Paradigm:
             values[settingName] = _ParseValue(kind, settingName, raw, lineNumber)
             lines[settingName] = lineNumber
 
-        counter = values.get("Counter", Counter.EVENTS)
+        counter = values.get("Counter", DEFAULT_COUNTER)
         for settingName, kind, _ in _SETTINGS[paradigmType]:
             if kind in _REQUIREMENT_KINDS and settingName in values:
                 _CheckRequirement(kind, settingName, values[settingName], counter, lines[settingName])
@@ -226,6 +232,11 @@ class Paradigm:
                     if other != series and settingName in values:
                         raise ParadigmError("{} is only for the {} Series".format(settingName, SERIES_NAMES[other]),
                                             lines[settingName])
+            # Scale's default of 5 is the Richardson-Roberts series in Events; as ms of contact it
+            # would be next to nothing, so with Contact it has to be given.
+            if series == Series.EXPONENTIAL and counter == Counter.CONTACT and "Scale" not in values:
+                raise ParadigmError("[Paradigm {}]: with Counter: Contact (the default), Scale is ms of contact and "
+                                    "has no default; give it, or add 'Counter: Events'".format(name), sectionLine)
         for settingName, _, default in _SETTINGS[paradigmType]:
             if default is REQUIRED and settingName not in values:
                 if paradigmType == ParadigmType.PROGRESSIVERATIO and settingName not in _SERIES_SETTINGS[series] \
@@ -268,10 +279,10 @@ class Paradigm:
             paradigmType = ParadigmType.FIXEDINTERVAL
             settings = dict(light, PulseWidth=pulseWidth, ActivationMs=decay, LockoutMs=delay)
         else:
-            raise ParadigmError("Old progressive ratio settings (OptoDelay and MaxTimeOn both above 0) counted "
-                                "milliseconds of contact, not feeding bouts. Rewrite the program with a "
-                                "[Paradigm] section of Type ProgressiveRatio; Counter: Contact counts contact as "
-                                "they did (see docs/ProgramFormat.md).")
+            raise ParadigmError("Old progressive ratio settings (OptoDelay and MaxTimeOn both above 0) can't be "
+                                "converted exactly. Rewrite the program with a [Paradigm] section of Type "
+                                "ProgressiveRatio, which counts ms of contact as they did, with FirstRequirement "
+                                "and Step from OptoDelay (see 'Rewriting progressive ratio' in docs/ProgramFormat.md).")
         # e.g. ClosedLoop-40Hz-8ms-Hold500-MaxOn0. Equal old settings give equal names, and so the
         # same Paradigm.
         name = "{}-{}Hz-{}ms".format(TYPE_NAMES[paradigmType], settings["Frequency"], settings["PulseWidth"]) + "".join(
@@ -319,12 +330,13 @@ class Paradigm:
     def FirmwareNeeded(self, version=None):
         """Why DFM firmware with this version (a tuple such as (1, 0, 5), as COMM.FirmwareVersionTuple
         gives it) can't run this Paradigm, naming the firmware it needs, or None if it can. Ratio
-        types and Acclimation need 4.0.0, and Counter: Contact 4.1.0: 4.0.0 would ignore it and count
-        Events. Firmware 1.0.5, the only one below 2.0.0, also doesn't know the NonFeeding type (it
-        would run fixed interval instead, with no warning) and its 2-byte times stop at 65535 ms.
-        Without a version (a V2 DFM), only what needs 4.0.0 or later is reported."""
+        types and Acclimation need 4.0.0, and Counter: Contact, their default, 4.0.1: 4.0.0 would
+        ignore it and count Events. Firmware 1.0.5, the only one below 2.0.0, also doesn't know the
+        NonFeeding type (it would run fixed interval instead, with no warning) and its 2-byte times
+        stop at 65535 ms. Without a version (a V2 DFM), only what needs 4.0.0 or later is reported."""
         if self.countsContact and (version is None or version < CONTACT_COUNTER_FIRMWARE):
-            return "Counter: Contact needs firmware {}.{}.{}".format(*CONTACT_COUNTER_FIRMWARE)
+            return ("counting contact (Counter: Contact, the {} default) needs firmware {}.{}.{}; with "
+                    "'Counter: Events' it runs on 4.0.0").format(self.typeName, *CONTACT_COUNTER_FIRMWARE)
         if version is None or version < (4, 0, 0):
             if self.IsRatioType():
                 return "the {} Paradigm type needs firmware 4.0.0".format(self.typeName)
@@ -358,9 +370,8 @@ class Paradigm:
                 other = Series.EXPONENTIAL if self.Get("Series") == Series.ARITHMETIC else Series.ARITHMETIC
                 if settingName in _SERIES_SETTINGS[other]:
                     continue
-            # Counter is shown only for Contact, so an Events Paradigm reads as it did before 4.1.0.
-            if kind == "counter" and not self.countsContact:
-                continue
+            # Counter is always shown: Program.txt written before 4.0.1 has none and counted Events,
+            # so a reader can't take a missing Counter as the default.
             value = self.settings[settingName]
             unit = _UNITS.get(kind, "")
             if self.countsContact and (kind in _REQUIREMENT_KINDS or settingName == "Scale"):

@@ -12,7 +12,7 @@ The constraint that shaped the estimator: in the 9 recordings (65 DFMs) in pyfli
 - Firmware older than 4.0.0 resets its hold, lockout and training state and turns its LEDs off on every instruction (`SetLEDParams` in 3.5.x). It gets the Tracked baseline only with the instruction it receives anyway at an Interval or Cycle change.
 - A 76-minute plateau moves the Tracked baseline about 6 counts, which is less than the 10-count step, so nothing is sent and the light follows the fly throughout. Slow drift is followed without lag. A sudden step takes hours to follow and is stopped by the cap, with an error on the Messages page.
 - With the 10-count step and the 10-minute check, most recordings of sucrose Wells send no update at all.
-- The data file gains `Baseline1`–`Baseline12` (102 fields). They are written for `Baseline: Yes` as well, which removes pyflic's guess at the fixed baseline.
+- The data file gains one column, `BaselineSet` (91 fields), naming a row of the recording's `Baselines.csv`, which lists each Baseline set with when and why PyMCU sent it. (Amended 15 November 2026: it first carried all 12 Baselines on every row, about 30 bytes a record for values that rarely change.) Both are written for `Baseline: Yes` as well, which removes pyflic's guess at the fixed baseline.
 - A same-number resend (a retry, a DFM restart, a record showing another instruction) must carry the Thresholds that number was first sent with. So the Baselines are changed only immediately before a new number is issued, and each number keeps its own copy.
 
 ## Considered options

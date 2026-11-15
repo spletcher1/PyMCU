@@ -27,6 +27,11 @@ INSTRUCTION_APPLY_SECONDS = 0.5
 # Times an instruction is sent again because the DFM's records showed another one.
 MAX_INSTRUCTION_RESENDS = 3
 
+def StartingBaseline(total, count):
+    """The mean of count readings that add up to total, rounded half up to a whole count (the
+    Starting baseline of docs/adaptive-baseline-plan.md, from the first 10 records)."""
+    return (2*int(total) + int(count)) // (2*int(count))
+
 def UsesV2Instructions(version):
     # Firmware 2.0.0 and later take 4-byte decay, delay and max time on.
     return COMM.FirmwareVersionTuple(version) >= (2, 0, 0)
@@ -41,9 +46,17 @@ READ_FAILURES = {
 
 # What an instruction number stood for: the Interval index (from 0) and Cycle, or None for
 # instructions outside the Program (idle, outputs on), and the 12 Baselines its Thresholds were
-# built on, or None. The Baselines are a copy: the Program's instruction objects are reused in
-# every Cycle and get new Baselines (docs/adaptive-baseline-plan.md, rule 11).
-InstructionInfo = collections.namedtuple("InstructionInfo", "index cycle instruction baseline")
+# built on with the number of their set in Baselines.csv, or None. The Baselines are a copy: the
+# Program's instruction objects are reused in every Cycle and get new Baselines
+# (docs/adaptive-baseline-plan.md, rule 11).
+InstructionInfo = collections.namedtuple("InstructionInfo", "index cycle instruction baseline baselineSet")
+# One row of Baselines.csv: a DFM's Baselines from the time PyMCU first sent them, numbered from 1
+# for each DFM and recording, and why: the first set, a new Interval or Cycle, or an update of
+# Baseline: Adaptive. A new set is made only when the Baselines change.
+BaselineSet = collections.namedtuple("BaselineSet", "number time reason values")
+BASELINE_SET_START = "Start"
+BASELINE_SET_INTERVAL = "Interval"
+BASELINE_SET_UPDATE = "Update"
 # Instruction numbers remembered, for records that arrive after later instructions were sent.
 INSTRUCTION_HISTORY = 256
 # Records held after a restart before they are stored anyway (a DFM holds 780).
@@ -78,6 +91,11 @@ class DFM:
         self.signalBaselines=array.array("i",(0 for i in range(0,12)))
         self.currentLinkage = array.array("i",[1,2,3,4,5,6,7,8,9,10,11,12])
         self.baselineSamples=0
+        self.baselineSums=[0]*12
+        # The recording's Baseline sets (Baselines.csv), and for firmware before 4.0.0 the number of
+        # the last one acknowledged.
+        self.baselineSets=[]
+        self.ackedBaselineSet=None
         self.isCalculatingBaseline=False
         # Baseline: Adaptive (docs/adaptive-baseline-plan.md): (rate per hour, cap) or None, and the
         # tracker, made once the Starting baseline is complete.
@@ -206,19 +224,24 @@ class DFM:
         for i in range(0,len(self.signalBaselines)):
             self.signalBaselines[i]=0
         self.baselineSamples=0
+        self.baselineSums=[0]*12
+        self.baselineSets=[]
         self.isCalculatingBaseline = False
         self.adaptiveSettings = None
         self.tracker = None
         self.ackedBaseline = None
+        self.ackedBaselineSet = None
         self.isOlderFirmwareNoticeGiven = False
     def UpdateBaseline(self):
         last = self.GetLastAnalogData(False)
         if last is None:
             return
-        for i in range(0,12):
-            tmp = self.signalBaselines[i] * self.baselineSamples
-            self.signalBaselines[i] = int((tmp + last[i])/(self.baselineSamples+1))
         self.baselineSamples = self.baselineSamples+1
+        for i in range(0,12):
+            # The mean of the readings so far, rounded to the nearest count. Summing and dividing
+            # once keeps it exact: a running mean truncated at every reading lost up to 2 counts.
+            self.baselineSums[i] += int(last[i])
+            self.signalBaselines[i] = StartingBaseline(self.baselineSums[i], self.baselineSamples)
         if (self.baselineSamples>=10):
             self.isCalculatingBaseline=False
             if(self.adaptiveSettings is not None):
@@ -263,9 +286,11 @@ class DFM:
         # The Baselines change only here and in UpdateInstruction, just before a new number, so a
         # resend of an earlier number carries the Thresholds it was first sent with (rule 9).
         self.currentInstruction.SetBaseline(values)
-        self._SetInstruction(self.currentInstruction,index,cycle,values)
+        self._SetInstruction(self.currentInstruction,index,cycle,values,BASELINE_SET_UPDATE)
         self.NewMessage(self.ID,sp.packetTime,sp.recordIndex,
-                        "DFM {}: baseline updated, {}.".format(self.ID,", ".join(moved)),Enums.MESSAGETYPE.NOTICE)
+                        "DFM {}: baseline updated (set {}), {}.".format(
+                            self.ID,self.instructionInfo[self.instructionNumber].baselineSet,", ".join(moved)),
+                        Enums.MESSAGETYPE.NOTICE)
     #endregion
 
     #region Packet processing, reading, writing, file methods.
@@ -487,9 +512,11 @@ class DFM:
         if not sp.isV4:
             # No instruction number: the last instruction acknowledged, to within one read.
             sp.baseline = self.ackedBaseline
+            sp.baselineSet = self.ackedBaselineSet
             return
         info = self.instructionInfo.get(sp.instructionNumber)
         sp.baseline = None if info is None else info.baseline
+        sp.baselineSet = None if info is None else info.baselineSet
         if info is not None:
             sp.interval = info.index
             sp.cycle = info.cycle
@@ -568,20 +595,31 @@ class DFM:
             # are, with no D check (docs/adaptive-baseline-plan.md, rule 8).
             baseline = self.tracker.Rounded() if self.tracker is not None else list(self.signalBaselines)
             instruct.SetBaseline(baseline)
-        self._SetInstruction(instruct,index,cycle,baseline)
+        self._SetInstruction(instruct,index,cycle,baseline,
+                             BASELINE_SET_INTERVAL if self.baselineSets else BASELINE_SET_START)
 
-    def _SetInstruction(self,instruct,index=None,cycle=None,baseline=None):
+    def _SetInstruction(self,instruct,index=None,cycle=None,baseline=None,reason=BASELINE_SET_INTERVAL):
         """Makes instruct the one to send, under a new number. baseline: the 12 Baselines its
-        Thresholds were just built on, or None if they don't depend on one."""
+        Thresholds were just built on, or None if they don't depend on one; reason: why, for a new
+        Baseline set."""
         self.isOutputsOn = False
         self.currentInstruction = instruct
         self.currentPosition = (index,cycle)
         self.instructionNumber = self.instructionNumber % 0xFFFF + 1
+        values = None if baseline is None else tuple(int(v) for v in baseline)
         self.instructionInfo[self.instructionNumber] = InstructionInfo(
-            index,cycle,instruct,None if baseline is None else tuple(int(v) for v in baseline))
+            index,cycle,instruct,values,None if values is None else self._BaselineSetFor(values,reason))
         while len(self.instructionInfo) > INSTRUCTION_HISTORY:
             self.instructionInfo.popitem(last=False)
         self.isInstructionUpdateNeeded=True
+
+    def _BaselineSetFor(self,values,reason):
+        """The number of the Baseline set holding values: the last one if they haven't changed,
+        otherwise a new one (a new row of Baselines.csv)."""
+        if(self.baselineSets and self.baselineSets[-1].values == values):
+            return self.baselineSets[-1].number
+        self.baselineSets.append(BaselineSet(len(self.baselineSets)+1,datetime.datetime.today(),reason,values))
+        return self.baselineSets[-1].number
 
     def GetCurrentParadigmState(self):
         """For the DFM page: (Paradigm name, type name, Interval from 1 or None, Cycle or None, the
@@ -745,6 +783,7 @@ class DFM:
         Interval or Cycle (docs/adaptive-baseline-plan.md, rule 10); that is said once."""
         info = self.instructionInfo.get(number)
         self.ackedBaseline = None if info is None else info.baseline
+        self.ackedBaselineSet = None if info is None else info.baselineSet
         if(self.tracker is not None and self.ackedBaseline is not None and not self.isOlderFirmwareNoticeGiven):
             self.isOlderFirmwareNoticeGiven = True
             self.NewMessage(self.ID,datetime.datetime.today(),0,

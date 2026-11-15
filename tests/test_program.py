@@ -37,7 +37,10 @@ class NewFormat(unittest.TestCase):
     def test_example_file(self):
         program, ok = LoadFile("ParadigmExamples.txt")
         self.assertTrue(ok, program.loadError)
-        self.assertEqual(len(program.theParadigms), 6)
+        self.assertEqual(len(program.theParadigms), 7)
+        p = program.theParadigms
+        self.assertEqual([p[n].countsContact for n in ("pr10", "fr5", "prcontact")], [False, False, True])
+        self.assertEqual(p["prcontact"].SettingsWords(), [500, 0, 100, 100, 65535])
         dfm5 = program.theInstructionSets[5]
         self.assertEqual([i.paradigm.name for i in dfm5.instructions], ["Closed", "PR10"])
         self.assertEqual(dfm5.instructions[1].elapsedStart, datetime.timedelta(minutes=30))
@@ -59,17 +62,30 @@ ActivationMs: 500
 Step: 10
 [Paradigm B]
 Type: ProgressiveRatio
+Counter: Events
 ActivationMs: 500
 Series: exponential
+[Paradigm E]
+Type: ProgressiveRatio
+Counter: Events
+ActivationMs: 500
+Step: 10
 [DFM]
 ID: 1
 Interval: A, Lit, {}, 10
 """.format(WELLS))
         self.assertTrue(ok, program.loadError)
-        a, b = program.theParadigms["a"], program.theParadigms["b"]
+        a, b, e = program.theParadigms["a"], program.theParadigms["b"], program.theParadigms["e"]
         self.assertEqual((a.frequency, a.pulseWidth, a.eventGapMs, a.acclimation), (40, 8, 100, 0))
-        self.assertEqual(a.SettingsWords(), [500, 0, 1, 10, 65535])
+        # Without a Counter, a ratio Paradigm counts ms of contact: Step 10 is 10 ms, FirstRequirement
+        # defaults to 10 ms and Cap to 655350 ms, sent in the DFM's 10 ms units.
+        self.assertTrue(a.countsContact)
+        self.assertEqual((a.Get("FirstRequirement"), a.Get("Cap")), (10, 655350))
+        self.assertEqual(a.SettingsWords(), [500, 0, 1, 1, 65535])
+        self.assertEqual(a.InstructionFlags(), Paradigm.INSTRUCTION_COUNT_CONTACT)
+        # Counter: Events keeps the Event defaults.
         self.assertEqual(b.SettingsWords(), [500, 1, 5000, 200, 65535])
+        self.assertEqual((e.countsContact, e.SettingsWords(), e.InstructionFlags()), (False, [500, 0, 1, 10, 65535], 0))
 
     def test_contact_counter(self):
         program, ok = Load("""
@@ -117,8 +133,10 @@ Interval: C, Lit, {}, 10
         self.assertEqual((p["e"].countsContact, p["e"].SettingsWords()), (False, [500, 0, 1, 5, 65535]))
         self.assertIn("ActivationMs 500 ms, Counter Contact, Series Arithmetic, FirstRequirement 1000 ms, "
                       "Step 1000 ms, Cap 655350 ms", p["c"].Describe())
-        # An Events Paradigm is described as it was before Counter existed.
-        self.assertNotIn("Counter", p["e"].Describe())
+        # Counter is always written, so Program.txt says which a ratio Paradigm counted; files
+        # written before 4.0.1 have none and counted Events.
+        self.assertIn("ActivationMs 500 ms, Counter Events, Series Arithmetic, FirstRequirement 1, Step 5, Cap 65535,",
+                      p["e"].Describe())
 
     def test_contact_counter_errors(self):
         pr = "[Paradigm A]\nType: ProgressiveRatio\nActivationMs: 5\n"
@@ -126,9 +144,15 @@ Interval: C, Lit, {}, 10
         self.ExpectError(pr + "Counter: Licks\nStep: 10", 4, "Counter must be Events or Contact")
         self.ExpectError(pr + "Counter: Contact\nStep: 1005", 5, "must be a multiple of 10")
         self.ExpectError(pr + "Counter: Contact\nStep: 700000", 5, "655350")
-        self.ExpectError(pr + "Step: 70000", 4, "Step must be from 0 to 65535, not 70000")
+        self.ExpectError(pr + "Counter: Events\nStep: 70000", 5, "Step must be from 0 to 65535, not 70000")
         self.ExpectError("[Paradigm A]\nType: FixedRatio\nActivationMs: 5\nCounter: Contact\nRatio: 5", 5,
                          "must be a multiple of 10")
+        # A Program written for Events, from before Contact was the default, is caught and told why.
+        self.ExpectError(pr + "Step: 5", 4, "Step is in ms of contact (Counter: Contact, the default)")
+        self.ExpectError(pr + "Step: 5", 4, "add 'Counter: Events'")
+        self.ExpectError("[Paradigm A]\nType: FixedRatio\nActivationMs: 5\nRatio: 3", 4, "add 'Counter: Events'")
+        # Exponential's Scale of 5 is Events; in ms of contact it has to be given.
+        self.ExpectError(pr + "Series: Exponential", 1, "Scale is ms of contact and has no default")
 
     def ExpectError(self, text, line, fragment):
         program, ok = Load(text)
@@ -141,7 +165,7 @@ Interval: C, Lit, {}, 10
         self.ExpectError("[Paradigm A]\nType: ClosedLoop\nHoldMs: 5\nStep: 3", 4, "ClosedLoop Paradigms don't use Step")
         self.ExpectError("[Paradigm A]\nType: ClosedLoop\nColour: red", 3, "Unknown setting 'Colour'")
         self.ExpectError("[Paradigm A]\nType: FixedRatio\nActivationMs: 5", 1, "needs Ratio")
-        self.ExpectError("[Paradigm A]\nType: ProgressiveRatio\nActivationMs: 5\nStep: 1\nScale: 3", 5,
+        self.ExpectError("[Paradigm A]\nType: ProgressiveRatio\nActivationMs: 5\nStep: 1000\nScale: 3", 5,
                          "Scale is only for the Exponential Series")
         self.ExpectError("[Paradigm A]\nType: ClosedLoop\nFrequency: 100\nPulseWidth: 10", 4, "shorter than one period")
         self.ExpectError("[Paradigm A]\nType: Sometimes", 2, "Unknown Type 'Sometimes'")
@@ -260,9 +284,17 @@ class Timing(unittest.TestCase):
 
     def test_firmware_needed(self):
         program, ok = LoadFile("ParadigmExamples.txt")
+        self.assertTrue(ok, program.loadError)
         self.assertEqual(program.FirmwareNeeded(2), [])
         self.assertEqual(program.FirmwareNeeded(5), ["the ProgressiveRatio Paradigm type needs firmware 4.0.0"])
         self.assertEqual(program.FirmwareNeeded(6), ["the FixedRatio Paradigm type needs firmware 4.0.0"])
+        # DFM 7 counts contact, the default, which needs 4.0.1; Events run on 4.0.0.
+        contact = ["counting contact (Counter: Contact, the ProgressiveRatio default) needs firmware 4.0.1; "
+                   "with 'Counter: Events' it runs on 4.0.0"]
+        self.assertEqual(program.FirmwareNeeded(7), contact)
+        self.assertEqual(program.FirmwareNeeded(7, (4, 0, 0)), contact)
+        self.assertEqual(program.FirmwareNeeded(7, (4, 0, 1)), [])
+        self.assertEqual(program.FirmwareNeeded(5, (4, 0, 0)), [])
         # Firmware 1.0.5 also can't take NonFeeding or times above 65535 ms; 2.0.1 can.
         program, ok = Load("[Paradigm NF]\nType: NonFeeding\nOnDelayMs: 500\n[DFM]\nID: 1\nInterval: NF, Lit, {}, 10".format(WELLS))
         self.assertTrue(ok, program.loadError)

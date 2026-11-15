@@ -3,7 +3,7 @@
 
 Two DFMs (IDs 1 and 2), each with six two-well choice chambers (Linkage 1,1,2,2,...). Feeding on
 a chamber's A well (1A, 2A ...) earns light for both its LEDs under a ProgressiveRatio Paradigm
-(Arithmetic, FirstRequirement 1, Step 5, ActivationMs 500) that starts with 10 Acclimation
+counting Events (Counter: Events, Arithmetic, FirstRequirement 1, Step 5, ActivationMs 500) that starts with 10 Acclimation
 Activations; the B wells are Off. Two hours, firmware 4.0.0.
 
 - Flies are simulated bout by bout and lick by lick. A fly's urge to feed from the A well is
@@ -84,6 +84,7 @@ Linkage: 1,1,2,2,3,3,4,4,5,5,6,6
 [Paradigm PR5]
 Type: ProgressiveRatio
 ActivationMs: {activation}
+Counter: Events
 Series: Arithmetic
 FirstRequirement: {first}
 Step: {step}
@@ -219,11 +220,8 @@ def WellSignal(rng, resting, bouts, amplitude, totalMs, feature=None):
 
 
 def Baseline(values):
-    """PyMCU's baseline (DFM.UpdateBaseline): a running integer average of the first 10 records."""
-    baseline = 0
-    for n, value in enumerate(values[:10]):
-        baseline = int((baseline * n + value) / (n + 1))
-    return baseline
+    """PyMCU's baseline (DFM.UpdateBaseline): the mean of the first 10 records, rounded half up."""
+    return DFM.StartingBaseline(sum(int(v) for v in values[:10]), 10)
 
 
 def RunParadigm(contact, applyMs):
@@ -537,6 +535,11 @@ def main():
     messages.AddMessage(Message.Message(0, lastTime, 0, "Recording ended", Enums.MESSAGETYPE.ANNOTATION, -99))
     with open(os.path.join(folder, "Messages.csv"), "w") as f:
         f.write(messages.GetMessageStringForFile())
+    # The Baseline sets the data files' BaselineSet column numbers, as DFMGroup.WriteBaselines writes them.
+    baselines = DFMGroup.BaselinesFileText(dfms.values())
+    if baselines is not None:
+        with open(os.path.join(folder, DFMGroup.BASELINES_FILE), "w") as f:
+            f.write(baselines)
 
     for bout in truth["bouts"]:
         bout["StartTime"] = (startTime + datetime.timedelta(milliseconds=bout["StartMs"])).strftime("%H:%M:%S.%f")[:-3]

@@ -2,6 +2,8 @@
 
 PyMCU only, for DFM firmware 4.0.0; firmware is unchanged. Decided in the design review of 1 November 2026. Stages S1–S5 were built on 1 November 2026 (PyMCU and pyflic `v4_Dev`, not committed); S6, the bench, is still to do. The S3 replay failed all three of its pass criteria; [adaptive-baseline-replay.md](adaptive-baseline-replay.md) has the numbers, and [Replay findings](#replay-findings) explains why. Terms are in [../CONTEXT.md](../CONTEXT.md), and the new ones are under [Terms](#terms). The data-file columns this changes are described in [DataFileColumns.md](DataFileColumns.md). The Program format is in [ProgramFormat.md](ProgramFormat.md).
 
+**Amended 15 November 2026.** The data file no longer carries `Baseline1`–`Baseline12` on every row. It has one column, `BaselineSet`, naming a row of the recording's `Baselines.csv`: `DFM, Set, Date, Time, Reason, Baseline1`–`Baseline12`, one row per DFM and Baseline set, a new set only when the Baselines change (`Reason` is `Start`, `Interval` or `Update`). That makes 91 fields per DFM row instead of 102. The Starting baseline is now the mean of the first 10 records rounded to the nearest count, summed and divided once; the running mean truncated at every record came out up to 2 counts low. Where this document says `Baseline1`–`Baseline12` on the data file's rows, read `BaselineSet` and `Baselines.csv`. pyflic reads both forms.
+
 This document is the whole specification. An implementer needs nothing else beyond PyMCU, pyflic and DFMV3_V2.
 
 - [Goal](#goal)
@@ -53,7 +55,7 @@ That decides the estimator. The adaptive baseline must follow 1–4 counts/h but
 | Where it runs | PyMCU. It sends updated Thresholds in a new instruction with the keep-state flag. | No firmware release; works with every 4.0.0 board. Doing it in firmware would cost about 19 KB of the ring's RAM (780 → about 650 records) and change the Status record layout. Drift is slow, so 200 ms records are plenty. |
 | Direction and limit | Both directions, capped at the starting baseline ± `BaselineCapCounts`, with one warning per Well at the cap | "Mild drift" only. A capped tracker can't run away. |
 | How it is turned on | `Baseline: Adaptive` in `[General]`. `Yes` stays fixed. | Existing Programs and analyses are unchanged. |
-| What is recorded | `Baseline1`–`Baseline12` on every row, written by PyMCU from its own record of each instruction it sent. Nothing new crosses the bus. Also written for `Baseline: Yes`. | The Threshold is this baseline plus the margin in `Program.txt`. pyflic's guess of the fixed baseline ("the first 10 s") is wrong today too. |
+| What is recorded | (Amended: `BaselineSet` and `Baselines.csv`.) `Baseline1`–`Baseline12` on every row, written by PyMCU from its own record of each instruction it sent. Nothing new crosses the bus. Also written for `Baseline: Yes`. | The Threshold is this baseline plus the margin in `Program.txt`. pyflic's guess of the fixed baseline ("the first 10 s") is wrong today too. |
 | Live plot | Subtracts the Baseline in force | A trace crossing the Threshold on screen means the light can respond. |
 | Firmware older than 4.0.0 | Gets the Tracked baseline only with the instruction it receives anyway at an Interval or Cycle change; one notice per board | Any instruction resets its hold, lockout and training state and turns its LEDs off (3.5.x `SetLEDParams`), so a resend in the middle of an Interval would disturb the fly's light. |
 | The 4.0.0 pulse restart | Accepted | Each instruction runs `SetOptoParameters`, which restarts the pulse counters: a Well lit at that moment has one pulse cycle cut short. This already happens at every Interval change. |
@@ -141,7 +143,7 @@ Each stage ends when its criterion holds. Only S6 needs real DFMs.
 
 ### StatusPacket.py
 
-- `BASELINE_COLUMNS = ",".join("Baseline{}".format(w) for w in range(1, 13))`, written after `OnMs12`. A DFM file has 102 fields; the Environmental Monitor file keeps 27.
+- `BASELINE_SET_COLUMN = "BaselineSet"`, written after `OnMs12` (amended; it was 12 `Baseline` columns). A DFM file has 91 fields; the Environmental Monitor file keeps 27. `DFMGroup.WriteBaselines` writes `Baselines.csv` from each DFM's `baselineSets` before each pass of data and at the end.
 - `sp.baseline` defaults to `None`. `GetDataBufferPrintPacket` writes 12 integers, or 12 `NA` when it is `None`. It is `NA` in Interval 0 (`isBeforeProgram`), after the Program ends, with `Baseline: No`, and for idle or Toggle Outputs instructions.
 - For older firmware, the 63 Paradigm columns stay `NA`, but the `Baseline` columns are filled by the acknowledgement rule above.
 
@@ -189,7 +191,7 @@ In `tests/test_dfm.py` and `tests/test_program.py`, with the fakes in `tests/sup
 - A new Interval under Adaptive carries `round(tracked)` with no D check (rule 8).
 - A 3.5.2 board gets no mid-Interval updates, gets the Tracked baseline at the next Interval, and gets one notice. Its `Baseline` columns follow the acknowledgement.
 - `Baseline: Yes` writes the Starting baseline in every row from Interval 1 on; `Baseline: No` writes `NA`. Interval 0 rows are `NA` in both.
-- The data-file header has 102 fields and every row has 102.
+- The data-file header has 91 fields and every row has 91, ending `BaselineSet`; `Baselines.csv` lists each set (amended from 102 fields).
 - The cap warning appears once per Well, and the update notice is a Messages.csv-only notice.
 
 ## Replay
@@ -264,7 +266,7 @@ On the MCU with 4.0.0 DFMs:
 | Fastest updates from rising drift | about one every 2 h per DFM at the default R (10 counts ÷ 5 counts/h) |
 | A 76-minute plateau | moves the Tracked baseline about 6 counts; no update |
 | Cost of an update | one 63-byte instruction and its acknowledgement |
-| Data file | 102 fields per DFM row (was 90); Environmental Monitor 27 |
+| Data file | 91 fields per DFM row (was 90; 102 before the 15 November amendment), plus `Baselines.csv`; Environmental Monitor 27 |
 
 ## Out of scope
 

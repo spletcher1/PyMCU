@@ -12,6 +12,10 @@
 # Exponential (with Scale and Rate) is the Richardson and Roberts series instead. Acclimation
 # is 0 here, so there are no closed-loop Activations first; OptoTest 6 shows them.
 #
+# Counter: Events makes it count bouts. Ratio Paradigms count ms of contact unless they say
+# so (Counter: Contact is the default); this test counts bouts because they are easy to make
+# by hand, one touch each.
+#
 # Needs DFM firmware 4.0.0, which runs the ratio rules itself. PyMCU refuses it for older
 # boards. ID: All makes every connected DFM run it.
 
@@ -25,6 +29,7 @@ Type: ProgressiveRatio
 Frequency: 40
 PulseWidth: 8
 ActivationMs: 1000
+Counter: Events
 Series: Arithmetic
 FirstRequirement: 1
 Step: 2

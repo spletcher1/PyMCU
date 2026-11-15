@@ -119,12 +119,8 @@ def ReadWells(files):
 
 
 def StartingBaseline(values):
-    """DFM.UpdateBaseline's running whole-number mean of the first 10 records."""
-    baseline = [0] * 12
-    for n in range(10):
-        for w in range(12):
-            baseline[w] = int((baseline[w] * n + int(values[n, w])) / (n + 1))
-    return baseline
+    """DFM.UpdateBaseline's Starting baseline: the mean of the first 10 records, rounded half up."""
+    return [(2 * int(values[:10, w].sum()) + 10) // 20 for w in range(12)]
 
 
 def Replay(samples, values, rate, cap):

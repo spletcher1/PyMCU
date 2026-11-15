@@ -16,10 +16,27 @@ import MessagesList
 import Program
 import StatusPacket
 
-# DFM data files add the Paradigm and Baseline columns; the Environmental Monitor's keep the old ones.
+# DFM data files add the Paradigm columns and the Baseline set; the Environmental Monitor's keep the
+# old ones.
 DATA_FILE_HEADER = (StatusPacket.DATA_COLUMNS + "," + StatusPacket.PARADIGM_COLUMNS + ","
-                    + StatusPacket.BASELINE_COLUMNS + "\n")
+                    + StatusPacket.BASELINE_SET_COLUMN + "\n")
 ENVMON_FILE_HEADER = StatusPacket.DATA_COLUMNS + "\n"
+# Every DFM's Baseline sets, which the data files' BaselineSet column numbers
+# (docs/DataFileColumns.md).
+BASELINES_FILE = "Baselines.csv"
+BASELINES_HEADER = "DFM,Set,Date,Time,Reason," + ",".join("Baseline{}".format(w) for w in range(1, 13))
+
+
+def BaselinesFileText(dfms):
+    """Baselines.csv for these DFMs: a row per Baseline set, by DFM and set, or None if no DFM has
+    one yet (Baseline: No, or before the first Interval)."""
+    rows = []
+    for d in sorted(dfms, key=lambda d: d.ID):
+        for s in list(getattr(d, "baselineSets", [])):
+            rows.append("{},{},{},{},{},{}".format(d.ID, s.number, s.time.strftime("%m/%d/%Y"),
+                                                   s.time.strftime("%H:%M:%S"), s.reason,
+                                                   ",".join(str(v) for v in s.values)))
+    return None if not rows else BASELINES_HEADER + "\n" + "\n".join(rows) + "\n"
 # A new data file is started every 12 hours.
 DATA_FILE_SECONDS = 43200
 # Each DFM's records are written this often. The DFM drops records once they are acknowledged,
@@ -56,8 +73,10 @@ class DFMGroup:
         self.writeStartTimes={}
         # When each DFM's buffered records are next written (time.monotonic()).
         self.nextWriteTimes={}
-        # The message list's change count when Messages.csv was last written.
+        # The message list's change count when Messages.csv was last written, and the number of
+        # Baseline sets when Baselines.csv was.
         self.messagesWrittenAt=None
+        self.baselinesWrittenAt=0
         # DFMs whose last data file write failed, so the failure is reported only once.
         self.writeFailedIDs=set()
         self.currentDFMIndex=0
@@ -170,6 +189,22 @@ class DFMGroup:
             f.write(self.theMessageList.GetMessageStringForFile())
         self.messagesWrittenAt = changeCount
 
+    def WriteBaselines(self, force=False):
+        """Writes Baselines.csv, unless no Baseline set has been made since the last time. It is
+        written before the data, so no record names a set the file doesn't have yet."""
+        count = sum(len(getattr(d, "baselineSets", [])) for d in self.theDFMs.values())
+        if(not force and count == getattr(self, "baselinesWrittenAt", 0)):
+            return
+        text = BaselinesFileText(self.theDFMs.values())
+        if(text is None):
+            return
+        try:
+            with open(self.currentOutputDirectory+"/"+BASELINES_FILE,"w+") as f:
+                f.write(text)
+            self.baselinesWrittenAt = count
+        except OSError as e:
+            self.NewMessage(0, datetime.datetime.today(), 0, "Baselines.csv write failed: {}".format(e), Enums.MESSAGETYPE.ERROR)
+
     def SetDFMIdleStatus(self):
         for d in self.theDFMs.values():
             d.SetIdleStatus()
@@ -194,6 +229,8 @@ class DFMGroup:
             print("Except: Could not create data directory")
             self.NewMessage(0, datetime.datetime.today(), 0, "Create directory failed", Enums.MESSAGETYPE.ERROR)
         self.WriteProgram()
+        # Baselines.csv appears with the first Baseline set (WriteBaselines).
+        self.baselinesWrittenAt = 0
 
         self.theFiles.clear()
         self.writeStartTimes.clear()
@@ -215,6 +252,7 @@ class DFMGroup:
         elif(time.monotonic() >= self.nextWriteTimes[currentDFM.ID]):
             # A failed write is also tried again only then, not on every pass.
             self.nextWriteTimes[currentDFM.ID] = time.monotonic()+WRITE_SECONDS
+            self.WriteBaselines()
             if(self._WriteBufferedData(currentDFM)):
                 self.WriteMessages()
 
@@ -247,6 +285,7 @@ class DFMGroup:
 
     def WriteEnder(self):
         try:
+            self.WriteBaselines(force=True)
             for key, value in self.theDFMs.items():
                 # Records held after a DFM restarted go in before the file is closed.
                 if hasattr(value, "FlushPendingRecords"):
@@ -455,7 +494,7 @@ class DFMGroup:
     def CheckProgramCompatibility(self):
         """Why the loaded Program can't run on the DFMs present: one line per DFM, or an empty
         list. Each DFM is checked against its own firmware (read at connection): ratio types and
-        Acclimation need 4.0.0, Counter: Contact needs 4.1.0, and a 1.0.5 board also can't take the
+        Acclimation need 4.0.0, counting Contact (the ratio types' default) needs 4.0.1, and a 1.0.5 board also can't take the
         NonFeeding type or times above 65535 ms. A V2 (I2C) DFM runs the old settings, so only what
         needs 4.0.0 or later counts."""
         problems = []

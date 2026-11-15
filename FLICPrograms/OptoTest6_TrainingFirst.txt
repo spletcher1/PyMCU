@@ -8,8 +8,10 @@
 # own, so every Well gets exactly 3. The data file's phase column shows A while a Well is still
 # in Acclimation and M once it is on the main rule.
 #
-# Settings: Acclimation N gives N closed-loop Activations before the main rule. Ratio is the
-# Events per Activation; 5 would light every 5th bout. The same Acclimation setting works on
+# Settings: Acclimation N gives N closed-loop Activations before the main rule. With Counter:
+# Events, Ratio is the Events per Activation; 5 would light every 5th bout. Without it a ratio
+# Paradigm counts ms of contact (Counter: Contact, the default), and Ratio is that many ms. The
+# same Acclimation setting works on
 # FixedInterval and ProgressiveRatio Paradigms. The old way of asking for training, a frequency
 # above 512, is refused when a program loads; write Acclimation instead.
 #
@@ -26,6 +28,7 @@ Type: FixedRatio
 Frequency: 40
 PulseWidth: 8
 ActivationMs: 1000
+Counter: Events
 Ratio: 1
 Acclimation: 3
 

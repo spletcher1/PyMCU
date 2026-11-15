@@ -29,8 +29,9 @@ GOLDEN_2_0_0 = "05fd0100280008000003e800000000000007d000140000ffff001e03ff03ff03
 
 
 def PR10():
-    items = [("Type", "ProgressiveRatio", 2), ("ActivationMs", "500", 3), ("Step", "10", 4), ("Cap", "200", 5),
-             ("Acclimation", "3", 6)]
+    """Progressive ratio in Events (the golden instruction, the same bytes as the firmware's test)."""
+    items = [("Type", "ProgressiveRatio", 2), ("Counter", "Events", 3), ("ActivationMs", "500", 4), ("Step", "10", 5),
+             ("Cap", "200", 6), ("Acclimation", "3", 7)]
     return Paradigm.Paradigm.FromSettings("PR10", items, 1)
 
 
@@ -121,13 +122,16 @@ class Instructions(unittest.TestCase):
         self.assertEqual(hold70.FirmwareNeeded((1, 0, 5)), "times above 65535 ms need firmware 2.0.0")
         for version in (None, (1, 0, 5), (3, 5, 0)):
             self.assertEqual(PR10().FirmwareNeeded(version), "the ProgressiveRatio Paradigm type needs firmware 4.0.0")
-        for version in ((4, 0, 0), (4, 1, 0)):
+        for version in ((4, 0, 0), (4, 0, 1)):
             self.assertIsNone(PR10().FirmwareNeeded(version))
 
-    def test_contact_counter_needs_4_1_0(self):
+    def test_contact_counter_needs_4_0_1(self):
         # 4.0.0 would ignore the flag and count Events.
         for version in (None, (3, 5, 2), (4, 0, 0)):
-            self.assertEqual(Contact().FirmwareNeeded(version), "Counter: Contact needs firmware 4.1.0")
+            self.assertEqual(Contact().FirmwareNeeded(version),
+                             "counting contact (Counter: Contact, the ProgressiveRatio default) needs firmware 4.0.1; "
+                             "with 'Counter: Events' it runs on 4.0.0")
+        self.assertIsNone(Contact().FirmwareNeeded((4, 0, 1)))
         self.assertIsNone(Contact().FirmwareNeeded((4, 1, 0)))
 
     def test_contact_counter_flag_and_units(self):
@@ -213,8 +217,8 @@ class Records(unittest.TestCase):
 
     def test_data_line_matches_header(self):
         columns = len((StatusPacket.DATA_COLUMNS + "," + StatusPacket.PARADIGM_COLUMNS + ","
-                       + StatusPacket.BASELINE_COLUMNS).split(","))
-        self.assertEqual(columns, 102)
+                       + StatusPacket.BASELINE_SET_COLUMN).split(","))
+        self.assertEqual(columns, 91)
         v4 = self.Parse(Record())
         v4.interval, v4.cycle, v4.paradigmName, v4.activationTotals = 0, 2, "PR10", [5] * 12
         line = v4.GetDataBufferPrintPacket().rstrip("\n").split(",")
@@ -222,9 +226,9 @@ class Records(unittest.TestCase):
         tail = line[len(StatusPacket.DATA_COLUMNS.split(",")):]
         self.assertEqual(tail[:4], ["1", "2", "PR10", "A"])
         self.assertEqual(tail[3 + 12 + 12], "10")
-        self.assertEqual(set(line[-12:]), {"NA"})
-        v4.baseline = tuple(range(20, 32))
-        self.assertEqual(v4.GetDataBufferPrintPacket().rstrip("\n").split(",")[-12:], [str(v) for v in range(20, 32)])
+        self.assertEqual(line[-1], "NA")
+        v4.baseline, v4.baselineSet = tuple(range(20, 32)), 3
+        self.assertEqual(v4.GetDataBufferPrintPacket().rstrip("\n").split(",")[-1], "3")
         old = StatusPacket.StatusPacket(1, 5, Enums.DFMTYPE.PLETCHERV3)
         oldLine = old.GetDataBufferPrintPacket().rstrip("\n").split(",")
         self.assertEqual(len(oldLine), columns)

@@ -125,8 +125,8 @@ class Instructions(unittest.TestCase):
         d.CheckStatusV3()
         self.assertEqual(Sent(d), [])
         self.assertEqual(len(Refusals(5)), 1)
-        self.assertIn("Counter: Contact needs firmware 4.1.0", Refusals(5)[0].message)
-        d = MakeDFM("4.1.0")
+        self.assertIn("counting contact (Counter: Contact, the ProgressiveRatio default) needs firmware 4.0.1", Refusals(5)[0].message)
+        d = MakeDFM("4.0.1")
         d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, Contact()), False, 0, 1)
         d.CheckStatusV3()
         self.assertEqual([c[0] for c in Sent(d)], ["SendParadigmInstruction"])
@@ -218,7 +218,7 @@ class Records(unittest.TestCase):
         self.assertEqual(d.theData.GetLastDataPoint().activationTotals[0], 2)
 
     def test_contact_counts_written_in_ms(self):
-        d = MakeDFM("4.1.0")
+        d = MakeDFM("4.0.1")
         d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.ON, Contact()), False, 0, 1)
         sp = StatusPacket.StatusPacket(0, 5, Enums.DFMTYPE.PLETCHERV3)
         sp.ProcessStatusPacket(Record(index=1, number=d.instructionNumber, requirement=[100] * 12, progress=[37] * 12),
@@ -602,7 +602,7 @@ class Compatibility(unittest.TestCase):
         self.assertEqual(self.ProblemsWithProbedDFMs(MakeProbedDFM(b"2.0.1", ID=2), MakeProbedDFM(COMM.LEGACY_VERSION, ID=3)), [])
         self.assertEqual(self.ProblemsWithProbedDFMs(MakeProbedDFM(b"4.0.0", ID=2)), [])
 
-    def test_contact_counter_needs_4_1_0(self):
+    def test_contact_counter_needs_4_0_1(self):
         group = object.__new__(DFMGroup.DFMGroup)
         group.theDFMs = {2: MakeDFM("4.0.0")}
         group.theDFMs[2].ID = 2
@@ -613,9 +613,9 @@ class Compatibility(unittest.TestCase):
                         group.currentProgram.loadError)
         problems = group.CheckProgramCompatibility()
         self.assertEqual(len(problems), 1)
-        for words in ("DFM 2", "4.0.0", "Counter: Contact needs firmware 4.1.0"):
+        for words in ("DFM 2", "4.0.0", "counting contact (Counter: Contact, the ProgressiveRatio default) needs firmware 4.0.1"):
             self.assertIn(words, problems[0])
-        group.theDFMs[2].firmwareVersion = "4.1.0"
+        group.theDFMs[2].firmwareVersion = "4.0.1"
         self.assertEqual(group.CheckProgramCompatibility(), [])
 
 
@@ -690,7 +690,14 @@ class AdaptiveBaseline(unittest.TestCase):
         self.assertEqual(d.theData.GetLastDataPoint().baseline, (10,) * 12)
         self.Feed(d, 1, 40)
         line = d.theData.GetLastDataPoint().GetDataBufferPrintPacket().rstrip("\n").split(",")
-        self.assertEqual(line[-12:], ["20"] * 12)
+        self.assertEqual(line[-1], "2")
+        # Baselines.csv: the Starting baseline, then the update, each set with its 12 Baselines.
+        self.assertEqual([(s.number, s.reason, s.values) for s in d.baselineSets],
+                         [(1, "Start", (10,) * 12), (2, "Update", (20,) * 12)])
+        text = DFMGroup.BaselinesFileText([d]).splitlines()
+        self.assertEqual(text[0], DFMGroup.BASELINES_HEADER)
+        self.assertEqual(text[2].split(",")[:2] + text[2].split(",")[4:], ["5", "2", "Update"] + ["20"] * 12)
+        self.assertIn("(set 2)", notices[0].message)
         # The live plot subtracts the Baseline in force.
         self.assertEqual(list(d.GetLastAnalogData(True)), [20] * 12)
 
@@ -746,8 +753,13 @@ class AdaptiveBaseline(unittest.TestCase):
         self.Feed(d, 3010, 40)
         self.assertEqual(d.theData.GetLastDataPoint().baseline, (10,) * 12)
         lines = list(d.theData.theData)
-        self.assertEqual(lines[0].rstrip("\n").split(",")[-12:], ["NA"] * 12)   # Interval 0
-        self.assertEqual(len(lines[0].split(",")), 102)
+        self.assertEqual(lines[0].rstrip("\n").split(",")[-1], "NA")   # Interval 0
+        self.assertEqual(lines[-1].rstrip("\n").split(",")[-1], "1")
+        self.assertEqual(len(lines[0].split(",")), 91)
+        # A new Interval with the same Baselines keeps the set: Baselines.csv gets no new row.
+        d.UpdateInstruction(AdaptiveInterval(), True, 1, 1)
+        self.assertEqual([s.number for s in d.baselineSets], [1])
+        self.assertEqual(d.instructionInfo[d.instructionNumber].baselineSet, 1)
         d = MakeDFM()
         d.ResetBaseline()   # Baseline: No
         d.UpdateInstruction(AdaptiveInterval(), False, 0, 1)
@@ -763,10 +775,26 @@ class AdaptiveBaseline(unittest.TestCase):
         self.assertEqual(caps[0].messageType, Enums.MESSAGETYPE.ERROR)
         self.assertEqual(d.tracker.Rounded()[:2], [20, 10])
 
+    def test_starting_baseline_is_the_rounded_mean(self):
+        # FemNPF DFM 4 Well 6 (11/12/2026): these average 5.9. A running mean truncated at every
+        # reading gave 4; the sum divided once and rounded gives 6.
+        d = MakeDFM()
+        d.BaselineDFM()
+        d.UpdateInstruction(Instruction.DFMInstruction(Enums.DARKSTATE.OFF), False)
+        readings = [0, 0, 0, 0, 0, 0, 11, 37, 11, 0]
+        for value in readings:
+            self.Feed(d, 1, [value] * 5 + [value + 1] + [2] * 6)
+        self.assertFalse(d.isCalculatingBaseline)
+        self.assertEqual(list(d.signalBaselines[:6]), [6, 6, 6, 6, 6, 7])
+        self.assertEqual(list(d.signalBaselines[6:]), [2] * 6)
+        self.assertEqual([DFM.StartingBaseline(t, 10) for t in (54, 55, 56)], [5, 6, 6])
+
     def test_header_has_the_baseline_columns(self):
         header = DFMGroup.DATA_FILE_HEADER.rstrip("\n").split(",")
-        self.assertEqual(len(header), 102)
-        self.assertEqual(header[-12:], ["Baseline{}".format(w) for w in range(1, 13)])
+        self.assertEqual(len(header), 91)
+        self.assertEqual(header[-1], "BaselineSet")
+        self.assertEqual(DFMGroup.BASELINES_HEADER.split(",")[:6], ["DFM", "Set", "Date", "Time", "Reason", "Baseline1"])
+        self.assertIsNone(DFMGroup.BaselinesFileText([MakeDFM()]))
         self.assertEqual(len(DFMGroup.ENVMON_FILE_HEADER.split(",")), 27)
 
 

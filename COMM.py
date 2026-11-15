@@ -134,7 +134,8 @@ def InstructionPayload(instruction, timingSize):
 def ParadigmInstructionPayload(instruction, number, keepState):
     """Paradigm instruction body for firmware 4.0.0 and later. The layout is ParseParadigmInstruction()
     in DFMV3_V2 src/LEDControl.c: instruction number, Paradigm type, flags (bit 0: keep the Wells'
-    Paradigm state; bit 1, firmware 4.1.0: the ratio types count Contact), dark, frequency, pulse
+    Paradigm state; bit 1, firmware 4.0.1: the ratio types count Contact, set unless the Paradigm
+    says Counter: Events), dark, frequency, pulse
     width, Event gap, Acclimation, the type's 5 settings and the 12 thresholds (0xFFFE On, 0xFFFF Off)."""
     paradigm = instruction.paradigm
     flags = (INSTRUCTION_KEEP_STATE if keepState else 0) | paradigm.InstructionFlags()

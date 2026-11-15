@@ -1,18 +1,21 @@
 # Training 10: 24-hour progressive-ratio breakpoint,
-# DFMs 1-8. Needs DFM firmware 4.0.0 on every DFM.
+# DFMs 1-8. Needs DFM firmware 4.0.1 on every DFM.
 #
 # Each fly gets 10 closed-loop Activations (Acclimation),
-# then must make 1, 2, 3, 4 ... separate feeding bouts
-# to earn each 0.5 s of light. Bouts made while the LED
-# is on don't count. One Well in each linkage group of
-# four triggers; the other three get the same light
-# (yoked).
+# then must spend 1 s, 2 s, 3 s ... in contact with the
+# food to earn each 0.5 s of light. Contact adds up
+# across visits; contact while the LED is on doesn't
+# count. One Well in each linkage group of four
+# triggers; the other three get the same light (yoked).
 #
-# Converted from the old 5160,8,500,1000,... program,
-# which counted ms of contact (1000 ms more per light).
-# A bout is about 2 s of contact, so Step 1 is the
-# closest; Step 5 is about 10 times the old program.
-# The old program gave 9 Acclimation Activations.
+# The old 5160,8,500,1000,... program, which counted ms
+# of contact (OptoDelay 1000 ms more per light), as DFM
+# firmware 3.5.2 ran it: 10 Acclimation Activations,
+# then 1000 ms for the first light. Firmware 2.0.0 to
+# 3.5.1 gave 9 and a free first light; to match data
+# from those, use Acclimation: 9 and FirstRequirement: 10.
+# To count feeding bouts instead, add Counter: Events and
+# give FirstRequirement, Step and Cap in bouts.
 
 [General]
 ExpDurationMin: 1440
@@ -29,13 +32,13 @@ Type: ProgressiveRatio
 Frequency: 40
 PulseWidth: 8
 ActivationMs: 500
-# Bouts for light k: FirstRequirement + Step x (k - 1).
+# Counter: Contact is the default for ratio Paradigms.
+# ms of contact for light k: FirstRequirement + Step x (k - 1),
+# in multiples of 10, up to Cap (the old MaxTimeOn).
 Series: Arithmetic
-FirstRequirement: 1
-Step: 1
-Cap: 65535
-# A bout ends after 100 ms below the threshold.
-EventGapMs: 100
+FirstRequirement: 1000
+Step: 1000
+Cap: 655350
 Acclimation: 10
 
 # Interval: Paradigm, Lit, 12 thresholds (1A,1B ... 6B,

@@ -1,4 +1,5 @@
-# One DFM per Paradigm type (needs DFM firmware 4.0.0 for DFMs 5 and 6, and for Acclimation).
+# One DFM per Paradigm type (needs DFM firmware 4.0.0 for DFMs 5 and 6, and for Acclimation),
+# and on DFM 7 progressive ratio counting contact, the default (firmware 4.0.1).
 # Choice chambers: the A wells use threshold 20 and the B wells are Off; linkage lights both.
 [General]
 ExpDurationMin: 360
@@ -31,22 +32,38 @@ PulseWidth: 8
 OnDelayMs: 500
 MaxOnMs: 0
 
+# Progressive ratio in feeding bouts: 1, 11, 21 ... bouts per Activation, up to 200.
 [Paradigm PR10]
 Type: ProgressiveRatio
 Frequency: 40
 PulseWidth: 8
 ActivationMs: 500
+Counter: Events
 Series: Arithmetic
 Step: 10
 Cap: 200
 Acclimation: 10
 
+# Every 5th feeding bout.
 [Paradigm FR5]
 Type: FixedRatio
 Frequency: 40
 PulseWidth: 8
 ActivationMs: 500
+Counter: Events
 Ratio: 5
+
+# Progressive ratio in time on the food (no Counter line: Contact is the default): 1 s of
+# contact, then 2 s, 3 s ..., outside the Activations, the progressive ratio of firmware 3.5.2.
+[Paradigm PRContact]
+Type: ProgressiveRatio
+Frequency: 40
+PulseWidth: 8
+ActivationMs: 500
+Series: Arithmetic
+FirstRequirement: 1000
+Step: 1000
+Acclimation: 10
 
 [DFM]
 ID: 1
@@ -73,3 +90,7 @@ Interval: PR10, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 330
 [DFM]
 ID: 6
 Interval: FR5, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360
+
+[DFM]
+ID: 7
+Interval: PRContact, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360
