@@ -1,6 +1,6 @@
 # DFM data file columns (PyMCU 4.0.1)
 
-This is the reference for software that reads FLIC data files written by PyMCU 4.0.0 and later. It describes every column, with most detail on the 63 columns PyMCU 4.0.0 added for the Paradigm state, the 1 PyMCU 4.0.1 added for the Baseline set, and the recording's `Baselines.csv`: what each holds, when it is missing and how that is written, which Programs make it meaningful, and how to use it in analysis and reports.
+This is the reference for software that reads FLIC data files written by PyMCU 4.0.1, from DFMs with firmware 4.0.1 or later. It describes every column, with most detail on the 64 that follow the original 27 (63 for the Paradigm state, then `BaselineSet`) and on the recording's `Baselines.csv`: what each holds, when it is missing and how that is written, which Programs make it meaningful, and how to use it in analysis and reports. Files from earlier versions differ in a few ways, listed at [the end](#files-from-earlier-versions).
 
 The terms (Paradigm, Interval, Cycle, Event, Activation, Phase, Requirement and so on) have exact meanings, defined in [../CONTEXT.md](../CONTEXT.md). The Paradigm rules are in [ProgramFormat.md](ProgramFormat.md). The lab's analysis software, pyflic, reads these files; how it uses each column is in its `docs/firmware-4-data-in-pyflic.md`, and the end-to-end workflow is in [UserGuide.md](UserGuide.md).
 
@@ -11,9 +11,9 @@ The terms (Paradigm, Interval, Cycle, Event, Activation, Phase, Requirement and 
 - [Missing values](#missing-values)
 - [Which Programs make which columns meaningful](#which-programs-make-which-columns-meaningful)
 - [Deriving results](#deriving-results)
-- [Telling file versions apart](#telling-file-versions-apart)
 - [Checks worth running](#checks-worth-running)
 - [Test data](#test-data)
+- [Files from earlier versions](#files-from-earlier-versions)
 
 ## The recording folder
 
@@ -51,11 +51,10 @@ Program Type: Linear
 ```
 
 - The `Paradigms:` block gives each Paradigm's name, its type in brackets and every setting, defaults included. This is the only place the Paradigm **type** and settings appear; the data file has only the name. Parse it to map `Paradigm` → type.
-- A ratio Paradigm's line always has `Counter Contact` or `Counter Events` from PyMCU 4.0.1: what its Requirement and Progress count, and with `Contact` its Requirement settings carry `ms`, for example `PR (ProgressiveRatio): Frequency 40 Hz, PulseWidth 8 ms, ActivationMs 500 ms, Counter Contact, Series Arithmetic, FirstRequirement 1000 ms, Step 1000 ms, Cap 655350 ms, EventGapMs 100 ms, Acclimation 10`. A line without `Counter` was written before 4.0.1 and counted Events.
+- A ratio Paradigm's line always has `Counter Contact` or `Counter Events`: what its Requirement and Progress count. With `Contact` its Requirement settings carry `ms`, for example `PR (ProgressiveRatio): Frequency 40 Hz, PulseWidth 8 ms, ActivationMs 500 ms, Counter Contact, Series Arithmetic, FirstRequirement 1000 ms, Step 1000 ms, Cap 655350 ms, EventGapMs 100 ms, Acclimation 10`.
 - Each `***DFM n***` block lists that DFM's Intervals in order. The k-th line is `Interval` k in the data file. Each line gives its scheduled start, then the Interval in the order of a Program file's Interval line: the Paradigm name, `Dark` or `Lit`, the 12 thresholds (a number, `On` or `Off`) and the length.
-- The thresholds are the Program's, without the Baselines; `Baselines.csv` has those. PyMCU before 4.0.1 wrote baseline + threshold instead for a recording started again with a Program already used by an earlier one.
-- Linear and Repeating blocks list the Intervals that start before the recording ends, from the Start Time; a Repeating program's later passes aren't listed. A Circadian block lists every Interval at its clock time on the start day, the first at midnight, since Circadian Intervals run on the time of day. PyMCU before 4.0.1 listed Circadian Intervals like Linear ones, so a Circadian `Program.txt` from those builds can leave out the Intervals that start later in the day than the recording lasted, even one that was running, and its times count from the Start Time instead of midnight.
-- Recordings made before PyMCU wrote the Paradigm first have `Dark` or `Lit` before the Paradigm name. pyflic reads both orders; a parser of your own should too.
+- The thresholds are the Program's, without the Baselines; `Baselines.csv` has those.
+- Linear and Repeating blocks list the Intervals that start before the recording ends, from the Start Time; a Repeating program's later passes aren't listed. A Circadian block lists every Interval at its clock time on the start day, the first at midnight, since Circadian Intervals run on the time of day.
 - With `Baseline: Adaptive` the `Baseline:` line is followed by `BaselineRatePerHour:` and `BaselineCapCounts:` with the values in force, defaults included. `BaselineSet` and `Baselines.csv` record what the MCU did with them.
 - A recording started without loading a Program runs a simple built-in one, and its file starts with `***ALL DFM***`. It gives `Linkage:` and `Baseline:` at the top and one Interval, `Idle, Lit`, every Well `Off`, for the whole recording, with no `Paradigms:` block. `Idle` is ClosedLoop at 40 Hz and 8 ms.
 - Old-format Programs get generated Paradigm names that describe them, for example `ClosedLoop-40Hz-8ms-Hold500-MaxOn0`.
@@ -76,7 +75,7 @@ df["DateTime"] = pd.to_datetime(df["Date"] + " " + df["Time"], format="%m/%d/%Y 
 
 - Missing values are the literal `NA`, which pandas' `read_csv` and R's `read.csv`/`readr::read_csv` treat as missing by default. Don't pass `keep_default_na=False` or `na_filter=False`.
 - Without the nullable `Int64` dtype, any integer column with a missing value loads as float (1.0, 2.0 …).
-- Every row has the same number of fields as the header: 91 for a DFM file, 27 for an Environmental Monitor file. Development builds of 4.0.0 wrote 90 or 102 (see [Telling file versions apart](#telling-file-versions-apart)).
+- Every row has the same number of fields as the header: 91 for a DFM file, 27 for an Environmental Monitor file.
 - In R, use `colClasses` or `readr` column types for the same reason. `Paradigm` is a string, and a Paradigm could in principle be named `NA`. PyMCU does not prevent this, so treat such a name as a known limitation, not a case to handle.
 
 ## Original columns
@@ -95,17 +94,17 @@ These 27 are unchanged in position and name from PyMCU 3.x. Each row is one Stat
 | `OptoFreq` | int | LED pulse frequency (Hz) of the Paradigm in force. |
 | `OptoPW` | int | LED pulse width (ms) of the Paradigm in force. |
 | `OptoCol1` | int | Bit mask of which OptoLid LEDs were active at the instant the record was taken: bit 0 is Well 1, bit 11 is Well 12. It is a snapshot: a shorter on-period between snapshots won't appear. Use `OnMs` for exposure. |
-| `OptoCol2` | int | Always 0 from firmware 4.0.0. |
+| `OptoCol2` | int | Always 0 with firmware 4.0.1 and later. |
 | `Error` | int | The DFM's error flags. 0 means none. Errors are also explained in `Messages.csv`. |
 | `Index` | int | The DFM's own record counter, from 1 at the start of recording. A gap means records were lost; they are never filled in or interpolated. If a DFM restarts on its own (a power dip, say), its counter starts again at 1; PyMCU then adds an offset so `Index` and the times carry on, and the jump in `Index` covers the time the DFM was restarting. `Messages.csv` reports the restart and the missing range. |
 
-With firmware 4.0.0, `Dark`, `OptoFreq` and `OptoPW` are taken from the instruction the DFM reports it was running, not just from the Program's schedule. In baseline records from before any instruction, they are 0.
+`Dark`, `OptoFreq` and `OptoPW` are taken from the instruction the DFM reports it was running, not just from the Program's schedule. Older firmware (see [New columns](#new-columns)) reports none, so its values come from the schedule. In baseline records from before any instruction, they are 0.
 
 ## New columns
 
 These 64 follow `Index`, in this order: `Interval`, `Cycle`, `Paradigm`, then `Phase1`–`12`, `Activations1`–`12`, `Requirement1`–`12`, `Progress1`–`12`, `OnMs1`–`12`, `BaselineSet`. The number after each name is the Well, 1–12, in the same order as `W1`–`W12`.
 
-The first 63 come from firmware 4.0.0 boards only. For older firmware every one of them is `NA`. `BaselineSet` is written by the MCU for every board ([BaselineSet](#baselineset)).
+The first 63 come from the DFM, which reports them from firmware 4.0.1. **Older firmware**, in this document, means 1.0.5, 2.x and 3.x, which don't report them: for those boards every one of the 63 is `NA`. `BaselineSet` is written by the MCU for every board ([BaselineSet](#baselineset)).
 
 ### Interval
 
@@ -156,15 +155,14 @@ The running total of Activations at the Well since recording started. An Activat
 - It counts the Well's own Activations only. An LED lit by Linkage from another Well adds nothing to this Well's count. Use `OnMs` for light received.
 - It counts Acclimation Activations as well as Main ones.
 - It goes up in the record where the Activation's light starts (seen with ClosedLoop on 10/16/2026), so `diff()` > 0 marks Activation starts.
-- OpenLoop and `On` Wells never add Activations: the firmware counts only on-periods that a Paradigm starts, and those Wells don't run one (DFM firmware `src/LEDControl.c`, 4.0.0).
+- OpenLoop and `On` Wells never add Activations: the firmware counts only on-periods that a Paradigm starts, and those Wells don't run one (DFM firmware `src/LEDControl.c`).
 
 ### Requirement1–Requirement12
 
 Ratio Paradigms only (ProgressiveRatio and FixedRatio): what the Well must produce to earn its next Activation, in the units of the Paradigm's Counter, which the Paradigms block of `Program.txt` gives as `Counter Contact` or `Counter Events`:
 
-- `Counter Contact` (the default from PyMCU 4.0.1, firmware 4.0.1): milliseconds of contact. The DFM counts in steps of 10 ms and PyMCU writes ms, so every value is a multiple of 10, and the Paradigm's Requirement settings in `Program.txt` are in ms.
+- `Counter Contact` (the default): milliseconds of contact. The DFM counts in steps of 10 ms and PyMCU writes ms, so every value is a multiple of 10, and the Paradigm's Requirement settings in `Program.txt` are in ms.
 - `Counter Events`: a number of Events.
-- No `Counter` in the Paradigm's line: `Program.txt` written by PyMCU before 4.0.1, whose ratio Paradigms counted Events.
 
 - FixedRatio: always the Paradigm's `Ratio`.
 - ProgressiveRatio: the k-th Main-phase Activation needs, with Arithmetic Series, `FirstRequirement + Step × (k − 1)`, or with Exponential Series, `round(Scale × e^(Rate × k) − Scale)`, capped at `Cap`. Acclimation Activations don't advance k.
@@ -194,7 +192,7 @@ Which set of Baselines the Well thresholds were measured from for this record: a
 
 - `Baseline: Yes`: set 1, the Starting baseline, in every row from Interval 1 on.
 - `Baseline: Adaptive`: a new set each time the MCU sent different Baselines: when a new Interval or Cycle starts with changed values, and within an Interval when a tracked baseline has moved 10 counts or more (checked every 10 minutes). See [ProgramFormat.md](ProgramFormat.md#adaptive-baseline) for the rules.
-- With firmware 4.0.0 and later each record carries the number of the instruction it ran, so the set is exact. Older firmware doesn't, so its records take the set of the last instruction it acknowledged, which can be one read (up to 4 s) late. Under `Adaptive` these boards get a new set only at an Interval or Cycle change.
+- Each record carries the number of the instruction it ran, so the set is exact. Older firmware doesn't, so its records take the set of the last instruction it acknowledged, which can be one read (up to 4 s) late. Under `Adaptive` these boards get a new set only at an Interval or Cycle change.
 - `NA` in Interval 0, for an instruction outside the Program (such as all LEDs off after it ends) and with `Baseline: No`.
 
 ### Baselines.csv
@@ -209,7 +207,7 @@ One row per DFM and Baseline set, written as the recording goes (before the reco
 | `Reason` | `Start` (the Starting baseline, with the first Interval), `Interval` (a new Interval or Cycle took changed Baselines, under `Adaptive`) or `Update` (an adaptive update within an Interval) |
 | `Baseline1`–`Baseline12` | Each Well's Baseline, in signal counts. `On` and `Off` Wells have one too, though their light doesn't depend on it, so drift can be followed on every Well |
 
-A Well's Starting baseline is the mean of its first 10 records after the buffer reset that starts the recording, rounded to the nearest count. Builds before PyMCU 4.0.1 truncated a running mean at every record instead, which could come out up to 2 counts low.
+A Well's Starting baseline is the mean of its first 10 records after the buffer reset that starts the recording, rounded to the nearest count.
 
 To give every record its Baselines, join the data file's `BaselineSet` to `Baselines.csv`'s `Set` for that DFM:
 
@@ -225,11 +223,11 @@ Every missing value is written as `NA`. Nothing is left empty.
 
 | Column | `NA` when | Other special value |
 |---|---|---|
-| `Interval` | The DFM ran an instruction outside the Program after the Program started (e.g. after it ended); firmware older than 4.0.0 | `0` for baseline records before the first Interval |
-| `Cycle` | `Interval` is 0 or `NA`; firmware older than 4.0.0 | |
-| `Paradigm` | Interval 0 before the DFM had an instruction PyMCU knows; firmware older than 4.0.0 | `Idle` outside the Program |
-| `Phase`, `Activations`, `OnMs` | Firmware older than 4.0.0 only | |
-| `Requirement`, `Progress` | Any Paradigm other than ProgressiveRatio or FixedRatio; Wells set to `On` or `Off`; firmware older than 4.0.0 | |
+| `Interval` | The DFM ran an instruction outside the Program after the Program started (e.g. after it ended); older firmware | `0` for baseline records before the first Interval |
+| `Cycle` | `Interval` is 0 or `NA`; older firmware | |
+| `Paradigm` | Interval 0 before the DFM had an instruction PyMCU knows; older firmware | `Idle` outside the Program |
+| `Phase`, `Activations`, `OnMs` | Older firmware only | |
+| `Requirement`, `Progress` | Any Paradigm other than ProgressiveRatio or FixedRatio; Wells set to `On` or `Off`; older firmware | |
 | `BaselineSet` | Interval 0; an instruction outside the Program; `Baseline: No` | |
 
 `NA` in these columns means "doesn't apply", not "lost data". Lost records leave no row at all; detect them from gaps in `Index`.
@@ -242,8 +240,8 @@ Every missing value is written as `NA`. Nothing is left empty.
 | ClosedLoop | always `M` | yes: one per contact plus its hold | `NA` | yes | Light follows feeding. An Activation is cut off after `MaxOnMs`, and the LED stays off until that Event ends. |
 | FixedInterval | `A`/`M` if `Acclimation` | yes: each is exactly `ActivationMs` in Main | `NA` | yes | A new Activation can't start until `LockoutMs` after the previous one started. |
 | NonFeeding | always `M` | yes: each period the LED is lit | `NA` | yes | The LED is lit when the fly is **not** feeding: on at the start, off during contact, on again `OnDelayMs` after contact ends. |
-| ProgressiveRatio | `A`/`M` if `Acclimation` | yes | yes | yes | Needs firmware 4.0.0. |
-| FixedRatio | `A`/`M` if `Acclimation` | yes | yes (Requirement = `Ratio`) | yes | Needs firmware 4.0.0. |
+| ProgressiveRatio | `A`/`M` if `Acclimation` | yes | yes | yes | Needs firmware 4.0.1. |
+| FixedRatio | `A`/`M` if `Acclimation` | yes | yes (Requirement = `Ratio`) | yes | Needs firmware 4.0.1. |
 
 - **Thresholds:** a Well with an `On` threshold is lit for the whole Interval whatever the Paradigm; a Well with `Off` is never lit by its own behaviour. An `Off` Well produces no Activations or Progress of its own. Read each Well's threshold for the Interval from `Program.txt`.
 - **Linkage:** Wells with the same Linkage number light together. Each Well keeps its own Phase, Activations, Requirement and Progress, but `OnMs` and `OptoCol1` show the shared light. In a choice chamber (`Linkage: 1,1,2,2,…`) with one Well triggering and the other `Off`, the triggering Well has the Activations and both have the same `OnMs`. Control flies yoked by Linkage to a treatment Well have `OnMs` but no Activations.
@@ -259,23 +257,11 @@ Feeding itself is analysed from `W1`–`W12` as before; the new columns describe
 - **Light exposure:** sum of `OnMs` over the period, per Well, in ms. Divide by the period length for the fraction of time lit.
 - **Acclimation:** the time a Well finished Acclimation is the first record where its Phase changes from `A` to `M`. Wells that never reach `M` didn't complete Acclimation; report them.
 - **Progressive-ratio breakpoint:** when a Main-phase Activation is counted, the Requirement in the record just before it is the one that was met. The breakpoint is the last Requirement met in the period, alongside the number of Main-phase Activations. The current `Progress` at the end shows how far the Well got towards the next one.
-- **Events:** the file doesn't give a running total of Events. Under ratio Paradigms with `Counter Events`, Events can be counted from rises in `Progress` plus the Requirement met at each Activation (Progress returns to 0). Under `Counter Contact` (the default from 4.0.1) Progress rises with every 10 ms of contact, so it says nothing about Events; there, as for the other Paradigms, Events have to be estimated from the Well signals.
+- **Events:** the file doesn't give a running total of Events. Under ratio Paradigms with `Counter Events`, Events can be counted from rises in `Progress` plus the Requirement met at each Activation (Progress returns to 0). Under `Counter Contact` (the default) Progress rises with every 10 ms of contact, so it says nothing about Events; there, as for the other Paradigms, Events have to be estimated from the Well signals.
 - **Contact time towards the light:** under `Counter Contact`, the Requirement met at each Activation is the ms of contact it took, and `Progress` at the end is the contact made towards the next one.
 - **Timing resolution:** records are 200 ms snapshots, so an Activation's start can only be placed within 200 ms. `OnMs` tells how much of a record was lit.
 
-Reports should state, per DFM: the firmware version (shown on PyMCU's DFM page; it isn't written to the recording folder, but the new columns being `NA` throughout means firmware older than 4.0.0), the Program type, Linkage, each Paradigm with its type and settings, and each Interval's thresholds and length. All of this is in `Program.txt`.
-
-## Telling file versions apart
-
-| Header | Written by | New columns |
-|---|---|---|
-| 27 columns, ending `Index` | PyMCU 3.x | Absent. Wells in Acclimation under firmware 2.0.0 and later had 65,536 added to their `W` value. Subtract it if `W` > 1023. |
-| 91 columns, ending `BaselineSet`, with `NA` throughout the 63 Paradigm columns | PyMCU 4.0.1 with firmware older than 4.0.0 | Paradigm columns `NA`; `BaselineSet` filled, with `Baselines.csv`. `W` values are clean. |
-| 91 columns with values | PyMCU 4.0.1 with firmware 4.0.0 or 4.0.1 | Present, with `Baselines.csv`. |
-| 102 columns, ending `Baseline12` | Development builds of PyMCU 4.0.0, 1 to 15 November 2026 | Each row's 12 Baselines in `Baseline1`–`Baseline12` instead of `BaselineSet`; no `Baselines.csv`. |
-| 90 columns, ending `OnMs12` | PyMCU 4.0.0 | No `Baseline` columns. With `Baseline: Yes` the baseline was the mean of each Well's first 10 records. |
-
-Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) wrote missing values as empty fields instead of `NA`, and baseline records with an empty `Interval` instead of 0. Treat empty and `NA` the same, and treat an empty `Interval` at the start of a recording as 0.
+Reports should state, per DFM: the firmware version (shown on PyMCU's DFM page; it isn't written to the recording folder, but the new columns being `NA` throughout means older firmware), the Program type, Linkage, each Paradigm with its type and settings, and each Interval's thresholds and length. All of this is in `Program.txt`.
 
 ## Checks worth running
 
@@ -292,4 +278,16 @@ Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) w
 ## Test data
 
 - **Simulated recordings:** `scripts/simulate_recording.py` writes a two-hour recording from two DFMs running a ProgressiveRatio Paradigm with Acclimation, through PyMCU's own record parser and file writer, so the files are what an MCU would write. Beside it, a `_truth` folder lists every simulated bout and Activation and a summary per Well, to check an analysis against. Run it from the PyMCU folder: `.venv/bin/python scripts/simulate_recording.py [--out DIR] [--seed N]`.
-- **Bench recordings:** `FLICPrograms/OptoTest1_OpenLoop.txt`, `OptoTest5_ProgressiveRatio.txt` and `OptoTest6_TrainingFirst.txt` exercise OpenLoop, ratio Paradigms counting Events and Acclimation on a real 4.0.0 board, and `OptoTest7_ContactRatio.txt` a ratio Paradigm counting contact on a 4.0.1 board, in 10 minutes each.
+- **Bench recordings:** `FLICPrograms/OptoTest1_OpenLoop.txt`, `OptoTest5_ProgressiveRatio.txt`, `OptoTest6_TrainingFirst.txt` and `OptoTest7_ContactRatio.txt` exercise OpenLoop, ratio Paradigms counting Events, Acclimation and a ratio Paradigm counting contact on a real DFM, in 10 minutes each.
+
+## Files from earlier versions
+
+pyflic reads all of these. The header tells them apart:
+
+| Header | Written by |
+|---|---|
+| 91 columns, `NA` throughout the 63 Paradigm columns | PyMCU 4.0.1 with older firmware. `BaselineSet` and `Baselines.csv` are there as usual. |
+| 27 columns, ending `Index` | PyMCU 3.x. Under firmware 2.x and 3.x, a Well in Acclimation had 65,536 added to its `W` value: subtract it if `W` > 1023. |
+| 90 or 102 columns | PyMCU 4.0.0 and its development builds |
+
+In a `Program.txt` from before PyMCU 4.0.1, a ratio Paradigm's line has no `Counter`: those Paradigms counted Events. [FirmwareCompatibility.md](FirmwareCompatibility.md#data-files-from-earlier-versions) lists every other difference.

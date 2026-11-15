@@ -1,6 +1,6 @@
 # Writing MCU Programs
 
-A Program tells the MCU how long to record and what each DFM's optogenetic LEDs should do. This guide is for PyMCU 4.0.1 with DFM firmware 4.0.1. From PyMCU 4.0.1 the ratio Paradigms count time in contact unless they say `Counter: Events`; see [ProgressiveRatio](#progressiveratio). It replaces "Stand Alone MCU Programming Conventions" (the draft for version 2.0). Programs written for that document still load, and [Converting old programs](#converting-old-programs) explains what happens to them. How a Program fits into running an experiment, from finding the DFMs to analysing the data, is in [UserGuide.md](UserGuide.md).
+A Program tells the MCU how long to record and what each DFM's optogenetic LEDs should do. This guide is for PyMCU 4.0.1 with DFM firmware 4.0.1 or later; [Which DFMs can run what](#which-dfms-can-run-what) covers boards with older firmware. It replaces "Stand Alone MCU Programming Conventions" (the draft for version 2.0). Programs written for that document still load, and [Converting old programs](#converting-old-programs) explains what happens to them. How a Program fits into running an experiment, from finding the DFMs to analysing the data, is in [UserGuide.md](UserGuide.md).
 
 Questions and suggestions: Scott Pletcher (spletch@umich.edu).
 
@@ -108,7 +108,7 @@ BaselineCapCounts: 50
 - Every 10 minutes, if any Well's baseline has moved 10 counts or more from the one its thresholds were built on, the MCU sends the running Interval again with new thresholds. The DFM keeps every Well's Paradigm state (Acclimation, Activations, Requirement and Progress). A Well whose LED is pulsing at that moment has one pulse cycle cut short.
 - A baseline stops `BaselineCapCounts` from where it started. The first time a Well reaches that limit, the Messages page says so; check the Well.
 - Each new Interval or Cycle also takes the current baselines.
-- DFMs with firmware older than 4.0.0 reset their light rules whenever they get an instruction, so they get new baselines only when a new Interval or Cycle starts. Messages.csv notes this once per DFM.
+- A DFM with firmware 1.0.5, 2.x or 3.x resets its light rules whenever it gets an instruction, so it gets new baselines only when a new Interval or Cycle starts. Messages.csv notes this once per DFM.
 - The data file's `BaselineSet` column says which set of baselines was behind every record's thresholds, and `Baselines.csv` in the recording folder lists each set's 12 baselines, when the MCU made it and why (see [What the data file records](#what-the-data-file-records)).
 
 ## Paradigms
@@ -298,7 +298,7 @@ For a time-based start, run a ClosedLoop Paradigm for the first Interval and the
 
 #### Counting contact (the default)
 
-Without a `Counter` line, ProgressiveRatio and FixedRatio count time in contact, as progressive ratio did before firmware 4.0.0. This needs DFM firmware 4.0.1.
+Without a `Counter` line, ProgressiveRatio and FixedRatio count time in contact.
 
 - `FirstRequirement`, `Step`, `Cap`, `Scale` and FixedRatio's `Ratio` are milliseconds of contact, in multiples of 10, up to 655350.
 - Contact adds up across visits, with no timeout. Contact during the Well's own Activation doesn't count, but contact that carries on after the Activation ends does.
@@ -319,13 +319,13 @@ ID: 5
 Interval: PRContact, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360
 ```
 
-Each fly first gets 10 closed-loop Activations. Then 1 s of contact earns half a second of light, 2 s more the next, then 3 s, and so on: the progressive ratio of firmware 3.5.2. `Program.txt` writes `Counter Contact` for it.
+Each fly first gets 10 closed-loop Activations. Then 1 s of contact earns half a second of light, 2 s more the next, then 3 s, and so on, as the progressive ratio of firmware 3.5.2 did. `Program.txt` writes `Counter Contact` for it.
 
-**Programs written for Events before PyMCU 4.0.1.** Until 4.0.1, a ratio Paradigm without a `Counter` line counted Events. Such a Program now counts contact, so its numbers mean milliseconds. A number that isn't a multiple of 10, such as `Step: 5`, is refused when the Program loads, with a message saying to add `Counter: Events`. A number that is, such as `Step: 10` or `Cap: 200`, loads as milliseconds of contact. **Add `Counter: Events` to every ratio Paradigm in such a Program before using it.**
+**A Program written for PyMCU 4.0.0** counted Events in its ratio Paradigms without saying so. Add `Counter: Events` to each of them. Without it, a number that isn't a multiple of 10, such as `Step: 5`, stops the Program loading, and one that is, such as `Step: 10`, is read as milliseconds of contact.
 
 #### Counting Events
 
-With `Counter: Events`, ProgressiveRatio and FixedRatio count feeding bouts, as on firmware 4.0.0, which can run ratio Paradigms only this way. The Requirement settings are then numbers of Events, up to 65535.
+With `Counter: Events`, ProgressiveRatio and FixedRatio count feeding bouts. The Requirement settings are then numbers of Events, up to 65535.
 
 ```
 [Paradigm PR10]
@@ -455,13 +455,15 @@ In this example, Relay 1 and Outputs 1 and 2 are on for the first 2 hours. Then 
 
 ## Which DFMs can run what
 
-| Needs DFM firmware 4.0.1 | Needs DFM firmware 4.0.0 or later | Runs on firmware 2.0.0 and later, and on V2 DFMs | Also runs on firmware 1.0.5 |
-|---|---|---|---|
-| ProgressiveRatio and FixedRatio counting contact (the default) | ProgressiveRatio and FixedRatio with `Counter: Events`, and any Paradigm with Acclimation | NonFeeding | OpenLoop, ClosedLoop and FixedInterval |
+| Paradigm | Firmware 4.0.1 and later | Firmware 1.0.5 |
+|---|---|---|
+| OpenLoop, ClosedLoop, FixedInterval | Runs | Runs |
+| NonFeeding | Runs | Refused |
+| ProgressiveRatio, FixedRatio, and any Paradigm with Acclimation | Runs | Refused |
 
 - When a Program is loaded, the MCU warns about any DFM that can't run it, naming the DFM and the feature. Run Program then refuses to start until the DFM is updated or the Program changed.
-- Firmware 1.0.5 (the DFMs from 2021, which show `1.0.5` on their page) also can't take a time above 65535 ms (about 65 seconds), and would run NonFeeding as fixed interval without any warning, so the MCU refuses both for such a DFM.
-- Older firmware runs its own version of the rules it supports, so details can differ. It doesn't use `EventGapMs`, for example. Use firmware 4.0.1 for new experiments. Firmware 4.0.0 doesn't know how to count contact and would count Events instead, so the MCU refuses a ratio Paradigm there unless it says `Counter: Events`.
+- Firmware 1.0.5 (the DFMs from 2021, which show `1.0.5` on their page) also can't take a time above 65535 ms (about 65 seconds). It runs its own version of the rules it supports, so details can differ; it doesn't use `EventGapMs`, for example.
+- Firmware 2.x and 3.x also run NonFeeding, and 4.0.0 runs the ratio Paradigms only with `Counter: Events`. [FirmwareCompatibility.md](FirmwareCompatibility.md) has the details for every version.
 - The DFM's firmware version is on its page in the MCU (Firmware).
 
 ## What the data file records
@@ -482,7 +484,7 @@ These columns follow them:
 | `OnMs1`–`OnMs12` | How many ms the Well's LED was active (pulsing) in that 200 ms record, whether its Paradigm, `On` or linkage lit it |
 | `BaselineSet` | With `Baseline: Yes` or `Adaptive`, which set of baselines the Wells' thresholds were measured from for that record: a row of `Baselines.csv` in the recording folder, which gives the 12 baselines. A numeric threshold in force was the Well's baseline plus the Interval's threshold |
 
-Each row covers 200 ms. A value that doesn't apply is written `NA`, which pandas and R read as missing: Requirement and Progress for other types, Cycle and Paradigm before the first Interval, Interval and Cycle for an instruction outside the Program (such as all LEDs off after it ends), and all these columns except `BaselineSet` with firmware older than 4.0.0. `BaselineSet` is `NA` before the first Interval, outside the Program and with `Baseline: No`.
+Each row covers 200 ms. A value that doesn't apply is written `NA`, which pandas and R read as missing: Requirement and Progress for other types, Cycle and Paradigm before the first Interval, Interval and Cycle for an instruction outside the Program (such as all LEDs off after it ends), and all these columns except `BaselineSet` for a DFM with firmware 1.0.5, 2.x or 3.x. `BaselineSet` is `NA` before the first Interval, outside the Program and with `Baseline: No`.
 
 For the full description of every column, for writing analysis software, see [DataFileColumns.md](DataFileColumns.md).
 
@@ -511,13 +513,13 @@ Intervals with identical old settings become the same Paradigm, so a Well's prog
 
 ### Rewriting progressive ratio
 
-The old progressive ratio counted milliseconds of contact. The DFM checks every millisecond, so a 1-second bout counted as 1000 "licks". An old Program that uses it is refused rather than converted, because firmware 2.0.0 to 3.5.1 and 3.5.2 differ in their acclimation count and first activation, and the file doesn't say which ran it. There are two ways to rewrite it.
+The old progressive ratio counted milliseconds of contact. The DFM checks every millisecond, so a 1-second bout counted as 1000 "licks". An old Program that uses it is refused rather than converted, because the firmware versions that ran it differ in small ways and the file doesn't say which one did. There are two ways to rewrite it.
 
-**Keep the old rule (firmware 4.0.1).** ProgressiveRatio counts milliseconds of contact by default, as the old firmware did (see [Counting contact](#counting-contact-the-default)). For a Program that ran on firmware 3.5.2, `FirstRequirement` and `Step` are both the old `OptoDelay`, and `Cap` is the old `MaxTimeOn`, at most 655350. Firmware 2.0.0 to 3.5.1 gave one acclimation activation fewer than asked and then a free first activation; for those, use `Acclimation` N − 1, `FirstRequirement: 10` and `Step` = `OptoDelay`.
+**Keep the old rule.** ProgressiveRatio counts milliseconds of contact by default, as the old firmware did (see [Counting contact](#counting-contact-the-default)). `FirstRequirement` and `Step` are both the old `OptoDelay`, and `Cap` is the old `MaxTimeOn`, at most 655350. This reproduces firmware 3.5.2. Firmware 2.0.0 to 3.5.1 gave one acclimation activation fewer than asked and then a free first activation; to match data recorded on those, use `Acclimation` N − 1, `FirstRequirement: 10` and `Step` = `OptoDelay`.
 
 **Count feeding bouts instead.** With `Counter: Events` the numbers mean something quite different. Choose a new `Step` (or Series) in Events.
 
-The old `OptoDelay` is how many more milliseconds of contact each Activation needed. To come close to it, divide it by the contact time of a typical Event and round to a whole number, at least 1. In a firmware 4.0.0 recording of flies feeding on sucrose, an Event was about 2 seconds of contact, so the usual old setting of 1000 becomes `Step: 1`, which adds about 2 seconds for each Activation.
+The old `OptoDelay` is how many more milliseconds of contact each Activation needed. To come close to it, divide it by the contact time of a typical Event and round to a whole number, at least 1. In a recording of flies feeding on sucrose, an Event was about 2 seconds of contact, so the usual old setting of 1000 becomes `Step: 1`, which adds about 2 seconds for each Activation.
 
 Don't make the Step larger to be safe. The extra contact adds up over every Activation, so a larger Step makes the work rise much faster. `Step: 5` adds about 10 seconds for each Activation, ten times the old 1000. In that recording, flies on `Step: 5` stopped after a median of 4 to 7 Activations, where flies on the old program had reached 10 to 45.
 
@@ -555,7 +557,7 @@ Interval: PR, Lit, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 330
 
 ### Rewriting event-based acclimation
 
-The old way packed the number of acclimation events into the high bits of `OptoFrequency`, so 10 events at 40 Hz was written 5160. Now it is a setting. Firmware 2.0.0 to 3.5.1 gave one fewer than asked, and 3.5.2 exactly N; the new Program gives exactly 10. To match data recorded on 2.0.0 to 3.5.1, write `Acclimation: 9`.
+The old way packed the number of acclimation events into the high bits of `OptoFrequency`, so 10 events at 40 Hz was written 5160. Now it is a setting, and the new Program gives exactly 10. (Firmware 2.0.0 to 3.5.1 gave one fewer than asked; to match data recorded on those, write `Acclimation: 9`.)
 
 Old:
 
@@ -586,4 +588,4 @@ Interval: PR, Lit, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360
 - Unknown settings stop the load. The old loader ignored them, so check old files for lines such as `OptoLid`, which never did anything.
 - `StartTime` also accepts `HH:MM`.
 - `Constant` programs now run their first Interval. Before, they never sent it to the DFMs.
-- The Well signals in the data file no longer have 65536 added while a fly is in training. With firmware 4.0.0, the Phase columns report Acclimation instead.
+- The Well signals in the data file no longer have 65536 added while a fly is in training. With firmware 4.0.1, the Phase columns report Acclimation instead.

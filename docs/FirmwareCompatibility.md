@@ -52,6 +52,29 @@ The 3.x versions of programs 1 to 4 were checked on the bench with DFM firmware 
 - **Error boxes.** Before firmware 3.5.0 a missed acknowledgement arrives on bit 1 (DFMV3 builds) or bit 0 (DFMV3_V2 builds), and the version string doesn't say which, so one box, No Ack, covers both. From 3.5.0, No Ack and Overflow are separate boxes. The other six boxes mean the same on every firmware. On a 1.0.5 board the version request itself raises P Type once; PyMCU clears that one report, so a ticked P Type box is a real unknown command.
 - **Data file.** The same columns for every firmware. The Paradigm columns (Interval, Cycle, Paradigm, phases, Activations, requirements) are filled only for records from 4.0.0 and 4.0.1 boards, and are `NA` for older ones. Firmware 2.0.0 to 3.5.2 flag a Well in training inside its value; PyMCU 4.0.0 drops the flag when it reads the record.
 
+## Data files from earlier versions
+
+[DataFileColumns.md](DataFileColumns.md) describes the files PyMCU 4.0.1 writes. Earlier files differ as follows; pyflic reads them all.
+
+| Header | Written by | New columns |
+|---|---|---|
+| 27 columns, ending `Index` | PyMCU 3.x | Absent. Wells in Acclimation under firmware 2.0.0 and later had 65,536 added to their `W` value. Subtract it if `W` > 1023. |
+| 91 columns, ending `BaselineSet`, with `NA` throughout the 63 Paradigm columns | PyMCU 4.0.1 with firmware older than 4.0.0 | Paradigm columns `NA`; `BaselineSet` filled, with `Baselines.csv`. `W` values are clean. |
+| 91 columns with values | PyMCU 4.0.1 with firmware 4.0.0 or 4.0.1 | Present, with `Baselines.csv`. |
+| 102 columns, ending `Baseline12` | Development builds of PyMCU 4.0.0, 1 to 15 November 2026 | Each row's 12 Baselines in `Baseline1`–`Baseline12` instead of `BaselineSet`; no `Baselines.csv`. |
+| 90 columns, ending `OnMs12` | PyMCU 4.0.0 | No `Baseline` columns. With `Baseline: Yes` the baseline was the mean of each Well's first 10 records. |
+
+- Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) wrote missing values as empty fields instead of `NA`, and baseline records with an empty `Interval` instead of 0. Treat empty and `NA` the same, and treat an empty `Interval` at the start of a recording as 0.
+- PyMCU before 4.0.1 truncated a running mean at every record for the Starting baseline, instead of rounding the mean of the first 10 records, so a baseline could come out up to 2 counts low.
+- With firmware older than 4.0.0, a record doesn't carry the number of the instruction it ran, so `BaselineSet` takes the set of the last instruction the DFM acknowledged, which can be one read (up to 4 s) late, and `Dark`, `OptoFreq` and `OptoPW` come from the Program's schedule.
+
+`Program.txt` from earlier versions:
+
+- Before PyMCU 4.0.1, a ratio Paradigm's line has no `Counter`: those Paradigms counted Events.
+- Before PyMCU 4.0.1, a recording started again with a Program already used by an earlier one has baseline + threshold in its Interval lines instead of the Program's thresholds.
+- Before PyMCU 4.0.1, Circadian Intervals were listed like Linear ones, so a Circadian `Program.txt` from those builds can leave out the Intervals that start later in the day than the recording lasted, even one that was running, and its times count from the Start Time instead of midnight.
+- Recordings made before PyMCU wrote the Paradigm first have `Dark` or `Lit` before the Paradigm name. pyflic reads both orders; a parser of your own should too.
+
 ## Checking a build
 
 `python -m unittest discover -s tests` on a PC runs the tests that pin the 41-byte (1.0.5), 47-byte (2.0.0 and later) and 63-byte (4.0.0) instruction frames, the version handling, the 56- and 127-byte records, the refusals above and the Program file checks. They need no hardware.

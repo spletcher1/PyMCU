@@ -1,8 +1,11 @@
 # FLIC User Guide
 
-PyMCU 4.0.1 with DFM firmware 4.0.1 and pyflic. Last updated: 2026-11-15.
+PyMCU 4.0.1, DFM firmware 4.0.1 and the current pyflic. Last updated: 2026-11-15.
 
 This guide takes you through a FLIC experiment from start to finish: setting up the DFMs, running a Program on the MCU, watching it run, collecting the data and analysing it in pyflic. For each step it says what to do and also what the MCU and the DFMs do in response, so you know what to expect and why.
+
+- **OptoLid.** Many experiments record feeding only, with no OptoLid. The parts of this guide that apply only with an OptoLid (the light above each Well) are marked **(OptoLid)**. Without an OptoLid, skip them.
+- **DFM firmware.** DFMs run either the original firmware, 1.0.5, or firmware 4.0.1 or later. Where the two differ, the guide says so. A few lab boards run firmware 2.0.0 to 4.0.0, and footnotes cover them.
 
 It is written for the people who run experiments. The details are in other documents, linked where they matter:
 
@@ -15,7 +18,7 @@ It is written for the people who run experiments. The details are in other docum
 | Setting up a new MCU | [MCUSetup.md](MCUSetup.md) |
 | Exact meanings of the terms | [../CONTEXT.md](../CONTEXT.md) |
 | DFM firmware, ID dials, flashing | `README.md` and `ID_DIALS.md` in the DFMV3_V2 repository |
-| Analysis | pyflic's built-in help (F1, or `pyflic help`) and its `docs/GETTING_STARTED.md` |
+| Analysis | pyflic's `docs/GETTING_STARTED.md`, then its built-in help (F1, or `pyflic help`) |
 | An MCU still on PyMCU 1.0.7 to 3.5.2 | [pre-4.0/UserGuide.md](pre-4.0/UserGuide.md) |
 
 Questions and suggestions: Scott Pletcher (spletch@umich.edu).
@@ -40,14 +43,16 @@ Questions and suggestions: Scott Pletcher (spletch@umich.edu).
 
 ## 1. The FLIC system
 
-FLIC (the Fly Liquid-food Interaction Counter) measures feeding. Each Well holds a drop of liquid food. When a fly touches the food, the Well's electrical signal rises, so a recording of the signal shows when, how often and for how long each fly fed. With an OptoLid on top, every Well also has its own LED, which can be switched on in response to what the fly does. This lets an experiment deliver optogenetic light as a reward or a punishment for feeding.
+FLIC (the Fly Liquid-food Interaction Counter) measures feeding. Each Well holds a drop of liquid food. When a fly touches the food, the Well's electrical signal rises, so a recording of the signal shows when, how often and for how long each fly fed. That is all many experiments need.
+
+**(OptoLid)** With an OptoLid on top, every Well also has its own LED, which the DFM switches on in response to what the fly does. This lets an experiment deliver optogenetic light as a reward or a punishment for feeding.
 
 ### The parts
 
 | Part | What it is | What it does |
 |---|---|---|
-| **DFM** | A feeding monitor board with twelve Wells, in six chambers of two | Measures every Well's signal hundreds of times a second, decides every millisecond whether each Well's LED should be on, and stores a Status record every 200 ms until the MCU collects it |
-| **OptoLid** | The lid with one LED above each Well | Delivers the light the DFM switches on |
+| **DFM** | A feeding monitor board with twelve Wells, in six chambers of two | Measures every Well's signal hundreds of times a second and stores a Status record every 200 ms until the MCU collects it. With an OptoLid, it also decides every millisecond whether each Well's LED should be on. |
+| **OptoLid** (optional) | The lid with one LED above each Well | Delivers the light the DFM switches on |
 | **Environmental Monitor** | A board with ID 99 | Measures temperature, humidity and light, and can switch two relays and four outputs on a schedule |
 | **MCU** | A Raspberry Pi with a touch screen, running PyMCU | Runs the Program's schedule, tells each DFM which rule to follow and when, collects the records and writes the data files |
 | **Bus** | One RS-485 cable shared by all the DFMs and the Environmental Monitor | Carries the MCU's requests and the DFMs' replies. The MCU talks to one board at a time, by its ID |
@@ -60,8 +65,8 @@ flowchart LR
     MCU <-->|"RS-485 bus: instructions out, records in"| D1[DFM 1]
     MCU <--> D2[DFM 2]
     MCU <--> E["Environmental Monitor (ID 99)"]
-    D1 --- L1[OptoLid]
-    D2 --- L2[OptoLid]
+    D1 -.- L1["OptoLid (optional)"]
+    D2 -.- L2["OptoLid (optional)"]
     MCU -->|"USB stick: FLICData"| F[pyflic on a computer]
 ```
 
@@ -69,16 +74,16 @@ flowchart LR
 
 It helps to know which part makes each decision, because it explains how the system behaves when something goes wrong.
 
-- **The DFM decides the light.** It compares each Well's signal with its Threshold every millisecond and switches the LEDs by the rule (the Paradigm) it was last given. The MCU never switches an LED itself. If the MCU is slow or the bus is briefly disconnected, the light keeps following the fly.
+- **(OptoLid) The DFM decides the light.** It compares each Well's signal with its Threshold every millisecond and switches the LEDs by the rule (the Paradigm) it was last given. The MCU never switches an LED itself. If the MCU is slow or the bus is briefly disconnected, the light keeps following the fly.
 - **The MCU decides the schedule.** It sends each DFM an instruction when an Interval starts: which Paradigm, which Thresholds, and whether the indicator LEDs are dark. A DFM changes Interval only when the MCU tells it to.
 - **The DFM keeps its records until the MCU confirms it has them.** It holds the most recent 780 records, about 2.6 minutes. The MCU collects them every 4 seconds and acknowledges each reply; records that weren't acknowledged are sent again.
 - **pyflic decides what counts as feeding,** from the recorded signals, with its own settings. The DFM's Thresholds only control the light.
 
 ### The workflow
 
-1. Set the DFMs' IDs, connect them and power everything on ([section 3](#3-before-you-start)).
+1. Set the DFMs' IDs, connect them and power everything on ([section 3](#3-before-you-start)). See [MCUSetup.md](MCUSetup.md) for the details, including the order in which to power up the parts.
 2. **Find DFM** on the MCU ([section 5](#5-step-1-find-the-dfms)).
-3. Check each DFM's signals and LEDs ([section 6](#6-step-2-check-each-dfm-on-the-live-data-page)).
+3. Check each DFM's signals and, with an OptoLid, its LEDs ([section 6](#6-step-2-check-each-dfm-on-the-live-data-page)).
 4. Choose a simple recording or write a Program ([section 7](#7-step-3-choose-or-write-a-program)).
 5. Copy the Program to the MCU and **Load** it ([section 8](#8-step-4-put-the-program-on-the-mcu-and-load-it)).
 6. Set the start time and press **Run Program** ([section 9](#9-step-5-set-the-start-time-and-run)).
@@ -96,16 +101,21 @@ These words have exact meanings, shared by Program files, the MCU, the DFM firmw
 | **Chamber** | One row of a DFM: Wells nA and nB. In a choice (two-well) experiment one fly has both Wells; in a single-well experiment each Well has its own fly. |
 | **Signal** | A Well's reading, 0 to 1023. It rises when a fly touches the food. |
 | **Baseline** | A Well's resting signal, measured in the first seconds of a recording. With `Baseline: Yes`, Thresholds are measured from it. With `Baseline: Adaptive`, the MCU also keeps it up to date as the signal drifts. |
+| **Interval** | One timed step of a DFM's Program, with its length and, for light, its Paradigm and Thresholds. |
+| **Cycle** | One pass through a repeating Program's Intervals. |
+| **Status record** | What a DFM reports for every 200 ms: the twelve signals, the LED state and each Well's Paradigm state. One record is one row of the data file. |
+
+**(OptoLid)** The words for the light:
+
+| Word | Meaning |
+|---|---|
 | **Threshold** | The signal level above the baseline at which a Well counts as in contact with the food. Instead of a Threshold, a Well can be set `On` (lit for the whole Interval) or `Off` (never lit by its own feeding). |
 | **Event** | One feeding bout. It ends once the signal has stayed below the Threshold for the Event gap (100 ms unless set), so a fly dipping in and out counts once. |
 | **Activation** | One period during which a Paradigm lights a Well's LED. |
 | **Paradigm** | A named rule, defined in the Program, for when a Well's LED turns on: open loop, closed loop, fixed interval, non-feeding, progressive ratio or fixed ratio. |
-| **Interval** | One timed step of a DFM's Program, with its Paradigm, its Thresholds and its length. |
-| **Cycle** | One pass through a repeating Program's Intervals. |
 | **Linkage** | Wells grouped so that their LEDs light together. |
 | **Acclimation** | An optional start to a Paradigm in which each Well gets a set number of simple closed-loop Activations. A Well's **Phase** is Acclimation or Main. |
 | **Requirement, Progress** | For ratio Paradigms: how much time in contact (or, with `Counter: Events`, how many Events) a Well needs for its next Activation, and how much it has so far. |
-| **Status record** | What a DFM reports for every 200 ms: the twelve signals, the LED state and each Well's Paradigm state. One record is one row of the data file. |
 
 ## 3. Before you start
 
@@ -117,7 +127,9 @@ These words have exact meanings, shared by Program files, the MCU, the DFM firmw
 - The dials are read only when the board powers up. After changing them, switch the DFM off and on again.
 - If a board isn't found, or is found under the wrong number, run the 7-1 dial test in `ID_DIALS.md` (DFMV3_V2 repository): set the dials to 7 and 1, restart the board, and the ID the MCU finds tells you whether one of the dials is a type that needs a different firmware build.
 
-**Firmware.** Every Paradigm type runs on DFM firmware 4.0.1. Firmware 4.0.0 runs them all except the ratio types counting contact, their default (it needs `Counter: Events`). Older boards still run open loop, closed loop and fixed interval, and (from firmware 2.0.0) non-feeding; the MCU refuses, before a Program starts, anything a board can't run. A DFM's firmware is shown on its page on the MCU (section 6). See [FirmwareCompatibility.md](FirmwareCompatibility.md) for the full table. Boards of different firmware can share a bus.
+**Firmware.** Boards with the original firmware, 1.0.5, record feeding just as well as firmware 4.0.1 and later. The difference is the light (OptoLid): firmware 4.0.1 and later runs every Paradigm type, while 1.0.5 runs open loop, closed loop and fixed interval, but not non-feeding, the ratio types or Acclimation.[^fw] The MCU refuses, before a Program starts, anything a board can't run. A DFM's firmware is shown on its page on the MCU (section 6), and [FirmwareCompatibility.md](FirmwareCompatibility.md) has the full table. Boards of different firmware can share a bus.
+
+[^fw]: Firmware 2.0.0 to 3.5.2 also runs non-feeding. Firmware 4.0.0 runs every Paradigm type, but the ratio types only with `Counter: Events`.
 
 Installing firmware is a job for lab staff: it is built and flashed with MPLAB X and an MPLAB ICD 5 programmer, as the DFMV3_V2 `README.md` describes (Building). Power the board off and on after flashing.
 
@@ -191,7 +203,7 @@ The status bar ends with "N DFMs found." If it says "No DFMs found.", check the 
 
 ## 6. Step 2: Check each DFM on the Live Data page
 
-Before an experiment, look at every DFM: its signals should be steady at rest, its LEDs should light, and its firmware should run your Program.
+Before an experiment, look at every DFM: its signals should be steady at rest, its firmware should run your Program and, with an OptoLid, its LEDs should light.
 
 **Do:** tap a DFM's button on the left. Its label turns bold and the page shows that board. The MCU starts reading it instead of the previous one.
 
@@ -208,9 +220,9 @@ The button's colour shows the board's state:
 
 The plot has one column per chamber, Row 1 to Row 6. The blue dot is the chamber's A Well and the red dot its B Well, and the height is the Well's signal.
 
-- At rest a Well sits low and steady. When a fly feeds, or you touch the food, its dot jumps up, and falls back when contact ends.
+- At rest a Well sits low and steady. When a fly feeds, or you touch the pad, its dot jumps up, and falls back when contact ends.
 - The scale runs from 0 to 1000. Tick **Zoom Plot** to show 0 to 100, for checking small resting levels.
-- During a recording with `Baseline: Yes` or `Adaptive`, the plot shows the signal above the baseline the DFM's Thresholds are built on, so a trace crossing a Threshold is what the light responds to.
+- During a recording with `Baseline: Yes` or `Adaptive`, the plot shows each signal above its baseline. **(OptoLid)** The DFM's Thresholds are measured from the same baseline, so a trace crossing a Threshold is what the light responds to.
 
 ### The panels on the right
 
@@ -233,18 +245,22 @@ The plot has one column per chamber, Row 1 to Row 6. The blue dot is the chamber
 | Box | Meaning | What to do |
 |---|---|---|
 | No Ack | The DFM didn't receive the MCU's acknowledgement for a reply, so it sent those records again. The MCU saved them the first time, so nothing is lost. | Nothing, unless it is ticked constantly |
-| Overflow | The DFM's store of 780 records filled up before the MCU collected them, and the oldest were overwritten. Records were lost. (Firmware 3.5.0 and later.) | Check the bus cable; Messages says which records |
+| Overflow | The DFM's store of 780 records filled up before the MCU collected them, and the oldest were overwritten. Records were lost. (Not on firmware 1.0.5.) | Check the bus cable; Messages says which records |
 | P Type | A request had an unknown command | Report it if it recurs |
 | DMA Tx, DMA Rx | Errors sending or receiving on the bus. The DFM recovers by itself. | Check the cable if it recurs |
 | P Size | A request had the wrong length, usually from noise on the bus | Check the cable if it recurs |
 | AI Int | Signal readings arrived before the last ones were used (also lights the blue LED) | Report it |
 | O Int | The DFM's 1 ms clock ticked before it had finished the last millisecond | Report it |
 
-Firmware older than 3.5.0 has no Overflow flag and reports a missed acknowledgement differently, so its page shows seven boxes.
+Firmware 1.0.5 has no Overflow flag, so its page shows seven boxes.[^boxes]
 
-### Well details
+[^boxes]: Firmware 2.0.0 and 2.0.1 also show seven boxes. Firmware 3.5.0 and later show all eight.
 
-Tick **Well details** to replace the plot with a table of the twelve Wells, from the DFM's latest record (firmware 4.0.0 and later):
+### Well details (OptoLid)
+
+Tick **Well details** to replace the plot with a table of the twelve Wells, from the DFM's latest record. Firmware 1.0.5 doesn't report them.[^welldetails]
+
+[^welldetails]: Nor does firmware 2.0.0 to 3.5.2. Firmware 4.0.0 does.
 
 | Column | Shows |
 |---|---|
@@ -253,7 +269,7 @@ Tick **Well details** to replace the plot with a table of the twelve Wells, from
 | Requirement, Progress | For ratio Paradigms: ms of contact (or Events) needed for the next Activation, and so far |
 | On ms | How many of the last 200 ms the Well's LED was lit, whatever lit it |
 
-### Testing the LEDs with Outputs
+### Testing the LEDs with Outputs (OptoLid)
 
 **Do:** with no Program running, press **Outputs**. Press it again to switch off.
 
@@ -261,17 +277,29 @@ Tick **Well details** to replace the plot with a table of the twelve Wells, from
 
 ## 7. Step 3: Choose or write a Program
 
-A Program says how long to record and what each DFM's LEDs should do, and when.
+A Program says how long to record and, with an OptoLid, what each DFM's LEDs should do, and when.
 
-### Simple recordings without light
+### Simple recordings
 
 The Program page has buttons for **30 min**, **60 min**, **3 hours**, **6 hours**, **12 hours**, **24 hours** and **5 days**.
 
-**What they do:** load a built-in Program that records every DFM for that long, starting at the next minute, with every LED off. Use them for plain feeding experiments. The Program page then shows it as `***ALL DFM***`, with one Interval, `Idle, Lit`, and every Well `Off`.
+**What they do:** load a built-in Program that records every DFM for that long, starting at the next minute, with every LED off. They are all a feeding experiment without an OptoLid usually needs. The Program page then shows it as `***ALL DFM***`, with one Interval, `Idle, Lit`, and every Well `Off`.
 
 ### Custom Programs
 
-For light, write a Program file: a plain text file (`.txt`), for example in Notepad. Here is a complete one for choice chambers, where feeding from the A Well lights both LEDs of its chamber:
+Write a Program file for a recording length the buttons don't offer, to switch the Environmental Monitor's relays and outputs on a schedule, or for light. A Program file is a plain text file (`.txt`), written for example in Notepad. Without light, a Program needs little more than its length. This one records every DFM for two days:
+
+```
+# Two days of feeding, no light.
+[General]
+ExpDurationMin: 2880
+```
+
+Every DFM records with its LEDs off, because no section of the Program gives it a Paradigm.
+
+### Programs for light (OptoLid)
+
+Here is a complete Program for choice chambers, where feeding from the A Well lights both LEDs of its chamber:
 
 ```
 # Six hours of closed loop. Feeding from an A well lights both LEDs in its chamber.
@@ -295,32 +323,38 @@ Interval: Closed, Dark, 20,Off,20,Off,20,Off,20,Off,20,Off,20,Off, 360
 
 The six Paradigm types:
 
-| Type | What the light does | Firmware |
+| Type | What the light does | Firmware[^types] |
 |---|---|---|
 | OpenLoop | On for the whole Interval, whatever the fly does | Any |
 | ClosedLoop | On during contact and for `HoldMs` after it, optionally cut off after `MaxOnMs` | Any |
 | FixedInterval | Contact gives exactly `ActivationMs` of light, then none until `LockoutMs` after it started | Any |
-| NonFeeding | Off during contact; on again `OnDelayMs` after contact ends | 2.0.0 and later |
-| ProgressiveRatio | Each Activation needs more time in contact than the last (with `Counter: Events`, more feeding bouts) | 4.0.1 (4.0.0 with `Counter: Events`) |
-| FixedRatio | Every `Ratio` ms of contact (with `Counter: Events`, every `Ratio`-th feeding bout) gives `ActivationMs` of light | 4.0.1 (4.0.0 with `Counter: Events`) |
+| NonFeeding | Off during contact; on again `OnDelayMs` after contact ends | 4.0.1 and later |
+| ProgressiveRatio | Each Activation needs more time in contact than the last (with `Counter: Events`, more feeding bouts) | 4.0.1 and later |
+| FixedRatio | Every `Ratio` ms of contact (with `Counter: Events`, every `Ratio`-th feeding bout) gives `ActivationMs` of light | 4.0.1 and later |
 
-FixedInterval and the two ratio types can start with `Acclimation: N`: each Well's first N Activations are closed loop, so the fly learns that feeding brings light.
+[^types]: Firmware 2.0.0 to 3.5.2 also runs NonFeeding. Firmware 4.0.0 runs every type, but the ratio types only with `Counter: Events`.
+
+FixedInterval and the two ratio types can start with `Acclimation: N` (firmware 4.0.1 and later): each Well's first N Activations are closed loop, so the fly learns that feeding brings light.
 
 A DFM can step through several Intervals, each with its own Paradigm and Thresholds, and a Program can run them once (`Linear`), over and over (`Repeating`), on a 24-hour clock (`Circadian`) or run only the first (`Constant`). A Well keeps its progress (for example its progressive-ratio Requirement) when the next Interval names the same Paradigm, and starts fresh when it names a different one.
 
 Everything about writing Programs, with a worked example of every type, is in [ProgramFormat.md](ProgramFormat.md). Programs written for PyMCU 3.x still load, apart from the old progressive ratio and training count, which have to be rewritten as that guide explains.
 
-**Ratio Paradigms count time in contact by default** (from PyMCU 4.0.1, on DFM firmware 4.0.1), as progressive ratio did before firmware 4.0.0: their `FirstRequirement`, `Step`, `Cap` and `Ratio` are milliseconds of contact. Add `Counter: Events` to count feeding bouts instead; that is also the only way a 4.0.0 board can run them. A Program written for PyMCU 4.0.0 that counted Events needs `Counter: Events` added to each ratio Paradigm: without it, a setting such as `Step: 5` stops the Program loading, and one such as `Step: 10` is read as 10 ms.
+**Ratio Paradigms count time in contact** unless they say `Counter: Events`: their `FirstRequirement`, `Step`, `Cap` and `Ratio` are milliseconds of contact. With `Counter: Events` they count feeding bouts instead.[^pymcu400]
 
-**Ready-made Programs** are in the `FLICPrograms` folder of the PyMCU repository:
+[^pymcu400]: A Program written for PyMCU 4.0.0 that counted feeding bouts needs `Counter: Events` added to each ratio Paradigm. Without it, a setting such as `Step: 5` stops the Program loading, and one such as `Step: 10` is read as 10 ms.
+
+### Ready-made Programs (OptoLid)
+
+These are in the `FLICPrograms` folder of the PyMCU repository. All but parts of `ScheduleExamples` use light.
 
 | Program | Use |
 |---|---|
-| `OptoTest1_OpenLoop` … `OptoTest7_ContactRatio` | Ten minutes of one Paradigm type on every connected DFM, with Thresholds 50 above baseline. Touch a Well to see the rule work; the comment at the top of each file says what to expect. `OptoTest5` counts feeding bouts and `OptoTest7` time in contact (firmware 4.0.1). |
+| `OptoTest1_OpenLoop` … `OptoTest7_ContactRatio` | Ten minutes of one Paradigm type on every connected DFM, with Thresholds 50 above baseline. Touch a Well to see the rule work; the comment at the top of each file says what to expect. `OptoTest5` counts feeding bouts and `OptoTest7` time in contact. |
 | `OptoLidOutputTest` | Lights each LED alone in Well order, then all off, then all on, repeating, to check an OptoLid |
 | `ParadigmExamples` | One DFM per Paradigm type, as a template: the ratio Paradigms counting contact (Arithmetic and Exponential) and, with `Counter: Events`, feeding bouts |
 | `ScheduleExamples` | Three days of each program type (Repeating, Circadian, Constant, Linear), a threshold change that keeps a progressive ratio going, `Baseline: Adaptive` and an Environmental Monitor schedule |
-| `Training10_BreakPt_24hrs` | A 24-hour progressive-ratio breakpoint on 8 DFMs with yoked controls: 10 Acclimation Activations, then 1 s, 2 s, 3 s … of contact per light, the old 3.5.2 Program in the new format |
+| `Training10_BreakPt_24hrs` | A 24-hour progressive-ratio breakpoint on 8 DFMs with yoked controls: 10 Acclimation Activations, then 1 s, 2 s, 3 s … of contact per light, a PyMCU 3.5.2 Program rewritten in the new format |
 
 ## 8. Step 4: Put the Program on the MCU and load it
 
@@ -347,7 +381,7 @@ Everything about writing Programs, with a worked example of every type, is in [P
 
 - **If anything is wrong,** nothing is loaded, and a message names the file, the line and the problem, for example `Line 14: ClosedLoop Paradigms don't use Step`. A misspelled setting is an error, never ignored. Fix the file and load it again.
 - **If the file is good,** the Program page opens and shows the Program as the MCU understood it: start and end time, duration, Linkage, every Paradigm with all its settings (including defaults you didn't write), and each DFM's Intervals with the time each is due to start. Read it: this is exactly what will run, and it is saved with the data as `Program.txt`.
-- **Then the MCU checks the Program against each DFM it found.** If a board's firmware can't run something in the Program, a Compatibility Check box lists the board, its firmware and the reason, for example `DFM 5 (firmware 4.0.0) can't run: counting contact (Counter: Contact, the ProgressiveRatio default) needs firmware 4.0.1; with 'Counter: Events' it runs on 4.0.0`. The Program won't start until the board is updated, removed, or the Program changed.
+- **Then the MCU checks the Program against each DFM it found.** If a board's firmware can't run something in the Program, a Compatibility Check box lists the board, its firmware and the reason, for example `DFM 7 (firmware 1.0.5) can't run: the NonFeeding Paradigm type needs firmware 2.0.0`. The Program won't start until the board is updated, removed, or the Program changed.
 
 A DFM that is connected but has no section in the Program (and no `ID: All` section) records with every LED off.
 
@@ -377,7 +411,7 @@ The first line of the Program description always shows the start time that will 
     - sends each DFM its Linkage;
     - creates the recording folder, `FLICData/<MCU name>_<MM_DD_YYYY_HH_MM>`, writes `Program.txt` into it and opens one data file per board;
     - turns each board's button green (Rec) and starts reading every board, not just the one on screen.
-4. **The baseline is measured** (with `Baseline: Yes` or `Adaptive`): each Well's first 10 records, 2 seconds of signal, are averaged. Each DFM's Thresholds are then set that far above its own Wells' resting levels, so a Threshold of 20 means "20 above where this Well rests". Make sure no fly is on the food at this moment. Until a DFM has its first instruction, its LEDs stay off, so every recording starts with about 5 seconds of dark, even under open loop. These records are marked Interval 0 in the data file.
+4. **The baseline is measured** (with `Baseline: Yes` or `Adaptive`): each Well's first 10 records, 2 seconds of signal, are averaged. Each DFM's Thresholds are then set that far above its own Wells' resting levels, so a Threshold of 20 means "20 above where this Well rests". Make sure no fly is on the food at this moment. The baseline matters only for the light (OptoLid): pyflic measures feeding from its own baseline. Until a DFM has its first instruction, its LEDs stay off, so every recording starts with about 5 seconds of dark, even under open loop. These records are marked Interval 0 in the data file.
    - With `Baseline: Adaptive` the MCU then follows each Well's resting level for the rest of the recording, slowly enough that a fly feeding for an hour doesn't move it. When a Well's baseline has moved 10 counts, the MCU sends the DFM its Interval again with new Thresholds, keeping every Well's Paradigm state. Messages.csv lists each update. How it works, and its two settings, are in [ProgramFormat.md](ProgramFormat.md#adaptive-baseline).
 5. **Each DFM is sent its first Interval:** the Paradigm, its settings, the Thresholds and Dark or Lit. From then on the DFM runs the light rule by itself, every millisecond. When an Interval ends, the MCU sends the next one. Each instruction is acknowledged by the DFM; if it isn't, the MCU tries again, and says so on the Messages page if it keeps failing.
 6. **Records are collected.** Every 4 seconds the MCU asks each board for the records it has made since the last time, up to 27 records (5.4 seconds) per reply, and acknowledges the ones that arrived intact. The DFM deletes records only once they are acknowledged, and sends any others again. A board that has more waiting is asked again at once.
@@ -397,7 +431,7 @@ The Program stops by itself at its end time. To end it early, press **Stop Progr
 
 - Every board's button should be green (Rec).
 - **Interval** shows the step each DFM has reached, and **Paradigm** and **Type** what it is running.
-- **Well details** shows each Well's Activations, Phase and, for ratio Paradigms, Requirement and Progress.
+- **(OptoLid)** **Well details** shows each Well's Activations, Phase and, for ratio Paradigms, Requirement and Progress.
 - During a recording the display updates every 4 seconds, when the board is read. Tick **Fast updates** to read every board every 0.3 seconds instead, for a smooth live view. It doesn't change what is recorded: every record is collected either way. It switches off when the Program ends.
 
 ### On the Messages page
@@ -457,70 +491,19 @@ Each recording is one folder, named after the MCU and the start time, for exampl
 Each DFM row has 91 columns:
 
 - **27 original columns,** the same as in PyMCU 3.x: the date and time, a sample number, the twelve Well signals `W1` to `W12`, temperature, humidity, light, supply voltage, the Dark setting and light frequency and pulse width in force, which LEDs were on at that instant, the error flags, and `Index`, the DFM's record counter, which shows any lost records as a gap.
-- **63 Paradigm columns,** filled by firmware 4.0.0 and 4.0.1 boards: `Interval`, `Cycle` and `Paradigm`, then for each Well its `Phase`, `Activations`, `Requirement`, `Progress` and `OnMs` (how many of the 200 ms its LED was lit).
+- **63 Paradigm columns,** filled by boards with firmware 4.0.1 and later: `Interval`, `Cycle` and `Paradigm`, then for each Well its `Phase`, `Activations`, `Requirement`, `Progress` and `OnMs` (how many of the 200 ms its LED was lit).
 
-A value that doesn't apply is written `NA`: Requirement and Progress outside the ratio Paradigms, and all 63 Paradigm columns for boards with older firmware. The baseline records at the start have Interval 0. The last column, `BaselineSet`, names the set of baselines each record's Thresholds were measured from; `Baselines.csv` lists the sets. Every column is described in [DataFileColumns.md](DataFileColumns.md).
+A value that doesn't apply is written `NA`: Requirement and Progress outside the ratio Paradigms, and all 63 Paradigm columns for boards with firmware 1.0.5.[^na] The baseline records at the start have Interval 0. The last column, `BaselineSet`, names the set of baselines each record's Thresholds were measured from; `Baselines.csv` lists the sets. Every column is described in [DataFileColumns.md](DataFileColumns.md).
+
+[^na]: Firmware 2.0.0 to 3.5.2 also leaves them `NA`. Firmware 4.0.0 fills them.
 
 ## 12. Step 8: Analyse the data in pyflic
 
-pyflic is the lab's analysis software. It finds feeding licks and bouts in the Well signals, checks the data and the light, compares treatments and writes tables, plots and PDF reports. It runs on Windows, Mac and Linux, with a window-based Hub and a command line.
+pyflic is the lab's analysis software, for Windows, Mac and Linux. It finds feeding licks and bouts in the Well signals, checks the recording's quality and, with an OptoLid, the light, and writes summary tables, plots and reports. It reads recordings from every version of PyMCU and the DFM firmware.
 
-### Install
+To install it and analyse your first recording, follow pyflic's Getting Started guide, `docs/GETTING_STARTED.md` in the [pyflic repository](https://github.com/PletcherLab/pyflic). After that, its built-in help (F1, or `pyflic help`) covers the rest.
 
-pyflic needs Python 3.13, which uv installs for it.
-
-1. Install uv. On Windows, in PowerShell: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`. On Mac or Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-2. Download pyflic as a ZIP from GitHub, or `git clone https://github.com/PletcherLab/pyflic.git`, into a folder such as `Documents/pyflic`.
-3. In that folder, run `uv sync` once, to install what pyflic needs.
-4. Start it with `uv run pyflic`. Update it later with `git pull` (or a new ZIP), then `uv sync`.
-
-Data from PyMCU 4.0 needs a pyflic with PyMCU 4.0 support. Older pyflic versions read only the 27 original columns.
-
-### Organise the recording
-
-pyflic works on an **Experiment directory**: a folder with a `flic_config.yaml` file and a `data` folder. Put the recording's files in `data`:
-
-- the `DFM<ID>_<n>.csv` files (pyflic joins the 12-hour files of each DFM in order);
-- `Program.txt`, `Messages.csv` and `Baselines.csv`. **pyflic reads these only from `data`.** Without `Program.txt`, it can't tell which Wells were lit by which rule, and its light results are left blank.
-
-Several experiments that belong together (different genotypes, say) form a **Project**: a folder with a `project.yaml` and one subfolder per experiment. The Hub can create both, and **File unfiled recordings** files a PyMCU recording folder that was copied in as it is. After filing, check that `Program.txt`, `Messages.csv` and `Baselines.csv` are in `data`, and move them there if not.
-
-### Describe the experiment
-
-`flic_config.yaml` tells pyflic what the chambers held. The main settings, all editable in the Hub's config editor:
-
-| Setting | Says |
-|---|---|
-| `chamber_layout` | `single_well` (12 flies per DFM) or `two_well` (6 choice chambers per DFM) |
-| `experiment_type` | `Custom`, `Hedonic`, `ProgressiveRatio`, or one the lab has defined. It sets which analyses run and what light pyflic expects. |
-| `well_names` | What the A and B Wells held, for a choice experiment |
-| `dfms` | For each DFM, the treatment in each chamber |
-| `optogenetics` | `auto` (the default) treats the recording as optogenetic when `Program.txt` is present or an LED was lit |
-
-Chambers to leave out go in `remove_chambers.csv`. `pyflic lint` checks the configuration.
-
-### Run the analysis in the Hub
-
-1. **Open Project** (or **Create project…**, or **Initialize existing directory…** for a folder of recordings). **Validate YAMLs** checks the configuration files.
-2. Double-click an experiment. Its panels appear: **QC**, **Analyze**, **Plots**, **Scripts** and **AI**.
-3. **Run QC**, then **Open QC Viewer**. Quality control checks the recording's integrity (lost records, DFM restarts and error flags, from `Messages.csv` and `Index`), shows the raw and baselined signals and the cumulative licks, flags simultaneous feeding from both Wells of a chamber, and checks every Activation against its Paradigm's rule.
-4. **Run analysis.** pyflic subtracts a running baseline from each signal, finds licks and feeding events with its own thresholds, and computes, per chamber: licks, events, their durations and the time between them, and for choice chambers the preference index, (A − B) / (A + B). It adds statistics across treatments, time courses and, for optogenetic experiments, light exposure and Activations.
-5. **Generate plots**, and at the Project level **Analyze all** and **Create report** for a PDF report of the whole Project.
-
-Results go in an `analysis` folder (for example `feeding_summary.csv`, `summary.txt` and `experiment_report.pdf`) and quality-control output in a `qc` folder, both inside the experiment directory.
-
-### How pyflic uses what the MCU and DFM recorded
-
-- **Feeding is pyflic's own measurement.** It applies its own thresholds to the baselined Well signals (by default a feeding threshold of 20). The DFM's Thresholds in `Program.txt` decided only the light; pyflic uses them to tell which Wells were triggering, `On` or `Off`.
-- **The DFM's own count of feeding bouts,** from `Progress` under ratio Paradigms with `Counter: Events`, is compared with pyflic's Events as a quality check. Under `Counter: Contact` (the default) `Progress` is ms of contact, so there is no such count to compare.
-- **Light exposure** comes from `OnMs`, which counts every millisecond an LED was lit, whatever lit it.
-- **Activations, Phase, Requirement and Progress** give the light checks, the end of Acclimation and, for progressive ratio, the breakpoint.
-- **Interval and Cycle** split the recording into Program steps (`ProgramInterval` in pyflic's output).
-- **The data generation** is reported in `summary.txt` and on the report cover: 27 columns (PyMCU 3.x), or 90 to 102 columns (PyMCU 4.0) with the Paradigm columns `NA` (DFM firmware older than 4.0.0) or filled (firmware 4.0.0 or 4.0.1).
-
-### Help
-
-Press F1 or a `?` button anywhere in pyflic, or run `pyflic help`, for its full documentation. Some tasks also have commands: `pyflic qc <dir>` opens the QC Viewer, `pyflic report <dir>` writes the report, `pyflic batch <dir>` analyses every Project in a folder, and `pyflic lint <dir>` checks the configuration.
+Copy the whole recording folder from the stick. pyflic uses `Program.txt`, `Messages.csv` and `Baselines.csv` as well as the data files.
 
 ## 13. Settings and maintenance
 
@@ -557,22 +540,24 @@ DFM firmware is updated by lab staff with MPLAB X and an MPLAB ICD 5 programmer 
 | A DFM's button is blue (Miss) | The board stopped answering | Check its power and cable. Its records are kept for about 2.6 minutes. |
 | "Program not loaded" | A mistake in the file | Fix the line named in the message ([ProgramFormat.md](ProgramFormat.md)) |
 | The Compatibility Check lists a DFM | Its firmware can't run part of the Program | Update the board, unplug it, or change the Program ([FirmwareCompatibility.md](FirmwareCompatibility.md)) |
-| LEDs don't come on | The first few seconds are always dark (baseline); the Threshold is too high; the Wells are `Off`; the OptoLid is unplugged | Wait 5 to 10 seconds, check the Program description, test with **Outputs** |
-| LEDs are on all the time | `On` Wells, OpenLoop or NonFeeding, a Threshold too low, or `Baseline: No` with high resting signals | Check the Program description and the plot |
+| (OptoLid) LEDs don't come on | The first few seconds are always dark (baseline); the Threshold is too high; the Wells are `Off`; the OptoLid is unplugged | Wait 5 to 10 seconds, check the Program description, test with **Outputs** |
+| (OptoLid) LEDs are on all the time | `On` Wells, OpenLoop or NonFeeding, a Threshold too low, or `Baseline: No` with high resting signals | Check the Program description and the plot |
 | "Well 2A: baseline moved +50 from its start … and is held there" (or −50) | With `Baseline: Adaptive`, a Well's resting signal moved further than `BaselineCapCounts`: a wet or blocked Well, a step in the sensor, or a fly on the food when the recording started | Check the Well; its Thresholds stay at the cap |
 | No Ack ticked now and then | A reply or acknowledgement was missed and resent | Normal; nothing lost |
 | Overflow ticked, or "Lost N records" | The board wasn't read for more than about 2.6 minutes | Check the bus cable and connectors |
 | "No USB with a FLICData folder found." | The stick has no `FLICData` folder | Create it at the top level of the stick |
 | Export Data or Update MCU is greyed out | No stick, a Program is running, or a copy is in progress | Plug in the stick; wait for the Program to end |
 | The time is wrong after a power-off | The clock battery is flat or missing | Set the time in Settings; replace the battery |
-| pyflic shows no Paradigm columns | An old pyflic, or the DFM's firmware is older than 4.0.0 | Update pyflic; check the DFM's firmware |
-| pyflic's light results are blank | `Program.txt` isn't in the experiment's `data` folder | Move it there and analyse again |
+| pyflic shows no Paradigm columns | The DFM has firmware 1.0.5, which doesn't record them | Nothing, unless you need them: update the board's firmware |
+| (OptoLid) pyflic's light results are blank | `Program.txt` isn't in the experiment's `data` folder | Move it there and analyse again |
 
 For support, the MCU keeps a log at `~/PyMCU/mcu.log`, which lab staff can read remotely.
 
 ## 15. Appendix: a demonstration session
 
-This order shows every feature in about half an hour, using one or more DFMs with firmware 4.0.1 (4.0.0 also runs every `OptoTest` Program) and an OptoLid, a USB stick with `FLICPrograms` (holding the `OptoTest` Programs) and an empty `FLICData` folder, and a computer with pyflic.
+This order shows every feature in about half an hour, using one or more DFMs with firmware 4.0.1 or later and an OptoLid, a USB stick with `FLICPrograms` (holding the `OptoTest` Programs) and an empty `FLICData` folder, and a computer with pyflic.
+
+Without an OptoLid, skip steps 4 and 7, and in step 5 press **Programs**, then **30 min**, instead of loading `OptoTest2`. The Status panel then shows Paradigm `Idle`.
 
 1. **Power on.** The MCU starts PyMCU full screen. Point out the toolbar, the page and the status bar (section 4).
 2. **Find DFM.** Watch the board buttons appear and the "found" messages. Open **Messages** to show them (section 5).
@@ -585,4 +570,4 @@ This order shows every feature in about half an hour, using one or more DFMs wit
 9. **Export Data.** Wait for "USB unmounted, ready to remove" (section 11).
 10. **On the computer,** open the recording folder: the data file in a spreadsheet, `Program.txt` and `Messages.csv`. Then in pyflic, put it in an experiment directory, **Run QC**, open the QC Viewer, **Run analysis** and open the report (section 12).
 
-For the other Paradigm types, repeat steps 5 to 8 with `OptoTest3` to `OptoTest7`; the comment at the top of each says what to show. To demonstrate the analysis of a full progressive-ratio experiment without flies, `scripts/simulate_recording.py` in the PyMCU repository writes a realistic two-hour recording, exactly as an MCU would, together with a record of every simulated bout and Activation to check the analysis against.
+**(OptoLid)** For the other Paradigm types, repeat steps 5 to 8 with `OptoTest3` to `OptoTest7`; the comment at the top of each says what to show. To demonstrate the analysis of a full progressive-ratio experiment without flies, `scripts/simulate_recording.py` in the PyMCU repository writes a realistic two-hour recording, exactly as an MCU would, together with a record of every simulated bout and Activation to check the analysis against.
