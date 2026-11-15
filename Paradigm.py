@@ -186,7 +186,7 @@ class Paradigm:
     def countsContact(self):
         """A ratio Paradigm whose Requirement is ms of contact rather than Events (firmware 4.0.1).
         Ratio Paradigms count Contact unless they say Counter: Events; other types have no Counter."""
-        return self.settings.get("Counter", Counter.EVENTS) == Counter.CONTACT
+        return self.IsRatioType() and self.settings.get("Counter", DEFAULT_COUNTER) == Counter.CONTACT
 
     #region Building
     @classmethod

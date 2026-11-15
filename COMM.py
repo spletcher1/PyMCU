@@ -8,11 +8,11 @@ bus. The protocol is defined by the DFM firmware (DFMV3_V2/src/UART2.c, and DFMV
     linkage requests carry a payload followed by a 4-byte big-endian checksum (see Checksum32).
   * A DFM answers 5 ms (firmware 2.0.x) or 15 ms (older firmware) after a request, plus 2-3 ms
     to turn its driver on. After its last byte it keeps driving the bus for another 2-3 ms.
-  * A status reply holds up to 60 56-byte status packets (28 127-byte packets from firmware
-    4.0.0). The DFM keeps them until it is ACKed, so packets that were never ACKed are sent again
-    with the next status request. Firmware 3.5.0 and later also take a partial ACK: [ID, 0xF9,
-    index of the last packet kept, checksum]. The DFM then sends again only the packets after
-    that one.
+  * A status reply holds up to 60 56-byte status packets (27 127-byte packets from firmware
+    4.0.0, MAX_STATUS_PACKETS_V4; docs/FirmwareCompatibility.md). The DFM keeps them until it is
+    ACKed, so packets that were never ACKed are sent again with the next status request.
+    Firmware 3.5.0 and later also take a partial ACK: [ID, 0xF9, index of the last packet kept,
+    checksum]. The DFM then sends again only the packets after that one.
   * Firmware 4.0.0 and later take the Paradigm instruction (0xF7, ParadigmInstructionPayload)
     instead of the old instruction (0xFD), and report Paradigm state in each status packet
     (StatusPacket.V4_PACKET_SIZE).

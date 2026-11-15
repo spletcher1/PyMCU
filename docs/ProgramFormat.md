@@ -419,6 +419,8 @@ Interval: Paradigm, Dark or Lit, 12 thresholds, minutes
 
 If recording lasts longer than a Linear program's Intervals, the last Interval continues. If it is shorter, the remaining Intervals don't run.
 
+A Circadian recording starts in whichever Interval covers its start time: one that starts at 13:45, with Intervals of 600 and 840 minutes, starts in the second (10:00 to midnight). `Program.txt` lists every Circadian Interval at its clock time on the start day.
+
 ### Linkage
 
 Linkage lights LEDs together. Wells with the same number form a group, and every LED in a group is lit whenever any Well in it is lit. Each Well still follows its own Paradigm: in a linked FixedRatio chamber, for example, each Well counts its own Events.

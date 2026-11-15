@@ -71,10 +71,12 @@ class DFMInstruction:
         return self.elapsedStart + self.duration
 
     def __str__(self):
-        # Same order as an Interval line in a Program file: Paradigm, then Dark or Lit.
+        # Same order as an Interval line in a Program file: Paradigm, then Dark or Lit. The
+        # thresholds are the Program's: SetBaseline changes what is sent, and a Program.txt
+        # written after a recording took Baselines must not carry them (Baselines.csv does).
         s = self.paradigm.name + ", "
         s += "Dark, " if self.theDarkState==Enums.DARKSTATE.ON else "Lit, "
-        s += ",".join(ThresholdText(i) for i in self.adjustedThresholds) + ", "
+        s += ",".join(ThresholdText(i) for i in self.optoValues) + ", "
         s += "{:g} min".format(self.duration.total_seconds()/60)
         return s
 

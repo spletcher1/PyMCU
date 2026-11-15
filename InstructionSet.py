@@ -175,11 +175,18 @@ class InstructionSet:
         return None
 
     def ToString(self,duration,startTime):
+        """The Linkage, Program Type and Interval lines of Program.txt, each Interval with when it
+        starts. Circadian Intervals run on the time of day (GetPosition), so every one is listed,
+        at its clock time on the start day: the one running at the start can begin later in the
+        day than the recording lasts. Other types list the Intervals that start before the
+        recording ends, at the Start Time plus the Intervals before them."""
         s="Linkage: " + ",".join(str(i) for i in self.linkage) + "\n"
         s+="Program Type: " + PROGRAM_TYPE_NAMES[self.instructionSetType] + "\n"
+        isCircadian = self.instructionSetType == INSTRUCTIONSETTYPE.CIRCADIAN
+        origin = datetime.datetime.combine(startTime.date(), datetime.time()) if isCircadian else startTime
         for i in self.instructions:
-            if (i.elapsedStart < duration):
-                tmp = (startTime+i.elapsedStart).strftime("%m/%d/%Y %H:%M:%S")
+            if (isCircadian or i.elapsedStart < duration):
+                tmp = (origin+i.elapsedStart).strftime("%m/%d/%Y %H:%M:%S")
                 s+="(" + tmp +") "
                 s+=str(i)+"\n"
         return s

@@ -54,6 +54,33 @@ class NewFormat(unittest.TestCase):
         self.assertTrue(ok, program.loadError)
         self.assertIn(") A, Dark, " + WELLS + ", 10 min\n", program.GetProgramDescription())
 
+    def test_description_keeps_the_program_thresholds_after_a_baseline(self):
+        # A recording's Baselines change the Thresholds sent, not the Program, so the next recording
+        # with the same Program loaded writes the Program's thresholds to its Program.txt.
+        program, ok = Load("[Paradigm A]\nType: OpenLoop\n[DFM]\nID: 1\nInterval: A, Dark, {}, 10".format(WELLS))
+        self.assertTrue(ok, program.loadError)
+        instruction = program.theInstructionSets[1].instructions[0]
+        instruction.SetBaseline([10] * 12)
+        self.assertEqual(list(instruction.adjustedThresholds[:2]), [30, Instruction.OFF])
+        self.assertIn(") A, Dark, " + WELLS + ", 10 min\n", program.GetProgramDescription())
+
+    def test_circadian_description_lists_every_interval_at_its_clock_time(self):
+        # Circadian Intervals run on the time of day. At 14:00 Interval 2 (10:00 to midnight) is
+        # running, though it starts 10 h after midnight and the recording lasts 6 h from 13:45.
+        lines = ["[Paradigm A]", "Type: OpenLoop", "[Paradigm B]", "Type: OpenLoop", "[DFM]", "ID: 1",
+                 "ProgramType: Circadian", "Interval: A, Lit, {}, 600".format(WELLS),
+                 "Interval: B, Dark, {}, 840".format(WELLS)]
+        program, ok = Load("\n".join(lines))
+        self.assertTrue(ok, program.loadError)
+        program.startTime = datetime.datetime(2026, 3, 2, 13, 45)
+        program.experimentDuration = datetime.timedelta(hours=6)
+        _, index, cycle = program.theInstructionSets[1].GetPosition(
+            datetime.datetime(2026, 3, 2, 14, 0), program.startTime)
+        self.assertEqual((index, cycle), (1, 1))
+        text = program.GetProgramDescription()
+        self.assertIn("(03/02/2026 00:00:00) A, Lit, " + WELLS + ", 600 min\n", text)
+        self.assertIn("(03/02/2026 10:00:00) B, Dark, " + WELLS + ", 840 min\n", text)
+
     def test_defaults(self):
         program, ok = Load("""
 [Paradigm A]
@@ -153,6 +180,17 @@ Interval: C, Lit, {}, 10
         self.ExpectError("[Paradigm A]\nType: FixedRatio\nActivationMs: 5\nRatio: 3", 4, "add 'Counter: Events'")
         # Exponential's Scale of 5 is Events; in ms of contact it has to be given.
         self.ExpectError(pr + "Series: Exponential", 1, "Scale is ms of contact and has no default")
+
+    def test_only_ratio_paradigms_have_a_counter(self):
+        # A ratio Paradigm counts Contact unless it says Events, however it was built; other types
+        # have no Counter and never send the Contact flag.
+        pr = Paradigm.Paradigm("X", Paradigm.ParadigmType.PROGRESSIVERATIO)
+        self.assertEqual((pr.countsContact, pr.InstructionFlags()), (True, Paradigm.INSTRUCTION_COUNT_CONTACT))
+        del pr.settings["Counter"]
+        self.assertTrue(pr.countsContact)
+        for paradigmType in (Paradigm.ParadigmType.CLOSEDLOOP, Paradigm.ParadigmType.FIXEDINTERVAL):
+            other = Paradigm.Paradigm("Y", paradigmType)
+            self.assertEqual((other.countsContact, other.InstructionFlags()), (False, 0))
 
     def ExpectError(self, text, line, fragment):
         program, ok = Load(text)
