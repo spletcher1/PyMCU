@@ -109,7 +109,7 @@ BaselineCapCounts: 50
 - A baseline stops `BaselineCapCounts` from where it started. The first time a Well reaches that limit, the Messages page says so; check the Well.
 - Each new Interval or Cycle also takes the current baselines.
 - DFMs with firmware older than 4.0.0 reset their light rules whenever they get an instruction, so they get new baselines only when a new Interval or Cycle starts. Messages.csv notes this once per DFM.
-- The data file's `BaselineSet` column says which set of baselines was behind every record's thresholds, and `Baselines.csv` in the recording folder lists each set's 12 baselines, when the MCU sent it and why (see [What the data file records](#what-the-data-file-records)).
+- The data file's `BaselineSet` column says which set of baselines was behind every record's thresholds, and `Baselines.csv` in the recording folder lists each set's 12 baselines, when the MCU made it and why (see [What the data file records](#what-the-data-file-records)).
 
 ## Paradigms
 
@@ -154,6 +154,7 @@ Each Well remembers where it is in its Paradigm: Acclimation or Main, its Requir
 
 - If the next Interval uses the **same Paradigm**, all of that carries on. This includes a Repeating Program starting a new Cycle, and Intervals that only change thresholds or `Dark`.
 - If the next Interval uses a **different Paradigm**, every Well starts that Paradigm fresh, including any Acclimation.
+- A Well set `On` or `Off` doesn't run the Paradigm, so its progress waits. When a later Interval of the same Paradigm gives it a threshold, it carries on from where it was. A Well that has had no threshold since the Paradigm started begins its Acclimation there.
 - The Activation counts in the data file run for the whole recording, whatever the Paradigm.
 
 So to change thresholds in the middle of a progressive-ratio run without starting the ratio again, keep the same Paradigm name in both Intervals.

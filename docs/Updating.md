@@ -1,8 +1,8 @@
 # Updating the MCU
 
-Last updated: 2026-10-18 (PyMCU 4.0.0)
+Last updated: 2026-11-15 (PyMCU 4.0.1)
 
-Updates come as one file named like `PyMCU_4.0.0.mcu`. Installing it takes about a minute. If anything goes wrong, the MCU keeps the version it had and your data is never touched.
+Updates come as one file named like `PyMCU_4.0.1.mcu`. Installing it takes about a minute. If anything goes wrong, the MCU keeps the version it had and your data is never touched.
 
 ## You need
 
@@ -23,13 +23,13 @@ Updates come as one file named like `PyMCU_4.0.0.mcu`. Installing it takes about
 4. **Check the version and confirm.** The prompt names the file and shows the new version next to the installed one, for example:
 
     ```
-    Install PyMCU 4.0.0 from PyMCU_4.0.0.mcu?
-    Installed now: 3.5.2. The MCU restarts when the update is done.
+    Install PyMCU 4.0.1 from PyMCU_4.0.1.mcu?
+    Installed now: 4.0.0. The MCU restarts when the update is done.
     ```
 
     Tap **Yes** to install, or **No** to leave everything as it is.
-5. **Wait.** The status bar shows "Updating to 4.0.0... do not remove USB or power." Leave the stick in and the power on.
-6. **The MCU restarts by itself.** The status bar shows "Update to 4.0.0 installed. Restarting... remove USB."
+5. **Wait.** The status bar shows "Updating to 4.0.1... do not remove USB or power." Leave the stick in and the power on.
+6. **The MCU restarts by itself.** The status bar shows "Update to 4.0.1 installed. Restarting... remove USB."
 7. **Check.** After the restart, remove the stick and tap **About**. It should show the new version.
 
 ## Messages
@@ -52,6 +52,13 @@ In every "Update failed" or "Update not started" case, nothing on the MCU change
 - **Going back** to an older version works the same way, with the older `.mcu` file.
 - **Which programs your DFMs can run** depends on their firmware. From 3.5.1 the MCU checks each program against the connected boards and names anything a board would misread; see [FirmwareCompatibility.md](FirmwareCompatibility.md).
 - **Using the MCU** from finding the DFMs to analysing the data is described in [UserGuide.md](UserGuide.md).
+- **New in 4.0.1:**
+    - **Ratio Paradigms count time in contact.** ProgressiveRatio and FixedRatio count milliseconds of contact, as progressive ratio did before firmware 4.0.0, unless they say `Counter: Events`; their `FirstRequirement`, `Step`, `Cap` and `Ratio` are then milliseconds. **Add `Counter: Events` to every ratio Paradigm in a Program written for 4.0.0** to keep counting feeding bouts: without it a setting such as `Step: 5` stops the Program loading, and one such as `Step: 10` is read as 10 ms. See [ProgramFormat.md](ProgramFormat.md), Counting contact.
+    - **DFM firmware 4.0.1** is needed to count contact. A 4.0.0 board runs ratio Paradigms only with `Counter: Events`, and the MCU says so before the Program starts.
+    - **`Baseline: Adaptive`** keeps each Well's baseline following slow drift in its resting signal for the whole recording ([ProgramFormat.md](ProgramFormat.md), Adaptive baseline).
+    - **The data files have one more column** (91 in all): `BaselineSet` names the set of baselines each record's thresholds were measured from, and a new `Baselines.csv` in the recording folder lists the sets. Analyse them with a pyflic that reads them. See [DataFileColumns.md](DataFileColumns.md).
+    - **The starting baseline is rounded:** the mean of each Well's first 10 readings to the nearest count. Before, it could come out up to 2 counts low.
+    - **`Program.txt`** lists every Interval of a Circadian program at its clock time, and always gives the Program's own thresholds; a second recording with the same Program loaded used to show the first one's baselines added.
 - **New in 4.0.0:**
     - **Paradigms.** A program names the rules that light the LEDs (open loop, closed loop, fixed interval, non-feeding, progressive ratio and fixed ratio) in `[Paradigm]` sections, and each Interval line names the one it uses. See [ProgramFormat.md](ProgramFormat.md). Progressive ratio and fixed ratio count feeding bouts, and they and fixed interval can start with a set number of closed-loop Activations (Acclimation).
     - **Old programs still load,** except those using the old progressive ratio or the training count in OptoFrequency. Those are refused with a message that explains how to rewrite them ([ProgramFormat.md](ProgramFormat.md), Converting old programs).

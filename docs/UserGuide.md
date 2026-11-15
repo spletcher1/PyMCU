@@ -117,7 +117,7 @@ These words have exact meanings, shared by Program files, the MCU, the DFM firmw
 - The dials are read only when the board powers up. After changing them, switch the DFM off and on again.
 - If a board isn't found, or is found under the wrong number, run the 7-1 dial test in `ID_DIALS.md` (DFMV3_V2 repository): set the dials to 7 and 1, restart the board, and the ID the MCU finds tells you whether one of the dials is a type that needs a different firmware build.
 
-**Firmware.** Every Paradigm type needs DFM firmware 4.0.0. Older boards still run open loop, closed loop and fixed interval, and (from firmware 2.0.0) non-feeding; the MCU refuses, before a Program starts, anything a board can't run. A DFM's firmware is shown on its page on the MCU (section 6). See [FirmwareCompatibility.md](FirmwareCompatibility.md) for the full table. Boards of different firmware can share a bus.
+**Firmware.** Every Paradigm type runs on DFM firmware 4.0.1. Firmware 4.0.0 runs them all except the ratio types counting contact, their default (it needs `Counter: Events`). Older boards still run open loop, closed loop and fixed interval, and (from firmware 2.0.0) non-feeding; the MCU refuses, before a Program starts, anything a board can't run. A DFM's firmware is shown on its page on the MCU (section 6). See [FirmwareCompatibility.md](FirmwareCompatibility.md) for the full table. Boards of different firmware can share a bus.
 
 Installing firmware is a job for lab staff: it is built and flashed with MPLAB X and an MPLAB ICD 5 programmer, as the DFMV3_V2 `README.md` describes (Building). Power the board off and on after flashing.
 
@@ -244,7 +244,7 @@ Firmware older than 3.5.0 has no Overflow flag and reports a missed acknowledgem
 
 ### Well details
 
-Tick **Well details** to replace the plot with a table of the twelve Wells, from the DFM's latest record (firmware 4.0.0 only):
+Tick **Well details** to replace the plot with a table of the twelve Wells, from the DFM's latest record (firmware 4.0.0 and later):
 
 | Column | Shows |
 |---|---|
@@ -345,7 +345,7 @@ Everything about writing Programs, with a worked example of every type, is in [P
 
 - **If anything is wrong,** nothing is loaded, and a message names the file, the line and the problem, for example `Line 14: ClosedLoop Paradigms don't use Step`. A misspelled setting is an error, never ignored. Fix the file and load it again.
 - **If the file is good,** the Program page opens and shows the Program as the MCU understood it: start and end time, duration, Linkage, every Paradigm with all its settings (including defaults you didn't write), and each DFM's Intervals with the time each is due to start. Read it: this is exactly what will run, and it is saved with the data as `Program.txt`.
-- **Then the MCU checks the Program against each DFM it found.** If a board's firmware can't run something in the Program, a Compatibility Check box lists the board, its firmware and the reason, for example `DFM 5 (firmware 3.5.0) can't run: the ProgressiveRatio Paradigm type needs firmware 4.0.0`. The Program won't start until the board is updated, removed, or the Program changed.
+- **Then the MCU checks the Program against each DFM it found.** If a board's firmware can't run something in the Program, a Compatibility Check box lists the board, its firmware and the reason, for example `DFM 5 (firmware 4.0.0) can't run: counting contact (Counter: Contact, the ProgressiveRatio default) needs firmware 4.0.1; with 'Counter: Events' it runs on 4.0.0`. The Program won't start until the board is updated, removed, or the Program changed.
 
 A DFM that is connected but has no section in the Program (and no `ID: All` section) records with every LED off.
 
@@ -450,12 +450,12 @@ Each recording is one folder, named after the MCU and the start time, for exampl
 | `EnvMon_0.csv` | The Environmental Monitor's readings, if present |
 | `Messages.csv` | Everything reported on the Messages page during the recording |
 | `Program.txt` | The Program as the MCU understood it: every Paradigm with all its settings, and each DFM's Intervals with their start times |
-| `Baselines.csv` | Each DFM's baselines (with `Baseline: Yes` or `Adaptive`): one row per set, with when and why the MCU sent it. The data files' `BaselineSet` column says which set each record used |
+| `Baselines.csv` | Each DFM's baselines (with `Baseline: Yes` or `Adaptive`): one row per set, with when and why the MCU made it. The data files' `BaselineSet` column says which set each record used |
 
-Each DFM row has 90 columns:
+Each DFM row has 91 columns:
 
 - **27 original columns,** the same as in PyMCU 3.x: the date and time, a sample number, the twelve Well signals `W1` to `W12`, temperature, humidity, light, supply voltage, the Dark setting and light frequency and pulse width in force, which LEDs were on at that instant, the error flags, and `Index`, the DFM's record counter, which shows any lost records as a gap.
-- **63 Paradigm columns,** filled by firmware 4.0.0 boards: `Interval`, `Cycle` and `Paradigm`, then for each Well its `Phase`, `Activations`, `Requirement`, `Progress` and `OnMs` (how many of the 200 ms its LED was lit).
+- **63 Paradigm columns,** filled by firmware 4.0.0 and 4.0.1 boards: `Interval`, `Cycle` and `Paradigm`, then for each Well its `Phase`, `Activations`, `Requirement`, `Progress` and `OnMs` (how many of the 200 ms its LED was lit).
 
 A value that doesn't apply is written `NA`: Requirement and Progress outside the ratio Paradigms, and all 63 Paradigm columns for boards with older firmware. The baseline records at the start have Interval 0. The last column, `BaselineSet`, names the set of baselines each record's Thresholds were measured from; `Baselines.csv` lists the sets. Every column is described in [DataFileColumns.md](DataFileColumns.md).
 
@@ -510,11 +510,11 @@ Results go in an `analysis` folder (for example `feeding_summary.csv`, `summary.
 ### How pyflic uses what the MCU and DFM recorded
 
 - **Feeding is pyflic's own measurement.** It applies its own thresholds to the baselined Well signals (by default a feeding threshold of 20). The DFM's Thresholds in `Program.txt` decided only the light; pyflic uses them to tell which Wells were triggering, `On` or `Off`.
-- **The DFM's own count of feeding bouts,** from `Progress` under the ratio Paradigms, is compared with pyflic's Events as a quality check.
+- **The DFM's own count of feeding bouts,** from `Progress` under ratio Paradigms with `Counter: Events`, is compared with pyflic's Events as a quality check. Under `Counter: Contact` (the default) `Progress` is ms of contact, so there is no such count to compare.
 - **Light exposure** comes from `OnMs`, which counts every millisecond an LED was lit, whatever lit it.
 - **Activations, Phase, Requirement and Progress** give the light checks, the end of Acclimation and, for progressive ratio, the breakpoint.
 - **Interval and Cycle** split the recording into Program steps (`ProgramInterval` in pyflic's output).
-- **The data generation** is reported in `summary.txt` and on the report cover: 27 columns (PyMCU 3.x), 90 columns with `NA` (PyMCU 4.0 with older DFM firmware) or 90 columns filled (firmware 4.0.0).
+- **The data generation** is reported in `summary.txt` and on the report cover: 27 columns (PyMCU 3.x), or 90 to 102 columns (PyMCU 4.0) with the Paradigm columns `NA` (DFM firmware older than 4.0.0) or filled (firmware 4.0.0 or 4.0.1).
 
 ### Help
 
@@ -570,7 +570,7 @@ For support, the MCU keeps a log at `~/PyMCU/mcu.log`, which lab staff can read 
 
 ## 15. Appendix: a demonstration session
 
-This order shows every feature in about half an hour, using one or more DFMs with firmware 4.0.0 and an OptoLid, a USB stick with `FLICPrograms` (holding the `OptoTest` Programs) and an empty `FLICData` folder, and a computer with pyflic.
+This order shows every feature in about half an hour, using one or more DFMs with firmware 4.0.1 (4.0.0 also runs every `OptoTest` Program) and an OptoLid, a USB stick with `FLICPrograms` (holding the `OptoTest` Programs) and an empty `FLICData` folder, and a computer with pyflic.
 
 1. **Power on.** The MCU starts PyMCU full screen. Point out the toolbar, the page and the status bar (section 4).
 2. **Find DFM.** Watch the board buttons appear and the "found" messages. Open **Messages** to show them (section 5).

@@ -1,6 +1,6 @@
-# DFM data file columns (PyMCU 4.0.0)
+# DFM data file columns (PyMCU 4.0.1)
 
-This is the reference for software that reads FLIC data files written by PyMCU 4.0.0 and later. It describes every column, with most detail on the 64 columns added in 4.0.0, 63 for the Paradigm state and 1 for the Baseline set, and the recording's `Baselines.csv`: what each holds, when it is missing and how that is written, which Programs make it meaningful, and how to use it in analysis and reports.
+This is the reference for software that reads FLIC data files written by PyMCU 4.0.0 and later. It describes every column, with most detail on the 63 columns PyMCU 4.0.0 added for the Paradigm state, the 1 PyMCU 4.0.1 added for the Baseline set, and the recording's `Baselines.csv`: what each holds, when it is missing and how that is written, which Programs make it meaningful, and how to use it in analysis and reports.
 
 The terms (Paradigm, Interval, Cycle, Event, Activation, Phase, Requirement and so on) have exact meanings, defined in [../CONTEXT.md](../CONTEXT.md). The Paradigm rules are in [ProgramFormat.md](ProgramFormat.md). The lab's analysis software, pyflic, reads these files; how it uses each column is in its `docs/firmware-4-data-in-pyflic.md`, and the end-to-end workflow is in [UserGuide.md](UserGuide.md).
 
@@ -273,7 +273,7 @@ Reports should state, per DFM: the firmware version (shown on PyMCU's DFM page; 
 | 91 columns, ending `BaselineSet`, with `NA` throughout the 63 Paradigm columns | PyMCU 4.0.1 with firmware older than 4.0.0 | Paradigm columns `NA`; `BaselineSet` filled, with `Baselines.csv`. `W` values are clean. |
 | 91 columns with values | PyMCU 4.0.1 with firmware 4.0.0 or 4.0.1 | Present, with `Baselines.csv`. |
 | 102 columns, ending `Baseline12` | Development builds of PyMCU 4.0.0, 1 to 15 November 2026 | Each row's 12 Baselines in `Baseline1`–`Baseline12` instead of `BaselineSet`; no `Baselines.csv`. |
-| 90 columns, ending `OnMs12` | Development builds of PyMCU 4.0.0 before 11/01/2026 | No `Baseline` columns. With `Baseline: Yes` the baseline was the mean of each Well's first 10 records. |
+| 90 columns, ending `OnMs12` | PyMCU 4.0.0 | No `Baseline` columns. With `Baseline: Yes` the baseline was the mean of each Well's first 10 records. |
 
 Files written by PyMCU 4.0.0 before 10/16/2026 23:30 (development builds only) wrote missing values as empty fields instead of `NA`, and baseline records with an empty `Interval` instead of 0. Treat empty and `NA` the same, and treat an empty `Interval` at the start of a recording as 0.
 

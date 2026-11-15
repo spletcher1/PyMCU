@@ -1,6 +1,6 @@
 # Packaging and distributing an MCU update
 
-Last updated: 2026-10-18 (PyMCU 4.0.0)
+Last updated: 2026-11-15 (PyMCU 4.0.1)
 
 For the developer. An update is one file, `PyMCU_<version>.mcu`, built from a commit on `v4_Dev` (4.x) or `PIDev` (3.x fixes for MCUs that stay on 3.x) and sent to users, who install it from a USB stick with **Update MCU**. The steps for the user are in [Updating.md](Updating.md); send that page, or its short version in section 4, with the file.
 
@@ -10,8 +10,8 @@ Use one number in **both** places:
 
 | File | Line | Used for |
 | --- | --- | --- |
-| `MainViewModel.py` | `APP_VERSION = "4.0.0"` | About box, update prompt, package name, `mcu.log` |
-| `pyproject.toml` | `version = "4.0.0"` | uv project metadata |
+| `MainViewModel.py` | `APP_VERSION = "4.0.1"` | About box, update prompt, package name, `mcu.log` |
+| `pyproject.toml` | `version = "4.0.1"` | uv project metadata |
 
 Bump the last number for fixes (4.0.0 → 4.0.1), the middle one for new features (4.0 → 4.1) and the first for a change in the Program or data file format (3.5 → 4.0). After editing `pyproject.toml`, run `uv lock` so `uv.lock` records the new version.
 
@@ -19,27 +19,27 @@ Bump the last number for fixes (4.0.0 → 4.0.1), the middle one for new feature
 
 ```sh
 cd ~/PyMCU
-git add -A && git commit -m "Version 4.0.0: <what changed>"
+git add -A && git commit -m "Version 4.0.1: <what changed>"
 ./CreateVersion.sh
 ```
 
 Output:
 
 ```
-Created PyMCU_4.0.0.mcu (version 4.0.0, commit 1a2b3c4).
+Created PyMCU_4.0.1.mcu (version 4.0.1, commit 1a2b3c4).
 Send it to the user: they copy it onto a USB stick and press Update in the MCU settings.
 ```
 
 - **Built from the last commit**, with `git archive`. Uncommitted edits are left out, so every package matches a commit. The script warns if there are uncommitted changes; commit and rebuild.
 - **Contents:** the app's Python files, `Mainwindow.ui`, `images/`, `RunMCU.sh`, `CreateVersion.sh`, `MCUUpdate.py`, `pyproject.toml` and `uv.lock`.
 - **Left out on purpose:** `docs/`, `tests/`, `FLICPrograms/` (the user's programs), `theme.txt` (each MCU's light/dark setting), `.vscode/` and `.gitignore`. Untracked files (`FLICData`, `.venv`, `mcu.log`) are never in a git archive.
-- **Format:** `.mcu` is a plain `.tar.gz` (`tar -tzf PyMCU_4.0.0.mcu` lists it). The extension stops browsers, notably Safari, from unpacking the download. The MCU also accepts `.tgz`.
+- **Format:** `.mcu` is a plain `.tar.gz` (`tar -tzf PyMCU_4.0.1.mcu` lists it). The extension stops browsers, notably Safari, from unpacking the download. The MCU also accepts `.tgz`.
 - **Git ignores** `PyMCU_*.mcu` files, so built packages are never committed.
 
 Tag the release so the same package can be rebuilt later. Use the `v<major>.<minor>.<fix>` form of the `v3.5.1` and `v3.5.2` tags (3.5.0 is tagged `v3_5_0`):
 
 ```sh
-git tag v4.0.0
+git tag v4.0.1
 git push origin v4_Dev --tags
 ```
 
@@ -49,7 +49,7 @@ Install the package exactly as a user would: copy it to a stick, then About → 
 
 - [ ] The prompt shows the new version and the installed one
 - [ ] The MCU restarts by itself, and About shows the new version
-- [ ] `~/PyMCU/mcu.log` has `Update: Update installed.` and a `PyMCU 4.0.0 starting` line
+- [ ] `~/PyMCU/mcu.log` has `Update: Update installed.` and a `PyMCU 4.0.1 starting` line
 - [ ] The changes work: DFMs detected, a short program runs, data saves to USB
 - [ ] Recorded data, programs and the theme are unchanged
 
@@ -66,21 +66,22 @@ Test this case on a bench MCU both online and offline (offline should report "is
 
 Send the `.mcu` file (email, shared drive or download link) with these instructions:
 
-> 1. Copy the attached file `PyMCU_4.0.0.mcu` onto a USB stick. Don't open, unzip or rename it. Put only this one update file on the stick.
+> 1. Copy the attached file `PyMCU_4.0.1.mcu` onto a USB stick. Don't open, unzip or rename it. Put only this one update file on the stick.
 > 2. Make sure no experiment is running on the MCU.
 > 3. Plug the stick into the MCU.
 > 4. Tap **About** on the toolbar, then **Settings**, then **Update MCU**.
 > 5. Check the version in the prompt and tap **Yes**. Leave the stick in and the power on until the MCU restarts (about a minute).
-> 6. After the restart, remove the stick. **About** should show 4.0.0.
+> 6. After the restart, remove the stick. **About** should show 4.0.1.
 >
 > If the MCU shows "Update failed", nothing was changed. Send us the message it shows.
 
 Notes:
 
 - **Email:** a few MB, so it attaches normally. If a mail filter strips it, use a shared link.
-- **Renaming is fine** as long as it still ends in `.mcu`. A download that comes back as `PyMCU_4.0.0 (1).mcu` also works.
+- **Renaming is fine** as long as it still ends in `.mcu`. A download that comes back as `PyMCU_4.0.1 (1).mcu` also works.
 - **Which MCUs:** only units already on 3.5.0 or later (see Limits).
 - **4.0.0 changes the data file** from 27 to 90 columns ([DataFileColumns.md](DataFileColumns.md)). Make sure the lab's pyflic reads the new format before its MCUs are updated, and say so in the message.
+- **4.0.1 changes what ratio Programs mean, and the data file.** ProgressiveRatio and FixedRatio count ms of contact unless they say `Counter: Events`, which needs DFM firmware 4.0.1; a Program written for 4.0.0 needs `Counter: Events` in each ratio Paradigm to keep counting feeding bouts ([Updating.md](Updating.md), New in 4.0.1). The data file gains `BaselineSet` (91 columns) and the recording a `Baselines.csv`. Say so in the message, and make sure the lab's pyflic reads them.
 - **Record** which units got which version. About shows each unit's version.
 
 ## 5. Roll back
