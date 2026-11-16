@@ -9,7 +9,9 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 fi
 OUT="PyMCU_$VERSION.mcu"
 # Local data, user programs and the theme setting on each MCU are left alone.
-git archive --format=tar.gz --prefix=./ -o "$OUT" HEAD -- . \
+# core.autocrlf=false: on Windows git archive would otherwise write every file with CRLF line endings,
+# and the MCU could not run RunMCU.sh ("/bin/sh^M: bad interpreter"), so the app would not start.
+git -c core.autocrlf=false archive --format=tar.gz --prefix=./ -o "$OUT" HEAD -- . \
     ':(exclude)docs' ':(exclude)tests' ':(exclude)FLICPrograms' ':(exclude)theme.txt' ':(exclude).vscode' ':(exclude).gitignore'
 echo "Created $OUT (version $VERSION, commit $(git rev-parse --short HEAD))."
 echo "Send it to the user: they copy it onto a USB stick and press Update in the MCU settings."
